@@ -1,6 +1,8 @@
 .DS_Store
 .vercel/
 .env*
+.superpowers/
+.worktrees/
 output/
 assets/avatar.png
 assets/avatar-digital-ethan*.png
