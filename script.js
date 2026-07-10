@@ -1,6 +1,120 @@
 import * as THREE from "./assets/vendor/three/three.module.min.js";
 
-const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
+const reducedMotion = window.matchMedia(reducedMotionQuery);
+
+const listenForReducedMotion = (listener) => {
+  let mediaQuery;
+  let removed = false;
+
+  const bind = () => {
+    if (removed) return;
+    mediaQuery = window.matchMedia(reducedMotionQuery);
+    mediaQuery.addEventListener("change", listener);
+    listener({ matches: mediaQuery.matches });
+  };
+
+  if (document.readyState === "complete") {
+    bind();
+  } else {
+    window.addEventListener("load", bind, { once: true });
+  }
+
+  return () => {
+    removed = true;
+    window.removeEventListener("load", bind);
+    mediaQuery?.removeEventListener("change", listener);
+  };
+};
+
+const clamp = (value, min = 0, max = 1) => Math.min(Math.max(value, min), max);
+const mix = (from, to, progress) => from + (to - from) * progress;
+const smoothstep = (start, end, value) => {
+  const x = clamp((value - start) / (end - start));
+  return x * x * (3 - 2 * x);
+};
+
+const createIntroController = (stage, sequence) => {
+  const state = { progress: 0, target: 0 };
+  let frameId = 0;
+  let destroyed = false;
+
+  const applyProgress = () => {
+    const progress = state.progress;
+    const heroProgress = smoothstep(0.16, 0.36, progress);
+
+    stage.style.setProperty("--hero-opacity", (1 - heroProgress).toFixed(3));
+    stage.style.setProperty("--hero-y", `${mix(0, -64, heroProgress).toFixed(1)}px`);
+    stage.style.setProperty("--intro-primary", smoothstep(0.42, 0.56, progress).toFixed(3));
+    stage.style.setProperty("--intro-secondary", smoothstep(0.68, 0.8, progress).toFixed(3));
+    stage.dataset.phase = progress < 0.25 ? "hero" : progress < 0.45 ? "recenter" : progress < 0.72 ? "intro" : "domain";
+  };
+
+  const measure = () => {
+    const bounds = sequence.getBoundingClientRect();
+    const range = Math.max(sequence.offsetHeight - window.innerHeight, 1);
+    state.target = clamp(-bounds.top / range);
+
+    if (reducedMotion.matches) {
+      state.progress = state.target;
+      applyProgress();
+    }
+  };
+
+  const render = () => {
+    frameId = 0;
+    if (destroyed || reducedMotion.matches) return;
+
+    state.progress += (state.target - state.progress) * 0.12;
+    applyProgress();
+    frameId = requestAnimationFrame(render);
+  };
+
+  const stop = () => {
+    if (!frameId) return;
+    cancelAnimationFrame(frameId);
+    frameId = 0;
+  };
+
+  const start = () => {
+    if (destroyed || reducedMotion.matches || frameId) return;
+    frameId = requestAnimationFrame(render);
+  };
+
+  const handleMotionChange = (event) => {
+    measure();
+
+    if (event.matches) {
+      stop();
+      state.progress = state.target;
+      applyProgress();
+      return;
+    }
+
+    start();
+  };
+
+  measure();
+  applyProgress();
+  window.addEventListener("scroll", measure, { passive: true });
+  window.addEventListener("resize", measure);
+  window.addEventListener("orientationchange", measure);
+  const removeMotionListener = listenForReducedMotion(handleMotionChange);
+  start();
+
+  return {
+    state,
+    destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      stop();
+      window.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+      removeMotionListener();
+    },
+  };
+};
 
 const header = document.querySelector("[data-header]");
 const navLinks = Array.from(document.querySelectorAll(".nav-links a"));
@@ -39,23 +153,95 @@ const observer = new IntersectionObserver(
 
 sections.forEach((section) => observer.observe(section));
 
-const tiltScene = document.querySelector("[data-tilt-scene]");
+const getHeaderOffset = () => (window.innerWidth <= 900 ? 82 : 96);
+const bodyPaddingBottom = Number.parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
+let anchorBottomSpace = 0;
 
-if (tiltScene && !reducedMotion.matches) {
-  tiltScene.addEventListener("pointermove", (event) => {
-    const bounds = tiltScene.getBoundingClientRect();
-    const x = (event.clientX - bounds.left) / bounds.width - 0.5;
-    const y = (event.clientY - bounds.top) / bounds.height - 0.5;
+const getAnchorTarget = (hash, target) => {
+  if (hash === "#top" || target.matches("[data-intro]")) return target;
+  return target.querySelector("h1, h2") || target;
+};
 
-    tiltScene.style.setProperty("--mx", (x * 7).toFixed(2));
-    tiltScene.style.setProperty("--my", (y * 7).toFixed(2));
+const makeAnchorRoom = (top) => {
+  const maximumTop = document.documentElement.scrollHeight - window.innerHeight;
+  const requiredSpace = Math.max(0, Math.ceil(top - maximumTop));
+
+  if (requiredSpace === anchorBottomSpace) return;
+
+  anchorBottomSpace = requiredSpace;
+  document.body.style.paddingBottom = `${bodyPaddingBottom + anchorBottomSpace}px`;
+};
+
+const scrollToSection = (hash, { updateHash = true, behavior } = {}) => {
+  let target;
+
+  try {
+    target = document.querySelector(hash);
+  } catch {
+    return;
+  }
+
+  if (!target) return;
+
+  const scrollTarget = getAnchorTarget(hash, target);
+  const top = Math.max(
+    0,
+    scrollTarget.getBoundingClientRect().top + window.scrollY - getHeaderOffset(),
+  );
+
+  makeAnchorRoom(top);
+  window.scrollTo({
+    top,
+    behavior: behavior || (reducedMotion.matches ? "auto" : "smooth"),
   });
 
-  tiltScene.addEventListener("pointerleave", () => {
-    tiltScene.style.setProperty("--mx", "0");
-    tiltScene.style.setProperty("--my", "0");
+  if (updateHash && window.location.hash !== hash) {
+    history.pushState(null, "", hash);
+  }
+};
+
+document.querySelectorAll("a[href^='#']").forEach((link) => {
+  link.addEventListener("click", (event) => {
+    const hash = link.getAttribute("href");
+    if (!hash || hash === "#") return;
+
+    event.preventDefault();
+    scrollToSection(hash);
+
+    if (link.matches(".skip-link")) {
+      document.querySelector("#top")?.focus({ preventScroll: true });
+    }
   });
+});
+
+window.addEventListener("popstate", () => {
+  if (window.location.hash) {
+    scrollToSection(window.location.hash, { updateHash: false });
+  }
+});
+
+window.addEventListener("hashchange", () => {
+  if (window.location.hash) {
+    scrollToSection(window.location.hash, { updateHash: false });
+  }
+});
+
+if (window.location.hash) {
+  requestAnimationFrame(() => scrollToSection(window.location.hash, { updateHash: false, behavior: "auto" }));
 }
+
+const introStage = document.querySelector("[data-intro-stage]");
+const introSequence = document.querySelector("[data-intro]");
+const originalDocumentOverflowX = document.documentElement.style.overflowX;
+
+// Chromium does not keep this sticky stage pinned while the root clips horizontally.
+if (introStage) {
+  document.documentElement.style.overflowX = "visible";
+}
+
+const introController = introStage && introSequence
+  ? createIntroController(introStage, introSequence)
+  : null;
 
 const projectCards = Array.from(document.querySelectorAll("[data-project-card]"));
 const projectPrev = document.querySelector("[data-project-prev]");
@@ -128,375 +314,284 @@ document.addEventListener("pointerdown", (event) => {
   }
 });
 
-const initThreeScene = () => {
+const initThreeScene = (stage, controller) => {
   const canvas = document.querySelector("#ethan-three");
-  const stage = document.querySelector("[data-tilt-scene]");
+  if (!canvas || !stage || !controller) return () => {};
 
-  if (!canvas || !stage) return;
-
-  const renderer = new THREE.WebGLRenderer({
-    canvas,
+  const contextOptions = {
     alpha: true,
-    premultipliedAlpha: false,
     antialias: true,
-  });
+    premultipliedAlpha: false,
+  };
+  const context = canvas.getContext("webgl2", contextOptions)
+    || canvas.getContext("webgl", contextOptions)
+    || canvas.getContext("experimental-webgl", contextOptions);
+
+  if (!context) return () => {};
+
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({
+      canvas,
+      context,
+      ...contextOptions,
+    });
+  } catch {
+    return () => {};
+  }
 
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
-  camera.position.set(0.05, 0.62, 7.85);
-
-  const root = new THREE.Group();
-  root.position.set(0.08, -0.08, 0);
-  scene.add(root);
-
   const pointer = { x: 0, y: 0 };
   const targetPointer = { x: 0, y: 0 };
-  const scroll = { value: 0 };
-
   const loader = new THREE.TextureLoader();
-  const loadTexture = (src) =>
-    new Promise((resolve, reject) => {
-      loader.load(
-        src,
-        (texture) => {
-          texture.colorSpace = THREE.SRGBColorSpace;
-          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-          resolve(texture);
-        },
-        undefined,
-        reject,
-      );
-    });
+  let frameId = 0;
+  let destroyed = false;
+  let ready = false;
+  let contextLost = false;
+  let pointerListening = false;
+  let renderScene = () => {};
 
-  const makePanelTexture = ({ title, lines = [], width = 520, height = 340, color = "#275ba8" }) => {
-    const dpr = 2;
-    const panel = document.createElement("canvas");
-    panel.width = width * dpr;
-    panel.height = height * dpr;
-    const ctx = panel.getContext("2d");
-    ctx.scale(dpr, dpr);
+  const resizeRenderer = () => {
+    const width = Math.max(canvas.clientWidth, 1);
+    const height = Math.max(canvas.clientHeight, 1);
+    const pixelRatio = renderer.getPixelRatio();
+    const needsResize = canvas.width !== Math.floor(width * pixelRatio)
+      || canvas.height !== Math.floor(height * pixelRatio);
 
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "rgba(255, 250, 240, 0.92)";
-    ctx.strokeStyle = "rgba(58, 53, 45, 0.55)";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.roundRect(10, 16, width - 20, height - 32, 12);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(231, 185, 54, 0.33)";
-    ctx.rotate(-0.02);
-    ctx.fillRect(width * 0.38, 0, 118, 26);
-    ctx.rotate(0.02);
-
-    ctx.font = "700 26px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.fillStyle = color;
-    ctx.fillText(title, 44, 72);
-
-    ctx.font = "700 26px Bradley Hand, Segoe Print, Comic Sans MS, sans-serif";
-    ctx.fillStyle = "#504b43";
-    lines.forEach((line, index) => {
-      const y = 122 + index * 44;
-      ctx.strokeStyle = "#66a56a";
-      ctx.lineWidth = 3;
-      ctx.strokeRect(45, y - 20, 20, 20);
-      ctx.beginPath();
-      ctx.moveTo(50, y - 9);
-      ctx.lineTo(56, y - 2);
-      ctx.lineTo(69, y - 24);
-      ctx.stroke();
-      ctx.fillText(line, 84, y);
-    });
-
-    const texture = new THREE.CanvasTexture(panel);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.needsUpdate = true;
-    return texture;
+    if (needsResize) {
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
   };
 
-  const makeCardTexture = ({ title, subtitle, width = 480, height = 150 }) => {
-    const dpr = 2;
-    const card = document.createElement("canvas");
-    card.width = width * dpr;
-    card.height = height * dpr;
-    const ctx = card.getContext("2d");
-    ctx.scale(dpr, dpr);
+  const handlePointerMove = (event) => {
+    const bounds = stage.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
 
-    ctx.fillStyle = "rgba(255, 250, 240, 0.94)";
-    ctx.strokeStyle = "rgba(58, 53, 45, 0.58)";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.roundRect(10, 15, width - 20, height - 30, 10);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(231, 185, 54, 0.33)";
-    ctx.fillRect(width * 0.48, 0, 90, 22);
-
-    ctx.strokeStyle = "#275ba8";
-    ctx.lineWidth = 5;
-    ctx.strokeRect(48, 54, 34, 40);
-    ctx.beginPath();
-    ctx.moveTo(57, 68);
-    ctx.lineTo(72, 68);
-    ctx.moveTo(57, 80);
-    ctx.lineTo(70, 80);
-    ctx.stroke();
-
-    ctx.fillStyle = "#275ba8";
-    ctx.font = "800 29px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.fillText(title, 112, 67);
-
-    ctx.fillStyle = "#504b43";
-    ctx.font = "700 24px Bradley Hand, Segoe Print, Comic Sans MS, sans-serif";
-    ctx.fillText(subtitle, 112, 101);
-
-    const texture = new THREE.CanvasTexture(card);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.needsUpdate = true;
-    return texture;
+    targetPointer.x = clamp(((event.clientX - bounds.left) / bounds.width - 0.5) * 2, -1, 1);
+    targetPointer.y = clamp(((event.clientY - bounds.top) / bounds.height - 0.5) * 2, -1, 1);
   };
 
-  const makePlane = ({ texture, width, height, x, y, z, ry = 0, rz = 0, opacity = 1 }) => {
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      opacity,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      alphaTest: 0.02,
-    });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
-    mesh.position.set(x, y, z);
-    mesh.rotation.set(0, ry, rz);
-    root.add(mesh);
-    return mesh;
+  const handlePointerLeave = () => {
+    targetPointer.x = 0;
+    targetPointer.y = 0;
   };
 
-  const makePaperBox = ({ x, y, z, w, h, color = 0xfffaf0, ry = 0, rz = 0 }) => {
-    const group = new THREE.Group();
-    group.position.set(x, y, z);
-    group.rotation.set(0, ry, rz);
-
-    const paper = new THREE.Mesh(
-      new THREE.BoxGeometry(w, h, 0.045),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.92 }),
-    );
-    const line = new THREE.LineSegments(
-      new THREE.EdgesGeometry(paper.geometry),
-      new THREE.LineBasicMaterial({ color: 0x3a352d, transparent: true, opacity: 0.5 }),
-    );
-    group.add(paper, line);
-    root.add(group);
-    return group;
+  const enablePointer = () => {
+    if (pointerListening) return;
+    pointerListening = true;
+    stage.addEventListener("pointermove", handlePointerMove);
+    stage.addEventListener("pointerleave", handlePointerLeave);
   };
 
-  Promise.all([loadTexture("assets/digital-ethan/digital-ethan-main-cutout.png")])
-    .then(([ethanTexture]) => {
-      stage.classList.add("three-ready");
+  const disablePointer = () => {
+    if (pointerListening) {
+      pointerListening = false;
+      stage.removeEventListener("pointermove", handlePointerMove);
+      stage.removeEventListener("pointerleave", handlePointerLeave);
+    }
 
-      const character = makePlane({
-        texture: ethanTexture,
-        width: 1.26,
-        height: 3.25,
-        x: 0.28,
-        y: -0.62,
-        z: 1.25,
-        ry: -0.1,
+    pointer.x = 0;
+    pointer.y = 0;
+    targetPointer.x = 0;
+    targetPointer.y = 0;
+  };
+
+  const stopAnimation = () => {
+    if (!frameId) return;
+    cancelAnimationFrame(frameId);
+    frameId = 0;
+  };
+
+  const animate = (time) => {
+    frameId = 0;
+    if (destroyed || contextLost || reducedMotion.matches || !ready) return;
+
+    renderScene(time);
+    frameId = requestAnimationFrame(animate);
+  };
+
+  const startAnimation = () => {
+    if (destroyed || contextLost || reducedMotion.matches || !ready || frameId) return;
+    frameId = requestAnimationFrame(animate);
+  };
+
+  const handleResize = () => {
+    if (!ready || destroyed || contextLost) return;
+    resizeRenderer();
+    if (reducedMotion.matches) renderScene(0, true);
+  };
+
+  const handleMotionChange = (event) => {
+    if (destroyed) return;
+
+    stopAnimation();
+    disablePointer();
+
+    if (event.matches) {
+      stage.classList.remove("three-ready");
+      if (ready && !contextLost) {
+        resizeRenderer();
+        renderScene(0, true);
+      }
+      return;
+    }
+
+    if (!ready || contextLost) return;
+    stage.classList.add("three-ready");
+    enablePointer();
+    startAnimation();
+  };
+
+  const handleContextLost = (event) => {
+    event.preventDefault();
+    contextLost = true;
+    stopAnimation();
+    disablePointer();
+    stage.classList.remove("three-ready");
+  };
+
+  const disposeScene = () => {
+    scene.traverse((object) => {
+      object.geometry?.dispose();
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.filter(Boolean).forEach((material) => {
+        material.map?.dispose();
+        material.dispose();
       });
+    });
+    renderer.dispose();
+  };
+
+  const cleanup = () => {
+    if (destroyed) return;
+    destroyed = true;
+    stopAnimation();
+    disablePointer();
+    stage.classList.remove("three-ready");
+    window.removeEventListener("resize", handleResize);
+    window.removeEventListener("orientationchange", handleResize);
+    removeMotionListener();
+    canvas.removeEventListener("webglcontextlost", handleContextLost);
+    disposeScene();
+  };
+
+  const removeMotionListener = listenForReducedMotion(handleMotionChange);
+  canvas.addEventListener("webglcontextlost", handleContextLost);
+
+  loader.load(
+    "assets/digital-ethan/digital-ethan-main-cutout.png",
+    (ethanTexture) => {
+      if (destroyed) {
+        ethanTexture.dispose();
+        return;
+      }
+
+      ethanTexture.colorSpace = THREE.SRGBColorSpace;
+      ethanTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+      const character = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.26, 3.25),
+        new THREE.MeshBasicMaterial({
+          map: ethanTexture,
+          transparent: true,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          alphaTest: 0.02,
+        }),
+      );
+      character.position.set(0, -0.62, 1.25);
+      character.rotation.y = -0.1;
+      scene.add(character);
 
       const shadow = new THREE.Mesh(
         new THREE.CircleGeometry(0.82, 42),
-        new THREE.MeshBasicMaterial({ color: 0x40311f, transparent: true, opacity: 0.12, depthWrite: false }),
+        new THREE.MeshBasicMaterial({
+          color: 0x40311f,
+          transparent: true,
+          opacity: 0.12,
+          depthWrite: false,
+        }),
       );
-      shadow.position.set(0.2, -2.64, 1.05);
+      shadow.position.set(0, -2.64, 1.05);
       shadow.rotation.x = -Math.PI / 2;
-      root.add(shadow);
-
-      const focusTexture = makePanelTexture({
-        title: "// current focus",
-        lines: ["Asset Workbench", "Bond AI Agent", "PM Agent Skills", "Digital Me System"],
-      });
-      const toolsTexture = makePanelTexture({
-        title: "// tools",
-        lines: ["Product Strategy", "Python / SQL", "LLM Agents", "Bonds / Risk", "UX Workflows"],
-        width: 430,
-        height: 330,
-      });
-      const terminalTexture = makePanelTexture({
-        title: ">",
-        lines: ["turn judgment into systems", "ship agent-assisted tools"],
-        width: 460,
-        height: 230,
-        color: "#504b43",
-      });
-
-      const panels = [
-        makePlane({ texture: focusTexture, width: 2.35, height: 1.55, x: -1.45, y: 1.22, z: -0.08, ry: 0.18, rz: -0.03 }),
-        makePlane({ texture: toolsTexture, width: 1.72, height: 1.35, x: 1.55, y: 1.52, z: -0.18, ry: -0.22, rz: 0.04 }),
-        makePlane({ texture: terminalTexture, width: 2.15, height: 1.05, x: -1.25, y: -1.35, z: 0.18, ry: 0.14, rz: 0.07 }),
-      ];
-
-      const boxes = [
-        makePlane({
-          texture: makeCardTexture({ title: "digital-me", subtitle: "Personal IP system" }),
-          width: 1.9,
-          height: 0.6,
-          x: 1.52,
-          y: 0.3,
-          z: 0.55,
-          ry: -0.26,
-          rz: 0.02,
-        }),
-        makePlane({
-          texture: makeCardTexture({ title: "pm-skills", subtitle: "PM playbook" }),
-          width: 1.9,
-          height: 0.6,
-          x: 1.52,
-          y: -0.48,
-          z: 0.62,
-          ry: -0.28,
-          rz: -0.02,
-        }),
-        makePlane({
-          texture: makeCardTexture({ title: "Novelty Studio", subtitle: "Multi-agent fiction" }),
-          width: 1.9,
-          height: 0.6,
-          x: 1.52,
-          y: -1.2,
-          z: 0.68,
-          ry: -0.3,
-          rz: 0.03,
-        }),
-      ];
-
-      const applySceneLayout = () => {
-        const isCompact = window.innerWidth <= 640;
-        const isNarrow = window.innerWidth <= 980;
-        const isMedium = window.innerWidth <= 1180;
-
-        root.scale.setScalar(isCompact ? 0.82 : isNarrow ? 0.9 : isMedium ? 0.84 : 1);
-        root.position.x = isNarrow ? -0.04 : isMedium ? 0 : 0.08;
-
-        character.position.x = isNarrow ? 0.03 : isMedium ? 0.16 : 0.28;
-        shadow.position.x = isNarrow ? -0.02 : isMedium ? 0.1 : 0.2;
-
-        panels[0].position.set(isCompact ? -0.86 : isNarrow ? -1 : isMedium ? -0.95 : -1.45, isNarrow ? 1.36 : isMedium ? 1.45 : 1.22, -0.08);
-        panels[1].position.set(isCompact ? 1.08 : isNarrow ? 1.62 : isMedium ? 1.28 : 1.55, isNarrow ? 1.48 : isMedium ? 1.5 : 1.52, -0.18);
-        panels[2].position.set(isCompact ? -0.92 : isNarrow ? -1.05 : isMedium ? -0.9 : -1.25, isCompact ? -1.34 : isNarrow ? -1.5 : isMedium ? -1.38 : -1.35, 0.18);
-        panels[0].scale.setScalar(isCompact ? 0.92 : isMedium && !isNarrow ? 0.86 : 1);
-        panels[1].scale.setScalar(isCompact ? 0.82 : isNarrow ? 0.92 : isMedium ? 0.9 : 1);
-        panels[2].scale.setScalar(isCompact ? 0.86 : isNarrow ? 0.92 : isMedium ? 0.84 : 1);
-
-        boxes.forEach((box, index) => {
-          box.position.x = isCompact ? 1.18 : isNarrow ? 1.78 : isMedium ? 1.27 : 1.52;
-          box.position.y = [0.3, -0.48, -1.2][index];
-          box.scale.setScalar(isCompact ? 0.84 : isNarrow ? 0.9 : isMedium ? 0.9 : 1);
-        });
-
-        panels.forEach((panel) => {
-          panel.userData.baseY = panel.position.y;
-          panel.userData.baseRotationZ = panel.rotation.z;
-        });
-      };
-
-      applySceneLayout();
+      scene.add(shadow);
 
       const grid = new THREE.GridHelper(6.4, 11, 0x8b8172, 0xd7cbb6);
       grid.position.set(0.12, -2.78, -0.25);
       grid.rotation.x = 0.05;
       grid.material.transparent = true;
       grid.material.opacity = 0.25;
-      root.add(grid);
+      scene.add(grid);
 
-      const resizeRendererToDisplaySize = () => {
-        const width = canvas.clientWidth;
-        const height = canvas.clientHeight;
-        const needResize = canvas.width !== Math.floor(width * renderer.getPixelRatio()) ||
-          canvas.height !== Math.floor(height * renderer.getPixelRatio());
-
-        if (needResize) {
-          renderer.setSize(width, height, false);
-          camera.aspect = width / height;
-          camera.updateProjectionMatrix();
-          applySceneLayout();
-        }
-      };
-
-      const updateScroll = () => {
-        const bounds = stage.getBoundingClientRect();
-        const progress = 1 - Math.min(Math.max(bounds.top / window.innerHeight, -1), 1);
-        scroll.value = progress;
-      };
-
-      if (!reducedMotion.matches) {
-        updateScroll();
-        window.addEventListener("scroll", updateScroll, { passive: true });
-      }
-
-      const animate = (time) => {
+      renderScene = (time = 0, staticRender = false) => {
         const t = time * 0.001;
-        pointer.x += (targetPointer.x - pointer.x) * 0.08;
-        pointer.y += (targetPointer.y - pointer.y) * 0.08;
+        const progress = staticRender ? 0 : controller.state.progress;
+        const centerProgress = smoothstep(0.2, 0.46, progress);
+        const heroX = window.innerWidth <= 640 ? 0.72 : window.innerWidth <= 980 ? 0.82 : 1.48;
+        const heroScale = window.innerWidth <= 640 ? 0.78 : window.innerWidth <= 980 ? 0.88 : 0.92;
+        const characterX = mix(heroX, 0, centerProgress);
+        const characterScale = mix(heroScale, 1.08, centerProgress);
+        const idle = staticRender ? 0 : Math.sin(t * 0.9);
 
-        resizeRendererToDisplaySize();
+        if (!staticRender) {
+          pointer.x += (targetPointer.x - pointer.x) * 0.08;
+          pointer.y += (targetPointer.y - pointer.y) * 0.08;
+        }
 
-        root.rotation.y = pointer.x * 0.16 + Math.sin(t * 0.4) * 0.015;
-        root.rotation.x = -pointer.y * 0.08;
-        root.position.y = -0.06 + Math.sin(t * 0.8) * 0.018 - scroll.value * 0.05;
+        character.position.x = characterX + pointer.x * -0.08;
+        character.position.y = -0.62 + idle * 0.018;
+        character.rotation.y = -0.1 + pointer.x * -0.06 + (staticRender ? 0 : Math.sin(t * 0.72) * 0.008);
+        character.scale.setScalar(characterScale);
 
-        character.rotation.y = -0.1 + pointer.x * -0.18 + Math.sin(t * 0.72) * 0.018;
-        character.position.y = -0.62 + Math.sin(t * 0.9) * 0.018;
-        shadow.scale.setScalar(1 + Math.sin(t * 0.9) * 0.03);
+        shadow.position.x = characterX;
+        shadow.scale.setScalar(characterScale * (1 + idle * 0.03));
 
-        panels.forEach((panel, index) => {
-          panel.position.y = panel.userData.baseY + Math.sin(t * 0.75 + index) * 0.016;
-          panel.rotation.z = panel.userData.baseRotationZ + Math.sin(t * 0.45 + index) * 0.008;
-        });
-
-        boxes.forEach((box, index) => {
-          box.rotation.y = -0.28 + pointer.x * -0.05 + index * -0.02;
-        });
-
-        camera.position.x = pointer.x * 0.28;
-        camera.position.y = 0.7 + pointer.y * 0.13;
-        camera.lookAt(0.18, -0.18, 0.2);
+        camera.position.x = pointer.x * 0.18;
+        camera.position.y = mix(0.72, 0.58, centerProgress) + pointer.y * 0.1;
+        camera.position.z = mix(7.9, 7.25, centerProgress);
+        camera.lookAt(0, -0.18, 0.2);
 
         renderer.render(scene, camera);
-        requestAnimationFrame(animate);
       };
+
+      ready = true;
+      resizeRenderer();
+
+      window.addEventListener("resize", handleResize);
+      window.addEventListener("orientationchange", handleResize);
+
+      if (contextLost) return;
 
       if (reducedMotion.matches) {
-        resizeRendererToDisplaySize();
-        renderer.render(scene, camera);
-        window.addEventListener("resize", () => {
-          resizeRendererToDisplaySize();
-          renderer.render(scene, camera);
-        });
-      } else {
-        requestAnimationFrame(animate);
+        stage.classList.remove("three-ready");
+        renderScene(0, true);
+        return;
       }
-    })
-    .catch((error) => {
-      console.warn("Three.js scene could not load; falling back to static Digital Ethan image.", error);
-    });
 
-  if (!reducedMotion.matches) {
-    stage.addEventListener("pointermove", (event) => {
-      const bounds = stage.getBoundingClientRect();
-      targetPointer.x = ((event.clientX - bounds.left) / bounds.width - 0.5) * 2;
-      targetPointer.y = ((event.clientY - bounds.top) / bounds.height - 0.5) * 2;
-    });
+      stage.classList.add("three-ready");
+      enablePointer();
+      startAnimation();
+    },
+    undefined,
+    () => {
+      if (!destroyed) cleanup();
+    },
+  );
 
-    stage.addEventListener("pointerleave", () => {
-      targetPointer.x = 0;
-      targetPointer.y = 0;
-    });
-  }
+  return cleanup;
 };
 
-initThreeScene();
+const destroyThreeScene = initThreeScene(introStage, introController);
+
+window.addEventListener("pagehide", () => {
+  introController?.destroy();
+  destroyThreeScene();
+  document.documentElement.style.overflowX = originalDocumentOverflowX;
+}, { once: true });
