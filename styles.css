@@ -30,6 +30,7 @@ html {
 body {
   margin: 0;
   min-width: 320px;
+  overflow-x: hidden;
   color: var(--ink);
   background:
     radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.62), transparent 28%),
@@ -65,11 +66,34 @@ a {
 button,
 a {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 svg,
-img {
+img,
+canvas {
   display: block;
+}
+
+.skip-link {
+  position: fixed;
+  top: 10px;
+  left: 16px;
+  z-index: 100;
+  padding: 10px 14px;
+  border: 2px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper-card);
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  font-weight: 800;
+  transform: translateY(-160%);
+  transition: transform 140ms ease;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
 }
 
 .site-header {
@@ -237,6 +261,10 @@ img {
   opacity: 0.25;
 }
 
+.sound-toggle[aria-pressed="true"] {
+  color: var(--blue);
+}
+
 .say-hi {
   display: inline-flex;
   align-items: center;
@@ -277,7 +305,7 @@ img {
 .hero {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(360px, 0.82fr) minmax(560px, 1.18fr);
+  grid-template-columns: minmax(320px, 0.78fr) minmax(500px, 1.22fr);
   gap: 24px;
   min-height: 100svh;
   padding-top: 92px;
@@ -300,6 +328,7 @@ img {
   line-height: 0.86;
   font-weight: 950;
   letter-spacing: 0;
+  text-wrap: balance;
 }
 
 .hero h1 span {
@@ -309,7 +338,8 @@ img {
 
 .hero-banner {
   position: absolute;
-  right: -34px;
+  left: -18px;
+  right: auto;
   bottom: -34px;
   z-index: 4;
   margin: 0;
@@ -440,8 +470,8 @@ img {
   --mx: 0;
   --my: 0;
   position: relative;
-  height: calc(100svh - 110px);
-  min-height: 560px;
+  height: calc(100svh - 150px);
+  min-height: 580px;
   align-self: center;
   perspective: 1200px;
   transform-style: preserve-3d;
@@ -967,6 +997,7 @@ img {
   font-size: clamp(2.25rem, 4vw, 3.6rem);
   line-height: 1;
   font-weight: 900;
+  text-wrap: balance;
 }
 
 .section-heading h2::after,
@@ -1088,6 +1119,7 @@ img {
   font-size: 1.22rem;
   line-height: 1.35;
   font-weight: 900;
+  text-wrap: pretty;
 }
 
 .experience-card p {
@@ -1260,6 +1292,7 @@ img {
   font-size: 1.42rem;
   line-height: 1.2;
   font-weight: 900;
+  text-wrap: balance;
 }
 
 .project-card p,
@@ -1731,7 +1764,7 @@ img {
   }
 }
 
-@media (max-width: 1220px) {
+@media (max-width: 980px) {
   .site-header {
     padding-right: 30px;
     padding-left: 30px;
@@ -1967,6 +2000,7 @@ img {
 
   .hero-banner {
     position: relative;
+    left: auto;
     right: auto;
     bottom: auto;
     display: inline-flex;

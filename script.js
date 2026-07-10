@@ -1,4 +1,6 @@
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.178.0/build/three.module.js";
+import * as THREE from "./assets/vendor/three/three.module.min.js";
+
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 const header = document.querySelector("[data-header]");
 const navLinks = Array.from(document.querySelectorAll(".nav-links a"));
@@ -39,7 +41,7 @@ sections.forEach((section) => observer.observe(section));
 
 const tiltScene = document.querySelector("[data-tilt-scene]");
 
-if (tiltScene && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+if (tiltScene && !reducedMotion.matches) {
   tiltScene.addEventListener("pointermove", (event) => {
     const bounds = tiltScene.getBoundingClientRect();
     const x = (event.clientX - bounds.left) / bounds.width - 0.5;
@@ -79,10 +81,51 @@ projectCards.forEach((card, index) => {
 });
 
 const soundToggle = document.querySelector(".sound-toggle");
+let audioContext;
+
+const playUiTone = (frequency = 420, duration = 0.045, volume = 0.018) => {
+  if (soundToggle?.getAttribute("aria-pressed") !== "true") return;
+
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+
+  audioContext ??= new AudioContext();
+  if (audioContext.state === "suspended") {
+    audioContext.resume();
+  }
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  const now = audioContext.currentTime;
+
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(frequency, now);
+  gain.gain.setValueAtTime(volume, now);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+  oscillator.start(now);
+  oscillator.stop(now + duration);
+};
 
 soundToggle?.addEventListener("click", () => {
   const enabled = soundToggle.getAttribute("aria-pressed") === "true";
+
+  if (enabled) {
+    playUiTone(280, 0.055, 0.018);
+  }
+
   soundToggle.setAttribute("aria-pressed", String(!enabled));
+  soundToggle.setAttribute("aria-label", enabled ? "Enable sounds" : "Disable sounds");
+
+  if (!enabled) {
+    playUiTone(520, 0.07, 0.024);
+  }
+});
+
+document.addEventListener("pointerdown", (event) => {
+  if (event.target.closest("a, button") && !event.target.closest(".sound-toggle")) {
+    playUiTone(360, 0.035, 0.012);
+  }
 });
 
 const initThreeScene = () => {
@@ -96,7 +139,6 @@ const initThreeScene = () => {
     alpha: true,
     premultipliedAlpha: false,
     antialias: true,
-    preserveDrawingBuffer: true,
   });
 
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -261,8 +303,8 @@ const initThreeScene = () => {
         texture: ethanTexture,
         width: 1.26,
         height: 3.25,
-        x: 0.46,
-        y: -0.72,
+        x: 0.28,
+        y: -0.62,
         z: 1.25,
         ry: -0.1,
       });
@@ -271,7 +313,7 @@ const initThreeScene = () => {
         new THREE.CircleGeometry(0.82, 42),
         new THREE.MeshBasicMaterial({ color: 0x40311f, transparent: true, opacity: 0.12, depthWrite: false }),
       );
-      shadow.position.set(0.36, -2.78, 1.05);
+      shadow.position.set(0.2, -2.64, 1.05);
       shadow.rotation.x = -Math.PI / 2;
       root.add(shadow);
 
@@ -294,9 +336,9 @@ const initThreeScene = () => {
       });
 
       const panels = [
-        makePlane({ texture: focusTexture, width: 2.35, height: 1.55, x: -1.48, y: 1.18, z: -0.08, ry: 0.18, rz: -0.03 }),
-        makePlane({ texture: toolsTexture, width: 1.72, height: 1.35, x: 1.62, y: 1.02, z: -0.18, ry: -0.22, rz: 0.04 }),
-        makePlane({ texture: terminalTexture, width: 2.15, height: 1.05, x: -1.2, y: -1.28, z: 0.18, ry: 0.14, rz: 0.07 }),
+        makePlane({ texture: focusTexture, width: 2.35, height: 1.55, x: -1.45, y: 1.22, z: -0.08, ry: 0.18, rz: -0.03 }),
+        makePlane({ texture: toolsTexture, width: 1.72, height: 1.35, x: 1.55, y: 1.52, z: -0.18, ry: -0.22, rz: 0.04 }),
+        makePlane({ texture: terminalTexture, width: 2.15, height: 1.05, x: -1.25, y: -1.35, z: 0.18, ry: 0.14, rz: 0.07 }),
       ];
 
       const boxes = [
@@ -305,7 +347,7 @@ const initThreeScene = () => {
           width: 1.9,
           height: 0.6,
           x: 1.52,
-          y: 0.12,
+          y: 0.3,
           z: 0.55,
           ry: -0.26,
           rz: 0.02,
@@ -315,7 +357,7 @@ const initThreeScene = () => {
           width: 1.9,
           height: 0.6,
           x: 1.52,
-          y: -0.6,
+          y: -0.48,
           z: 0.62,
           ry: -0.28,
           rz: -0.02,
@@ -325,7 +367,7 @@ const initThreeScene = () => {
           width: 1.9,
           height: 0.6,
           x: 1.52,
-          y: -1.28,
+          y: -1.2,
           z: 0.68,
           ry: -0.3,
           rz: 0.03,
@@ -335,31 +377,37 @@ const initThreeScene = () => {
       const applySceneLayout = () => {
         const isCompact = window.innerWidth <= 640;
         const isNarrow = window.innerWidth <= 980;
+        const isMedium = window.innerWidth <= 1180;
 
-        root.scale.setScalar(isCompact ? 0.82 : isNarrow ? 0.9 : 1);
-        root.position.x = isNarrow ? -0.04 : 0.08;
+        root.scale.setScalar(isCompact ? 0.82 : isNarrow ? 0.9 : isMedium ? 0.84 : 1);
+        root.position.x = isNarrow ? -0.04 : isMedium ? 0 : 0.08;
 
-        character.position.x = isNarrow ? 0.03 : 0.46;
-        shadow.position.x = isNarrow ? -0.02 : 0.36;
+        character.position.x = isNarrow ? 0.03 : isMedium ? 0.16 : 0.28;
+        shadow.position.x = isNarrow ? -0.02 : isMedium ? 0.1 : 0.2;
 
-        panels[0].position.set(isCompact ? -0.86 : isNarrow ? -1.35 : -1.48, isNarrow ? 1.36 : 1.18, -0.08);
-        panels[1].position.set(isCompact ? 1.08 : isNarrow ? 1.62 : 1.62, isNarrow ? 1.48 : 1.02, -0.18);
-        panels[2].position.set(isCompact ? -0.92 : isNarrow ? -1.42 : -1.2, isCompact ? -1.34 : isNarrow ? -1.5 : -1.28, 0.18);
-        panels[0].scale.setScalar(isCompact ? 0.92 : 1);
-        panels[1].scale.setScalar(isCompact ? 0.82 : isNarrow ? 0.92 : 1);
-        panels[2].scale.setScalar(isCompact ? 0.86 : isNarrow ? 0.92 : 1);
+        panels[0].position.set(isCompact ? -0.86 : isNarrow ? -1 : isMedium ? -0.95 : -1.45, isNarrow ? 1.36 : isMedium ? 1.45 : 1.22, -0.08);
+        panels[1].position.set(isCompact ? 1.08 : isNarrow ? 1.62 : isMedium ? 1.28 : 1.55, isNarrow ? 1.48 : isMedium ? 1.5 : 1.52, -0.18);
+        panels[2].position.set(isCompact ? -0.92 : isNarrow ? -1.05 : isMedium ? -0.9 : -1.25, isCompact ? -1.34 : isNarrow ? -1.5 : isMedium ? -1.38 : -1.35, 0.18);
+        panels[0].scale.setScalar(isCompact ? 0.92 : isMedium && !isNarrow ? 0.86 : 1);
+        panels[1].scale.setScalar(isCompact ? 0.82 : isNarrow ? 0.92 : isMedium ? 0.9 : 1);
+        panels[2].scale.setScalar(isCompact ? 0.86 : isNarrow ? 0.92 : isMedium ? 0.84 : 1);
 
         boxes.forEach((box, index) => {
-          box.position.x = isCompact ? 1.18 : isNarrow ? 1.78 : 1.52;
-          box.position.y = [0.18, -0.54, -1.18][index];
-          box.scale.setScalar(isCompact ? 0.84 : isNarrow ? 0.9 : 1);
+          box.position.x = isCompact ? 1.18 : isNarrow ? 1.78 : isMedium ? 1.27 : 1.52;
+          box.position.y = [0.3, -0.48, -1.2][index];
+          box.scale.setScalar(isCompact ? 0.84 : isNarrow ? 0.9 : isMedium ? 0.9 : 1);
+        });
+
+        panels.forEach((panel) => {
+          panel.userData.baseY = panel.position.y;
+          panel.userData.baseRotationZ = panel.rotation.z;
         });
       };
 
       applySceneLayout();
 
       const grid = new THREE.GridHelper(6.4, 11, 0x8b8172, 0xd7cbb6);
-      grid.position.set(0.22, -2.92, -0.25);
+      grid.position.set(0.12, -2.78, -0.25);
       grid.rotation.x = 0.05;
       grid.material.transparent = true;
       grid.material.opacity = 0.25;
@@ -385,8 +433,10 @@ const initThreeScene = () => {
         scroll.value = progress;
       };
 
-      updateScroll();
-      window.addEventListener("scroll", updateScroll, { passive: true });
+      if (!reducedMotion.matches) {
+        updateScroll();
+        window.addEventListener("scroll", updateScroll, { passive: true });
+      }
 
       const animate = (time) => {
         const t = time * 0.001;
@@ -400,12 +450,12 @@ const initThreeScene = () => {
         root.position.y = -0.06 + Math.sin(t * 0.8) * 0.018 - scroll.value * 0.05;
 
         character.rotation.y = -0.1 + pointer.x * -0.18 + Math.sin(t * 0.72) * 0.018;
-        character.position.y = -0.72 + Math.sin(t * 0.9) * 0.018;
+        character.position.y = -0.62 + Math.sin(t * 0.9) * 0.018;
         shadow.scale.setScalar(1 + Math.sin(t * 0.9) * 0.03);
 
         panels.forEach((panel, index) => {
-          panel.position.y += Math.sin(t * 0.75 + index) * 0.0008;
-          panel.rotation.z += Math.sin(t * 0.45 + index) * 0.00008;
+          panel.position.y = panel.userData.baseY + Math.sin(t * 0.75 + index) * 0.016;
+          panel.rotation.z = panel.userData.baseRotationZ + Math.sin(t * 0.45 + index) * 0.008;
         });
 
         boxes.forEach((box, index) => {
@@ -420,22 +470,33 @@ const initThreeScene = () => {
         requestAnimationFrame(animate);
       };
 
-      requestAnimationFrame(animate);
+      if (reducedMotion.matches) {
+        resizeRendererToDisplaySize();
+        renderer.render(scene, camera);
+        window.addEventListener("resize", () => {
+          resizeRendererToDisplaySize();
+          renderer.render(scene, camera);
+        });
+      } else {
+        requestAnimationFrame(animate);
+      }
     })
     .catch((error) => {
       console.warn("Three.js scene could not load; falling back to static Digital Ethan image.", error);
     });
 
-  stage.addEventListener("pointermove", (event) => {
-    const bounds = stage.getBoundingClientRect();
-    targetPointer.x = ((event.clientX - bounds.left) / bounds.width - 0.5) * 2;
-    targetPointer.y = ((event.clientY - bounds.top) / bounds.height - 0.5) * 2;
-  });
+  if (!reducedMotion.matches) {
+    stage.addEventListener("pointermove", (event) => {
+      const bounds = stage.getBoundingClientRect();
+      targetPointer.x = ((event.clientX - bounds.left) / bounds.width - 0.5) * 2;
+      targetPointer.y = ((event.clientY - bounds.top) / bounds.height - 0.5) * 2;
+    });
 
-  stage.addEventListener("pointerleave", () => {
-    targetPointer.x = 0;
-    targetPointer.y = 0;
-  });
+    stage.addEventListener("pointerleave", () => {
+      targetPointer.x = 0;
+      targetPointer.y = 0;
+    });
+  }
 };
 
 initThreeScene();

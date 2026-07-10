@@ -3,17 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f0df" />
     <meta
       name="description"
-      content="EthanSMC 的手绘风个人网站，展示 PM skills、AI workflows、Digital Me、个人 IP 系统和实用 agent 项目。"
+      content="申名翀 Ethan 的手绘交互式个人网站：金融科技产品、AI Agent 工作流与可复用的个人项目。"
     />
     <title>申名翀 Ethan | Personal Site</title>
     <link rel="icon" href="assets/favicon.svg" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#top">Skip to content</a>
+
     <header class="site-header" data-header>
-      <a class="brand" href="#top" aria-label="EthanSMC home">
+      <a class="brand" href="#top" aria-label="申名翀 Ethan home">
         <span class="brand-mark" aria-hidden="true">E</span>
         <span>EthanSMC</span>
       </a>
@@ -31,7 +34,7 @@
             <path class="sound-wave" d="M16 9.5c1.1 1.4 1.1 3.6 0 5M18.5 7c2.4 2.8 2.4 7.2 0 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
           </svg>
         </button>
-        <a class="say-hi" href="https://github.com/EthanSMC" aria-label="Open EthanSMC on GitHub">
+        <a class="say-hi" href="mailto:qq986399523@gmail.com" aria-label="Email Ethan">
           Say hi
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 12h13m-5-6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" />
@@ -40,7 +43,7 @@
       </div>
     </header>
 
-    <main id="top">
+    <main id="top" tabindex="-1">
       <section class="hero section-anchor" id="work">
         <div class="hero-copy">
           <h1>申名翀<br /><span>Ethan</span></h1>
@@ -81,21 +84,21 @@
           </article>
 
           <div class="repo-stack layer-front">
-            <a href="https://github.com/EthanSMC/digital-me">
+            <a href="https://github.com/EthanSMC/jinshi-finpm" target="_blank" rel="noreferrer">
               <svg class="mini-mark" viewBox="0 0 44 44" aria-hidden="true">
                 <path d="M13 12h18v20H13Z" fill="none" stroke="currentColor" stroke-width="2.3" />
                 <path d="M18 19h8M18 25h6M29 12l4 4" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" />
               </svg>
               <span><strong>asset workbench</strong>Research · Trade · Risk</span>
             </a>
-            <a href="https://github.com/EthanSMC/pm-skills">
+            <a href="https://github.com/EthanSMC/pm-skills" target="_blank" rel="noreferrer">
               <svg viewBox="0 0 40 40" aria-hidden="true">
                 <path d="M9 8h18l4 5v19H9Z" fill="none" stroke="currentColor" stroke-width="2" />
                 <path d="M15 18h11M15 23h11M15 28h8" stroke="currentColor" stroke-width="2" />
               </svg>
               <span><strong>bond agent</strong>Natural language screening</span>
             </a>
-            <a href="https://github.com/EthanSMC/learn-back">
+            <a href="https://github.com/EthanSMC/digital-me" target="_blank" rel="noreferrer">
               <svg viewBox="0 0 40 40" aria-hidden="true">
                 <path d="M13 11h17v18H10V14a3 3 0 0 1 3-3Z" fill="none" stroke="currentColor" stroke-width="2" />
                 <path d="M14 16h11M14 21h8" stroke="currentColor" stroke-width="2" />
@@ -117,6 +120,9 @@
             class="digital-ethan hero-character layer-character"
             src="assets/digital-ethan/digital-ethan-main-cutout.png"
             alt="Hand-drawn Digital Ethan standing with a MacBook"
+            width="364"
+            height="941"
+            fetchpriority="high"
           />
 
           <div class="shipping-note layer-front" aria-hidden="true">
@@ -136,7 +142,7 @@
         <div class="section-heading">
           <div>
             <h2 id="about-title">About</h2>
-            <p>我从债券、资管和交易工作流里做产品，也用 AI Agent 把复杂判断拆成可复用系统。</p>
+            <p>我在金融业务与 AI 产品之间工作，把投研、交易和风控里的复杂判断变成可执行、可复用的系统。</p>
           </div>
         </div>
 
@@ -196,9 +202,9 @@
         <div class="section-heading">
           <div>
             <h2 id="projects-title">Featured Projects</h2>
-            <p>把简历里的关键经历转译成可以被打开的产品房间。</p>
+            <p>从真实业务问题出发，把金融判断、Agent 能力和产品方法做成可以被使用的工具。</p>
           </div>
-          <a href="https://github.com/EthanSMC?tab=repositories">View all projects</a>
+          <a href="https://github.com/EthanSMC?tab=repositories" target="_blank" rel="noreferrer">View all projects</a>
         </div>
 
         <div class="project-board" data-project-board>
@@ -219,7 +225,14 @@
 
           <article class="project-card" data-project-card>
             <div class="project-shot digital-ip" aria-hidden="true">
-              <img src="assets/digital-ethan/digital-ethan-working-cutout.png" alt="" />
+              <img
+                src="assets/digital-ethan/digital-ethan-working-cutout.png"
+                alt=""
+                width="536"
+                height="890"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
             <h3>Bond Agent & Financial Q</h3>
             <p>Natural-language bond screening and OTC trading automation using NLP + LLM workflows.</p>
@@ -249,11 +262,11 @@
             <h2 id="repos-title">Featured Repositories</h2>
             <p>公开仓库是我的实验室：把产品方法、Agent 能力和个人 IP 系统沉淀成可复用资产。</p>
           </div>
-          <a href="https://github.com/EthanSMC?tab=repositories">View all repos</a>
+          <a href="https://github.com/EthanSMC?tab=repositories" target="_blank" rel="noreferrer">View all repos</a>
         </div>
 
         <div class="repo-cards">
-          <a class="repo-card" href="https://github.com/EthanSMC/pm-skills">
+          <a class="repo-card" href="https://github.com/EthanSMC/pm-skills" target="_blank" rel="noreferrer">
             <span class="pin"></span>
             <svg class="repo-sketch" viewBox="0 0 64 64" aria-hidden="true">
               <path d="M15 13h25l9 9v30H15Z" fill="none" stroke="currentColor" stroke-width="2.4" />
@@ -264,7 +277,7 @@
             <div class="repo-meta"><span>Python</span><strong>4</strong></div>
           </a>
 
-          <a class="repo-card" href="https://github.com/EthanSMC/jinshi-finpm">
+          <a class="repo-card" href="https://github.com/EthanSMC/jinshi-finpm" target="_blank" rel="noreferrer">
             <span class="pin"></span>
             <svg class="repo-sketch" viewBox="0 0 64 64" aria-hidden="true">
               <path d="M14 14h36v36H14Z" fill="none" stroke="currentColor" stroke-width="2.4" />
@@ -276,7 +289,7 @@
             <div class="repo-meta"><span>FinPM plugin</span><strong>1</strong></div>
           </a>
 
-          <a class="repo-card" href="https://github.com/EthanSMC/digital-me">
+          <a class="repo-card" href="https://github.com/EthanSMC/digital-me" target="_blank" rel="noreferrer">
             <span class="pin"></span>
             <svg class="repo-sketch" viewBox="0 0 64 64" aria-hidden="true">
               <path d="M18 15h28v34H18Z" fill="none" stroke="currentColor" stroke-width="2.4" />
@@ -288,7 +301,7 @@
             <div class="repo-meta"><span>Python</span><strong>1</strong></div>
           </a>
 
-          <a class="repo-card" href="https://github.com/EthanSMC/mcd-skill">
+          <a class="repo-card" href="https://github.com/EthanSMC/mcd-skill" target="_blank" rel="noreferrer">
             <span class="pin"></span>
             <svg class="repo-sketch" viewBox="0 0 64 64" aria-hidden="true">
               <path d="M18 32h28l-3 17H21Z" fill="none" stroke="currentColor" stroke-width="2.4" />
@@ -300,7 +313,7 @@
             <div class="repo-meta"><span>Python</span><strong>0</strong></div>
           </a>
 
-          <a class="repo-card" href="https://github.com/EthanSMC/learn-back">
+          <a class="repo-card" href="https://github.com/EthanSMC/learn-back" target="_blank" rel="noreferrer">
             <span class="pin"></span>
             <svg class="repo-sketch" viewBox="0 0 64 64" aria-hidden="true">
               <path d="M18 18h28v33H18Z" fill="none" stroke="currentColor" stroke-width="2.4" />
@@ -358,7 +371,14 @@
             <path d="M6 38 110 8 78 70 55 49 31 62Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
             <path d="M55 49 110 8" stroke="currentColor" stroke-width="3" />
           </svg>
-          <img src="assets/digital-ethan/digital-ethan-seated-cutout.png" alt="" />
+          <img
+            src="assets/digital-ethan/digital-ethan-seated-cutout.png"
+            alt=""
+            width="503"
+            height="902"
+            loading="lazy"
+            decoding="async"
+          />
           <div class="daily-note">
             <h3>Daily</h3>
             <p><span></span>Ship small</p>
@@ -373,8 +393,8 @@
           <span class="pushpin"></span>
           <h2 id="contact-title">Let’s build useful things together.</h2>
           <p>I'm open to collaborating on fintech products, AI agent workflows, personal IP systems, and product tools that turn messy judgment into repeatable systems.</p>
-          <a href="https://github.com/EthanSMC">
-            github.com/EthanSMC
+          <a href="mailto:qq986399523@gmail.com">
+            qq986399523@gmail.com
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M5 12h13m-5-6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" />
             </svg>
@@ -389,7 +409,7 @@
             </svg>
             <span>Email<small>qq986399523@gmail.com</small></span>
           </a>
-          <a href="https://github.com/EthanSMC">
+          <a href="https://github.com/EthanSMC" target="_blank" rel="noreferrer">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path
                 fill="currentColor"
