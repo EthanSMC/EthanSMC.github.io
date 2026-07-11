@@ -135,31 +135,54 @@ const setHeaderState = () => {
 setHeaderState();
 window.addEventListener("scroll", setHeaderState, { passive: true });
 
-const observer = new IntersectionObserver(
-  (entries) => {
-    const visible = entries
-      .filter((entry) => entry.isIntersecting)
-      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-
-    if (visible) {
-      setActiveLink(visible.target.id);
-    }
-  },
-  {
-    rootMargin: "-24% 0px -58% 0px",
-    threshold: [0.12, 0.28, 0.5],
-  },
-);
-
-sections.forEach((section) => observer.observe(section));
-
+const ABOUT_NAV_PROGRESS = 0.82;
 const getHeaderOffset = () => (window.innerWidth <= 900 ? 82 : 96);
 const bodyPaddingBottom = Number.parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
 let anchorBottomSpace = 0;
 
-const getAnchorTarget = (hash, target) => {
-  if (hash === "#top" || target.matches("[data-intro]")) return target;
-  return target.querySelector("h1, h2") || target;
+const updateActiveLink = () => {
+  const marker = window.scrollY + getHeaderOffset() + 1;
+  let activeSection = sections[0];
+
+  sections.forEach((section) => {
+    if (section.offsetTop <= marker) {
+      activeSection = section;
+    }
+  });
+
+  if (activeSection) {
+    setActiveLink(activeSection.id);
+  }
+};
+
+updateActiveLink();
+window.addEventListener("scroll", updateActiveLink, { passive: true });
+window.addEventListener("resize", updateActiveLink);
+
+const getAnchorTop = (hash, target) => {
+  if (hash === "#top") return 0;
+
+  if (target.matches("[data-intro]")) {
+    if (reducedMotion.matches) {
+      const callouts = target.querySelector(".intro-callouts");
+      if (callouts) {
+        const firstCallout = callouts.querySelector("[data-intro-callout]") || callouts;
+        return Math.max(
+          0,
+          firstCallout.getBoundingClientRect().top + window.scrollY - getHeaderOffset(),
+        );
+      }
+    }
+
+    const range = Math.max(target.offsetHeight - window.innerHeight, 1);
+    return target.offsetTop + range * ABOUT_NAV_PROGRESS;
+  }
+
+  const scrollTarget = target.querySelector("h1, h2") || target;
+  return Math.max(
+    0,
+    scrollTarget.getBoundingClientRect().top + window.scrollY - getHeaderOffset(),
+  );
 };
 
 const makeAnchorRoom = (top) => {
@@ -183,11 +206,7 @@ const scrollToSection = (hash, { updateHash = true, behavior } = {}) => {
 
   if (!target) return;
 
-  const scrollTarget = getAnchorTarget(hash, target);
-  const top = Math.max(
-    0,
-    scrollTarget.getBoundingClientRect().top + window.scrollY - getHeaderOffset(),
-  );
+  const top = getAnchorTop(hash, target);
 
   makeAnchorRoom(top);
   window.scrollTo({

@@ -466,6 +466,52 @@ class PortfolioE2E(unittest.TestCase):
         self.assertGreaterEqual(top, 64)
         self.assertLessEqual(top, 144)
 
+    def test_about_navigation_targets_about_phase_and_active_link(self):
+        for width, height in [(1440, 1000), (390, 844)]:
+            with self.subTest(width=width):
+                page = self.open_page(width=width, height=height)
+                page.locator(".nav-links a[href='#contact']").click()
+                page.wait_for_function("location.hash === '#contact'")
+                page.wait_for_timeout(500)
+
+                page.locator(".nav-links a[href='#about']").click()
+                page.wait_for_function("location.hash === '#about'")
+                page.wait_for_timeout(1800)
+
+                state = page.evaluate(
+                    """() => {
+                      const intro = document.querySelector('[data-intro]');
+                      const range = Math.max(intro.offsetHeight - innerHeight, 1);
+                      return {
+                        progress: (scrollY - intro.offsetTop) / range,
+                        phase: document.querySelector('[data-intro-stage]').dataset.phase,
+                        active: document.querySelector('.nav-links a.active')?.getAttribute('href'),
+                        visibleCallouts: [...document.querySelectorAll('[data-intro-callout]')]
+                          .filter(element => Number(getComputedStyle(element).opacity) > 0.8).length,
+                      };
+                    }"""
+                )
+                self.assertAlmostEqual(state["progress"], 0.82, delta=0.03)
+                self.assertEqual(state["phase"], "domain")
+                self.assertEqual(state["active"], "#about")
+                self.assertEqual(state["visibleCallouts"], 4)
+
+    def test_about_navigation_reduced_motion_aligns_first_callout(self):
+        page = self.open_page(width=390, height=844, reduced_motion=True)
+        page.locator(".nav-links a[href='#contact']").click()
+        page.locator(".nav-links a[href='#about']").click()
+        page.wait_for_timeout(100)
+
+        state = page.evaluate(
+            """() => ({
+              active: document.querySelector('.nav-links a.active')?.getAttribute('href'),
+              firstTop: document.querySelector('[data-intro-callout]').getBoundingClientRect().top,
+            })"""
+        )
+        self.assertEqual(state["active"], "#about")
+        self.assertGreaterEqual(state["firstTop"], 64)
+        self.assertLessEqual(state["firstTop"], 144)
+
     def test_reduced_motion_keeps_intro_content(self):
         page = self.open_page(width=390, height=844, reduced_motion=True)
         callouts = page.locator("[data-intro-callout]")
