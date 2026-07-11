@@ -266,6 +266,33 @@ projectCards.forEach((card, index) => {
   card.addEventListener("click", () => setActiveProject(index));
 });
 
+const wechatDialog = document.querySelector("#wechat-dialog");
+const wechatOpen = document.querySelector("[data-wechat-open]");
+const wechatClose = document.querySelector("[data-wechat-close]");
+
+const closeWechatDialog = () => {
+  if (!wechatDialog?.open) return;
+  wechatDialog.close();
+};
+
+wechatOpen?.addEventListener("click", () => {
+  if (!wechatDialog || wechatDialog.open) return;
+
+  if (typeof wechatDialog.showModal === "function") {
+    wechatDialog.showModal();
+  } else {
+    wechatDialog.setAttribute("open", "");
+  }
+});
+
+wechatClose?.addEventListener("click", closeWechatDialog);
+
+wechatDialog?.addEventListener("click", (event) => {
+  if (event.target === wechatDialog) {
+    closeWechatDialog();
+  }
+});
+
 const soundToggle = document.querySelector(".sound-toggle");
 let audioContext;
 

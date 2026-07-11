@@ -301,6 +301,31 @@ class PortfolioE2E(unittest.TestCase):
             with self.subTest(project=3, contract="same tab"):
                 self.assertIsNone(novelty_link.get_attribute("target"))
 
+    def test_bond_project_uses_domain_visual(self):
+        page = self.open_page()
+        bond_card = page.locator("[data-project-card]").nth(1)
+
+        self.assertEqual(bond_card.locator(".project-shot.bond-flow").count(), 1)
+        self.assertEqual(bond_card.locator(".project-shot img").count(), 0)
+        self.assertGreaterEqual(bond_card.locator("[data-bond-row]").count(), 3)
+
+    def test_say_hi_opens_wechat_qr_dialog(self):
+        page = self.open_page()
+        trigger = page.locator("[data-wechat-open]")
+        self.assertEqual(trigger.count(), 1)
+        self.assertEqual(trigger.evaluate("element => element.tagName"), "BUTTON")
+
+        trigger.click()
+        dialog = page.locator("#wechat-dialog")
+        self.assertTrue(dialog.evaluate("element => element.open"))
+
+        qr = dialog.locator("img[data-wechat-qr]")
+        self.assertEqual(qr.get_attribute("src"), "assets/wechat-qr.jpg")
+        self.assertGreater(qr.evaluate("image => image.naturalWidth"), 0)
+
+        page.keyboard.press("Escape")
+        self.assertFalse(dialog.evaluate("element => element.open"))
+
     def test_repository_cards_are_exact_same_tab_anchors(self):
         page = self.open_page()
         cards = page.locator("#repos .repo-card")

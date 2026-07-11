@@ -271,19 +271,104 @@ canvas {
   align-items: center;
   gap: 9px;
   min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--blue);
   font-family: var(--hand);
   font-size: 1.1rem;
   font-weight: 800;
+  letter-spacing: 0;
   text-decoration: underline;
   text-decoration-color: rgba(39, 91, 168, 0.5);
   text-decoration-thickness: 2px;
   text-underline-offset: 6px;
+  cursor: pointer;
 }
 
 .say-hi svg {
   width: 25px;
   height: 25px;
+}
+
+.wechat-dialog {
+  width: min(390px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100svh - 32px);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  overflow: visible;
+}
+
+.wechat-dialog::backdrop {
+  background: rgba(23, 23, 20, 0.38);
+  backdrop-filter: blur(4px);
+}
+
+.wechat-dialog-paper {
+  position: relative;
+  max-height: calc(100svh - 32px);
+  padding: 22px;
+  overflow: auto;
+  border: 2px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: 12px 14px 0 rgba(23, 23, 20, 0.16);
+}
+
+.dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.dialog-close svg {
+  width: 24px;
+  height: 24px;
+}
+
+.dialog-kicker {
+  margin: 0 48px 4px 0;
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.wechat-dialog h2 {
+  margin: 0 48px 16px 0;
+  font-family: var(--hand);
+  font-size: 1.7rem;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.wechat-dialog img {
+  display: block;
+  width: min(100%, 300px);
+  height: auto;
+  margin: 0 auto;
+  border: 1.5px solid rgba(58, 53, 45, 0.22);
+}
+
+.wechat-dialog-note {
+  margin: 14px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  text-align: center;
 }
 
 .section-anchor {
@@ -838,12 +923,77 @@ canvas {
   height: 92px;
 }
 
-.project-shot.digital-ip img {
-  position: absolute;
-  left: 50%;
-  bottom: -78px;
-  width: 150px;
-  transform: translateX(-50%);
+.project-shot.bond-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 36px 12px 10px;
+}
+
+.bond-filters {
+  display: flex;
+  gap: 5px;
+}
+
+.bond-filters span {
+  padding: 2px 7px;
+  border: 1.5px solid rgba(39, 91, 168, 0.38);
+  border-radius: 4px;
+  background: rgba(200, 216, 238, 0.28);
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.bond-results {
+  display: grid;
+  gap: 3px;
+}
+
+.bond-results [data-bond-row] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px 48px;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 6px;
+  border-bottom: 1px solid rgba(58, 53, 45, 0.16);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+.bond-results [data-bond-row] span:first-child {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bond-results [data-bond-row] strong {
+  color: var(--green);
+  font-size: 0.62rem;
+  text-align: right;
+}
+
+.bond-prompt {
+  margin-top: auto;
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.57rem;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bond-prompt span {
+  margin-right: 4px;
+  color: var(--green);
+  font-weight: 900;
 }
 
 .project-shot.learning {

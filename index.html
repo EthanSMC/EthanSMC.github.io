@@ -34,12 +34,19 @@
             <path class="sound-wave" d="M16 9.5c1.1 1.4 1.1 3.6 0 5M18.5 7c2.4 2.8 2.4 7.2 0 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
           </svg>
         </button>
-        <a class="say-hi" href="mailto:qq986399523@gmail.com" aria-label="Email Ethan">
+        <button
+          class="say-hi"
+          type="button"
+          aria-label="Open Ethan's WeChat QR code"
+          aria-haspopup="dialog"
+          aria-controls="wechat-dialog"
+          data-wechat-open
+        >
           Say hi
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 12h13m-5-6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" />
           </svg>
-        </a>
+        </button>
       </div>
     </header>
 
@@ -166,15 +173,16 @@
           </article>
 
           <article class="project-card" data-project-card>
-            <div class="project-shot digital-ip" aria-hidden="true">
-              <img
-                src="assets/digital-ethan/digital-ethan-working-cutout.png"
-                alt=""
-                width="536"
-                height="890"
-                loading="lazy"
-                decoding="async"
-              />
+            <div class="project-shot bond-flow" aria-hidden="true">
+              <div class="bond-filters">
+                <span>AA+</span><span>1–3Y</span><span>YTM ≥ 2%</span>
+              </div>
+              <div class="bond-results">
+                <div data-bond-row><span>24 CDB 05</span><span>AAA</span><strong>2.18%</strong></div>
+                <div data-bond-row><span>24 CGB 12</span><span>AAA</span><strong>2.23%</strong></div>
+                <div data-bond-row><span>23 MTN 08</span><span>AA+</span><strong>2.41%</strong></div>
+              </div>
+              <div class="bond-prompt"><span>&gt;</span> liquid bonds · live quotes</div>
             </div>
             <h3>Bond Agent &amp; Financial Q</h3>
             <p>Natural-language bond screening and OTC trading automation using NLP and LLM-assisted workflows.</p>
@@ -365,6 +373,26 @@
       <span class="design-credit">Interaction reference: <a href="https://david-hckh.com/">David Heckhoff</a></span>
       <a href="#top">Back to top ↑</a>
     </footer>
+
+    <dialog class="wechat-dialog" id="wechat-dialog" aria-labelledby="wechat-dialog-title">
+      <div class="wechat-dialog-paper">
+        <button class="dialog-close" type="button" aria-label="Close WeChat QR code" data-wechat-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" />
+          </svg>
+        </button>
+        <p class="dialog-kicker">// say hi</p>
+        <h2 id="wechat-dialog-title">WeChat · 微信</h2>
+        <img
+          src="assets/wechat-qr.jpg"
+          alt="Ethan 的微信二维码"
+          width="888"
+          height="1191"
+          data-wechat-qr
+        />
+        <p class="wechat-dialog-note">扫码添加我，备注“个人网站”就好。</p>
+      </div>
+    </dialog>
 
     <script type="module" src="script.js"></script>
   </body>
