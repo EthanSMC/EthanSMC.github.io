@@ -20,7 +20,7 @@ EXPECTED_FEATURED_PROJECT_EXTERNAL_LINKS = [
     {
         "projectTitle": "Novelty Studio",
         "href": "https://noveltystudio.cn",
-        "target": None,
+        "target": "_blank",
     }
 ]
 FIRST_VIEW_WALL_SELECTOR = (
@@ -141,7 +141,9 @@ class PortfolioE2E(unittest.TestCase):
                 externalTargetOffenders: [...document.querySelectorAll("a[href]")]
                   .filter(anchor => {
                     const href = anchor.getAttribute("href") || "";
-                    return /^https?:\/\//i.test(href) && anchor.hasAttribute("target");
+                    return /^https?:\/\//i.test(href) &&
+                      anchor.hasAttribute("target") &&
+                      href !== "https://noveltystudio.cn";
                   })
                   .map(linkSummary),
               };
@@ -185,7 +187,7 @@ class PortfolioE2E(unittest.TestCase):
                 "links": [
                     {
                         "href": "https://noveltystudio.cn",
-                        "target": None,
+                        "target": "_blank",
                     }
                 ],
             },
@@ -242,7 +244,7 @@ class PortfolioE2E(unittest.TestCase):
             "Content/link contract violations:\n- " + "\n- ".join(issues),
         )
 
-    def test_all_external_http_links_are_same_tab(self):
+    def test_only_novelty_studio_opens_in_a_new_tab(self):
         page = self.open_page()
         links = self.external_http_links(page)
         self.assertGreater(len(links), 0, "Expected at least one external HTTP(S) link")
@@ -253,7 +255,12 @@ class PortfolioE2E(unittest.TestCase):
                 label=link["label"],
                 href=link["href"],
             ):
-                self.assertIsNone(link["target"])
+                expected_target = (
+                    "_blank"
+                    if link["href"] == "https://noveltystudio.cn"
+                    else None
+                )
+                self.assertEqual(link["target"], expected_target)
 
     def test_featured_projects_has_only_novelty_external_link(self):
         page = self.open_page()
@@ -261,7 +268,7 @@ class PortfolioE2E(unittest.TestCase):
         self.assertEqual(
             links,
             EXPECTED_FEATURED_PROJECT_EXTERNAL_LINKS,
-            "Featured Projects must expose only the same-tab Novelty Studio link",
+            "Featured Projects must expose only the new-tab Novelty Studio link",
         )
 
     def test_project_titles_are_exact(self):
@@ -298,8 +305,36 @@ class PortfolioE2E(unittest.TestCase):
                     novelty_link.get_attribute("href"),
                     "https://noveltystudio.cn",
                 )
-            with self.subTest(project=3, contract="same tab"):
-                self.assertIsNone(novelty_link.get_attribute("target"))
+            with self.subTest(project=3, contract="new tab"):
+                self.assertEqual(novelty_link.get_attribute("target"), "_blank")
+            with self.subTest(project=3, contract="secure opener"):
+                self.assertEqual(
+                    novelty_link.get_attribute("rel"),
+                    "noopener noreferrer",
+                )
+            with self.subTest(project=3, contract="full-card click target"):
+                cards.nth(2).scroll_into_view_if_needed()
+                hit_target = cards.nth(2).locator(".project-shot").evaluate(
+                    """shot => {
+                      const bounds = shot.getBoundingClientRect();
+                      const hit = document.elementFromPoint(
+                        bounds.left + bounds.width / 2,
+                        bounds.top + bounds.height / 2
+                      );
+                      const link = hit?.closest("a");
+                      return link ? {
+                        href: link.getAttribute("href"),
+                        target: link.getAttribute("target"),
+                      } : null;
+                    }"""
+                )
+                self.assertEqual(
+                    hit_target,
+                    {
+                        "href": "https://noveltystudio.cn",
+                        "target": "_blank",
+                    },
+                )
 
     def test_bond_project_uses_domain_visual(self):
         page = self.open_page()

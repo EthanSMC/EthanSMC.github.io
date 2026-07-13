@@ -1063,6 +1063,17 @@ canvas {
   text-underline-offset: 5px;
 }
 
+.project-link::after {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  content: "";
+}
+
+.project-card:has(.project-link) {
+  cursor: pointer;
+}
+
 .repos {
   padding-top: 34px;
   padding-bottom: 58px;
