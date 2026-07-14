@@ -1265,6 +1265,7 @@ canvas {
 }
 
 .contribution-day {
+  padding: 0;
   cursor: crosshair;
 }
 
@@ -2012,7 +2013,7 @@ canvas {
 
 @media (prefers-reduced-motion: reduce) {
   .contribution-note,
-  .contribution-day { transition: none; }
+  .contribution-day { transition: none !important; }
 
   *,
   *::before,

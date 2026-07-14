@@ -88,13 +88,52 @@ class PortfolioE2E(unittest.TestCase):
         height=1000,
         reduced_motion=False,
         disable_webgl=False,
+        has_touch=False,
         contribution_payload=NO_CONTRIBUTION_ROUTE,
         contribution_status=200,
+        contribution_timeout_ms=None,
+        abort_contribution_fetch=False,
     ):
-        context = self.browser.new_context(viewport={"width": width, "height": height})
+        context = self.browser.new_context(
+            viewport={"width": width, "height": height},
+            has_touch=has_touch,
+        )
         self.addCleanup(context.close)
         if disable_webgl:
             context.add_init_script(DISABLE_WEBGL_SCRIPT)
+        if contribution_timeout_ms is not None:
+            context.add_init_script(
+                f"""
+                (() => {{
+                  const originalSetTimeout = window.setTimeout.bind(window);
+                  window.setTimeout = (callback, delay, ...args) => originalSetTimeout(
+                    callback,
+                    delay === 8000 ? {int(contribution_timeout_ms)} : delay,
+                    ...args
+                  );
+                }})();
+                """
+            )
+        if abort_contribution_fetch:
+            context.add_init_script(
+                """
+                (() => {
+                  const originalFetch = window.fetch.bind(window);
+                  window.fetch = (input, init = {}) => {
+                    const url = typeof input === "string" ? input : input.url;
+                    if (new URL(url, location.href).pathname !== "/api/github-contributions") {
+                      return originalFetch(input, init);
+                    }
+                    return new Promise((resolve, reject) => {
+                      const signal = init.signal;
+                      const abort = () => reject(new DOMException("Aborted", "AbortError"));
+                      if (signal?.aborted) abort();
+                      else signal?.addEventListener("abort", abort, { once: true });
+                    });
+                  };
+                })();
+                """
+            )
         page = context.new_page()
         if reduced_motion:
             page.emulate_media(reduced_motion="reduce")
@@ -480,6 +519,44 @@ class PortfolioE2E(unittest.TestCase):
             "false",
         )
 
+    def test_contribution_heatmap_is_responsive_and_stable(self):
+        payload = contribution_fixture()
+        for width, height in ((1440, 1000), (390, 844)):
+            with self.subTest(width=width):
+                page = self.open_page(
+                    width=width,
+                    height=height,
+                    reduced_motion=True,
+                    contribution_payload=payload,
+                )
+                page.wait_for_function(
+                    "document.querySelector('[data-contributions]')?.dataset.state === 'ready'"
+                )
+                note = page.locator("[data-contributions]")
+                note.scroll_into_view_if_needed()
+                state = note.evaluate(
+                    """element => {
+                      const bounds = element.getBoundingClientRect();
+                      const grid = element.querySelector('[data-contribution-grid]')
+                        .getBoundingClientRect();
+                      return {
+                        noteLeft: bounds.left,
+                        noteRight: bounds.right,
+                        gridLeft: grid.left,
+                        gridRight: grid.right,
+                        viewport: window.innerWidth,
+                        pageOverflow: document.documentElement.scrollWidth > window.innerWidth,
+                        transition: getComputedStyle(element).transitionDuration,
+                      };
+                    }"""
+                )
+                self.assertGreaterEqual(state["gridLeft"], state["noteLeft"])
+                self.assertLessEqual(state["gridRight"], state["noteRight"])
+                self.assertGreaterEqual(state["noteLeft"], 0)
+                self.assertLessEqual(state["noteRight"], state["viewport"])
+                self.assertFalse(state["pageOverflow"])
+                self.assertIn(state["transition"], ("0s", "0s, 0s"))
+
     def test_contribution_heatmap_keyboard_and_tooltip(self):
         page = self.open_page(contribution_payload=contribution_fixture())
         page.wait_for_function(
@@ -509,7 +586,8 @@ class PortfolioE2E(unittest.TestCase):
             '[data-contribution-day][data-week-index="0"][data-weekday="2"]',
             '[data-contribution-day][data-week-index="52"][data-weekday="2"]',
         ):
-            page.locator(selector).focus()
+            page.locator(selector).click()
+            tooltip.wait_for(state="visible")
             bounds = page.evaluate(
                 """() => {
                   const wrap = document.querySelector('.contribution-calendar-wrap')
@@ -521,6 +599,63 @@ class PortfolioE2E(unittest.TestCase):
             )
             self.assertGreaterEqual(bounds["tip"]["left"], bounds["wrap"]["left"] - 1)
             self.assertLessEqual(bounds["tip"]["right"], bounds["wrap"]["right"] + 1)
+
+    def test_contribution_heatmap_touch_tap_shows_edge_tooltips(self):
+        page = self.open_page(
+            width=390,
+            height=844,
+            has_touch=True,
+            contribution_payload=contribution_fixture(),
+        )
+        page.wait_for_function(
+            "document.querySelector('[data-contributions]')?.dataset.state === 'ready'"
+        )
+        tooltip = page.locator("[data-contribution-tooltip]")
+
+        for selector in (
+            '[data-contribution-day][data-week-index="0"][data-weekday="2"]',
+            '[data-contribution-day][data-week-index="52"][data-weekday="2"]',
+        ):
+            with self.subTest(selector=selector):
+                day = page.locator(selector)
+                day.evaluate(
+                    """button => {
+                      button.dispatchEvent(new PointerEvent("pointerdown", {
+                        bubbles: true,
+                        pointerType: "touch",
+                      }));
+                      button.dispatchEvent(new PointerEvent("pointerup", {
+                        bubbles: true,
+                        pointerType: "touch",
+                      }));
+                      button.click();
+                    }"""
+                )
+                self.assertFalse(tooltip.is_hidden())
+                self.assertIn(
+                    day.get_attribute("aria-label")[:10],
+                    tooltip.inner_text(),
+                )
+                bounds = page.evaluate(
+                    """() => {
+                      const wrap = document.querySelector('.contribution-calendar-wrap')
+                        .getBoundingClientRect();
+                      const tip = document.querySelector('[data-contribution-tooltip]')
+                        .getBoundingClientRect();
+                      return {
+                        left: tip.left - wrap.left,
+                        right: tip.right - wrap.left,
+                        top: tip.top - wrap.top,
+                        bottom: tip.bottom - wrap.top,
+                        width: wrap.width,
+                        height: wrap.height,
+                      };
+                    }"""
+                )
+                self.assertGreaterEqual(bounds["left"], 0)
+                self.assertLessEqual(bounds["right"], bounds["width"])
+                self.assertGreaterEqual(bounds["top"], 0)
+                self.assertLessEqual(bounds["bottom"], bounds["height"])
 
     def test_contribution_heatmap_rejects_malformed_payload(self):
         payload = contribution_fixture()
@@ -551,6 +686,38 @@ class PortfolioE2E(unittest.TestCase):
             note.locator('a[href="https://github.com/EthanSMC"]').count(),
             1,
         )
+
+    def test_contribution_heatmap_timeout_aborts_and_becomes_unavailable(self):
+        page = self.open_page(
+            contribution_timeout_ms=25,
+            abort_contribution_fetch=True,
+        )
+        page.wait_for_function(
+            "document.querySelector('[data-contributions]')?.dataset.state === 'unavailable'",
+            timeout=2000,
+        )
+        self.assertEqual(
+            page.locator("[data-contribution-grid]").get_attribute("aria-busy"),
+            "false",
+        )
+
+    def test_contribution_note_space_navigates_to_profile(self):
+        page = self.open_page(contribution_payload=contribution_fixture())
+        page.route(
+            "https://github.com/EthanSMC",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/html",
+                body="<title>GitHub profile test stub</title>",
+            ),
+        )
+        page.wait_for_function(
+            "document.querySelector('[data-contributions]')?.dataset.state === 'ready'"
+        )
+
+        page.locator("#contributions-title").click()
+        page.wait_for_url("https://github.com/EthanSMC")
+        self.assertEqual(page.title(), "GitHub profile test stub")
 
     def test_view_all_repositories_is_same_tab(self):
         page = self.open_page()
