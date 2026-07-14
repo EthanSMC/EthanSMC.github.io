@@ -1201,6 +1201,7 @@ canvas {
   border-radius: 5px;
   background: rgba(255, 250, 240, 0.88);
   box-shadow: 9px 12px 0 rgba(64, 49, 31, 0.055);
+  cursor: pointer;
   transform: rotate(-0.3deg);
 }
 
@@ -1261,6 +1262,10 @@ canvas {
   border: 1px solid rgba(58, 53, 45, 0.11);
   border-radius: 2px;
   background: rgba(89, 84, 76, 0.07);
+}
+
+.contribution-day {
+  cursor: crosshair;
 }
 
 .contribution-day[data-level="1"] { background: #c9d3df; }

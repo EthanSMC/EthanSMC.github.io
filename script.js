@@ -285,6 +285,178 @@ projectCards.forEach((card, index) => {
   card.addEventListener("click", () => setActiveProject(index));
 });
 
+const initContributionHeatmap = (root) => {
+  if (!root) return;
+  const grid = root.querySelector("[data-contribution-grid]");
+  const total = root.querySelector("[data-contribution-total]");
+  const status = root.querySelector("[data-contribution-status]");
+  const tooltip = root.querySelector("[data-contribution-tooltip]");
+  if (!grid || !total || !status || !tooltip) return;
+
+  const renderSkeleton = () => {
+    grid.replaceChildren();
+    for (let index = 0; index < 371; index += 1) {
+      const cell = document.createElement("span");
+      cell.className = "contribution-placeholder";
+      cell.setAttribute("aria-hidden", "true");
+      grid.appendChild(cell);
+    }
+  };
+
+  const isIsoDate = (value) => {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  };
+  const isValidDay = (day) => day
+    && isIsoDate(day.date)
+    && Number.isInteger(day.count)
+    && day.count >= 0
+    && Number.isInteger(day.level)
+    && day.level >= 0
+    && day.level <= 4;
+  const isValidPayload = (payload) => payload
+    && payload.username === "EthanSMC"
+    && isIsoDate(payload.from)
+    && isIsoDate(payload.to)
+    && Number.isInteger(payload.total)
+    && payload.total >= 0
+    && Array.isArray(payload.weeks)
+    && payload.weeks.length === 53
+    && payload.weeks.every((week) => Array.isArray(week.days)
+      && week.days.length <= 7
+      && week.days.every(isValidDay));
+
+  const hideTooltip = () => {
+    tooltip.hidden = true;
+  };
+
+  const showTooltip = (day, button) => {
+    tooltip.textContent = `${day.date} · ${day.count} ${day.count === 1 ? "contribution" : "contributions"}`;
+    tooltip.hidden = false;
+    const wrapBounds = grid.parentElement.getBoundingClientRect();
+    const buttonBounds = button.getBoundingClientRect();
+    const proposedLeft = buttonBounds.left - wrapBounds.left
+      + buttonBounds.width / 2
+      - tooltip.offsetWidth / 2;
+    const proposedTop = buttonBounds.top - wrapBounds.top - tooltip.offsetHeight - 8;
+    const maximumLeft = Math.max(4, wrapBounds.width - tooltip.offsetWidth - 4);
+    tooltip.style.left = `${clamp(proposedLeft, 4, maximumLeft)}px`;
+    tooltip.style.top = `${Math.max(4, proposedTop)}px`;
+  };
+
+  const setRovingTabStop = (button) => {
+    grid.querySelectorAll("[data-contribution-day]").forEach((dayButton) => {
+      dayButton.tabIndex = dayButton === button ? 0 : -1;
+    });
+  };
+
+  const focusNeighbor = (button, weekDelta, weekdayDelta) => {
+    const weekIndex = Number(button.dataset.weekIndex) + weekDelta;
+    const weekday = Number(button.dataset.weekday) + weekdayDelta;
+    const next = grid.querySelector(
+      `[data-contribution-day][data-week-index="${weekIndex}"][data-weekday="${weekday}"]`,
+    );
+    if (next) {
+      setRovingTabStop(next);
+      next.focus();
+    }
+  };
+
+  const renderCalendar = (payload) => {
+    grid.replaceChildren();
+    let firstButton;
+    payload.weeks.forEach((week, weekIndex) => {
+      const daysByWeekday = new Map(week.days.map((day) => [
+        new Date(`${day.date}T00:00:00Z`).getUTCDay(),
+        day,
+      ]));
+      for (let weekday = 0; weekday < 7; weekday += 1) {
+        const day = daysByWeekday.get(weekday);
+        if (!day) {
+          const placeholder = document.createElement("span");
+          placeholder.className = "contribution-placeholder";
+          placeholder.setAttribute("aria-hidden", "true");
+          grid.appendChild(placeholder);
+          continue;
+        }
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "contribution-day";
+        button.dataset.contributionDay = "";
+        button.dataset.weekIndex = String(weekIndex);
+        button.dataset.weekday = String(weekday);
+        button.dataset.level = String(day.level);
+        button.tabIndex = firstButton ? -1 : 0;
+        button.setAttribute("role", "gridcell");
+        button.setAttribute(
+          "aria-label",
+          `${day.date}: ${day.count} ${day.count === 1 ? "contribution" : "contributions"}`,
+        );
+        button.addEventListener("pointerenter", () => showTooltip(day, button));
+        button.addEventListener("pointerleave", hideTooltip);
+        button.addEventListener("focus", () => {
+          setRovingTabStop(button);
+          showTooltip(day, button);
+        });
+        button.addEventListener("blur", hideTooltip);
+        button.addEventListener("click", () => showTooltip(day, button));
+        button.addEventListener("keydown", (event) => {
+          const moves = {
+            ArrowLeft: [-1, 0],
+            ArrowRight: [1, 0],
+            ArrowUp: [0, -1],
+            ArrowDown: [0, 1],
+          };
+          const move = moves[event.key];
+          if (!move) return;
+          event.preventDefault();
+          focusNeighbor(button, move[0], move[1]);
+        });
+        firstButton ||= button;
+        grid.appendChild(button);
+      }
+    });
+    total.textContent = `${payload.total.toLocaleString("en-US")} contributions`;
+    grid.setAttribute("aria-label", `${payload.username} GitHub contributions from ${payload.from} to ${payload.to}: ${payload.total} total`);
+    grid.setAttribute("aria-busy", "false");
+    root.dataset.state = "ready";
+  };
+
+  const renderUnavailable = () => {
+    root.dataset.state = "unavailable";
+    grid.setAttribute("aria-busy", "false");
+    total.textContent = "GitHub activity";
+    status.textContent = "Contribution data is temporarily unavailable";
+  };
+
+  const profileLink = root.querySelector('a[href="https://github.com/EthanSMC"]');
+  root.addEventListener("click", (event) => {
+    if (!profileLink || event.target.closest("a, [data-contribution-day]")) return;
+    window.location.href = profileLink.href;
+  });
+
+  renderSkeleton();
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 8000);
+  fetch("/api/github-contributions", {
+    headers: { Accept: "application/json" },
+    signal: controller.signal,
+  })
+    .then((response) => {
+      if (!response.ok) throw new Error("Contribution request failed");
+      return response.json();
+    })
+    .then((payload) => {
+      if (!isValidPayload(payload)) throw new Error("Invalid contribution payload");
+      renderCalendar(payload);
+    })
+    .catch(renderUnavailable)
+    .finally(() => window.clearTimeout(timeoutId));
+};
+
+initContributionHeatmap(document.querySelector("[data-contributions]"));
+
 const wechatDialog = document.querySelector("#wechat-dialog");
 const wechatOpen = document.querySelector("[data-wechat-open]");
 const wechatClose = document.querySelector("[data-wechat-close]");

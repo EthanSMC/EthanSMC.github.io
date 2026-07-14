@@ -1,10 +1,39 @@
 import os
 import unittest
+from datetime import date, timedelta
 
 from playwright.sync_api import sync_playwright
 
 
 BASE_URL = os.environ.get("PORTFOLIO_URL", "http://127.0.0.1:4173/")
+NO_CONTRIBUTION_ROUTE = object()
+
+
+def contribution_fixture():
+    first = date(2025, 7, 15)
+    last = date(2026, 7, 14)
+    weeks = {}
+    current = first
+    while current <= last:
+        weekday = (current.weekday() + 1) % 7
+        sunday = current - timedelta(days=weekday)
+        count = (current.toordinal() * 7) % 9
+        level = 0 if count == 0 else min(4, (count + 1) // 2)
+        weeks.setdefault(sunday, []).append({
+            "date": current.isoformat(),
+            "count": count,
+            "level": level,
+        })
+        current += timedelta(days=1)
+    return {
+        "username": "EthanSMC",
+        "from": first.isoformat(),
+        "to": last.isoformat(),
+        "total": sum(day["count"] for days in weeks.values() for day in days),
+        "weeks": [{"days": days} for _, days in sorted(weeks.items())],
+    }
+
+
 EXPECTED_PROJECT_TITLES = [
     "AI-native Wealth & Asset Management System",
     "Bond Agent & Financial Q",
@@ -59,6 +88,8 @@ class PortfolioE2E(unittest.TestCase):
         height=1000,
         reduced_motion=False,
         disable_webgl=False,
+        contribution_payload=NO_CONTRIBUTION_ROUTE,
+        contribution_status=200,
     ):
         context = self.browser.new_context(viewport={"width": width, "height": height})
         self.addCleanup(context.close)
@@ -67,6 +98,14 @@ class PortfolioE2E(unittest.TestCase):
         page = context.new_page()
         if reduced_motion:
             page.emulate_media(reduced_motion="reduce")
+        if contribution_payload is not NO_CONTRIBUTION_ROUTE:
+            page.route(
+                "**/api/github-contributions",
+                lambda route: route.fulfill(
+                    status=contribution_status,
+                    json=contribution_payload,
+                ),
+            )
         page.goto(BASE_URL, wait_until="networkidle")
         return page
 
@@ -415,6 +454,102 @@ class PortfolioE2E(unittest.TestCase):
               return cards?.nextElementSibling === note;
             }"""
             )
+        )
+
+    def test_contribution_heatmap_renders_live_payload(self):
+        payload = contribution_fixture()
+        page = self.open_page(contribution_payload=payload)
+        note = page.locator("[data-contributions]")
+        note.scroll_into_view_if_needed()
+        page.wait_for_function(
+            "document.querySelector('[data-contributions]')?.dataset.state === 'ready'"
+        )
+        cells = note.locator("[data-contribution-grid] > *")
+        self.assertEqual(cells.count(), 371)
+        self.assertEqual(note.locator("[data-contribution-day]").count(), 365)
+        self.assertEqual(cells.nth(2).get_attribute("data-week-index"), "0")
+        self.assertEqual(cells.nth(2).get_attribute("data-weekday"), "2")
+        self.assertEqual(cells.nth(366).get_attribute("data-week-index"), "52")
+        self.assertEqual(cells.nth(366).get_attribute("data-weekday"), "2")
+        self.assertEqual(
+            note.locator("[data-contribution-total]").inner_text(),
+            f"{payload['total']:,} contributions",
+        )
+        self.assertEqual(
+            note.locator("[data-contribution-grid]").get_attribute("aria-busy"),
+            "false",
+        )
+
+    def test_contribution_heatmap_keyboard_and_tooltip(self):
+        page = self.open_page(contribution_payload=contribution_fixture())
+        page.wait_for_function(
+            "document.querySelector('[data-contributions]')?.dataset.state === 'ready'"
+        )
+        start = page.locator(
+            '[data-contribution-day][data-week-index="1"][data-weekday="2"]'
+        )
+        start.focus()
+        page.keyboard.press("ArrowRight")
+        focused = page.locator(":focus")
+        self.assertEqual(focused.get_attribute("data-week-index"), "2")
+        self.assertEqual(focused.get_attribute("tabindex"), "0")
+        self.assertEqual(
+            page.locator('[data-contribution-day][tabindex="0"]').count(),
+            1,
+        )
+        tooltip = page.locator("[data-contribution-tooltip]")
+        self.assertFalse(tooltip.is_hidden())
+        self.assertIn("contribution", tooltip.inner_text())
+
+        original_url = page.url
+        focused.click()
+        self.assertEqual(page.url, original_url)
+
+        for selector in (
+            '[data-contribution-day][data-week-index="0"][data-weekday="2"]',
+            '[data-contribution-day][data-week-index="52"][data-weekday="2"]',
+        ):
+            page.locator(selector).focus()
+            bounds = page.evaluate(
+                """() => {
+                  const wrap = document.querySelector('.contribution-calendar-wrap')
+                    .getBoundingClientRect();
+                  const tip = document.querySelector('[data-contribution-tooltip]')
+                    .getBoundingClientRect();
+                  return { wrap, tip };
+                }"""
+            )
+            self.assertGreaterEqual(bounds["tip"]["left"], bounds["wrap"]["left"] - 1)
+            self.assertLessEqual(bounds["tip"]["right"], bounds["wrap"]["right"] + 1)
+
+    def test_contribution_heatmap_rejects_malformed_payload(self):
+        payload = contribution_fixture()
+        payload["weeks"][0]["days"][0]["date"] = "2025-02-30"
+        page = self.open_page(contribution_payload=payload)
+        page.wait_for_function(
+            "document.querySelector('[data-contributions]')?.dataset.state !== 'loading'"
+        )
+        self.assertEqual(
+            page.locator("[data-contributions]").get_attribute("data-state"),
+            "unavailable",
+        )
+
+    def test_contribution_heatmap_failure_is_usable(self):
+        page = self.open_page(
+            contribution_payload={"error": "Contribution data unavailable"},
+            contribution_status=503,
+        )
+        page.wait_for_function(
+            "document.querySelector('[data-contributions]')?.dataset.state === 'unavailable'"
+        )
+        note = page.locator("[data-contributions]")
+        self.assertIn(
+            "temporarily unavailable",
+            note.locator("[data-contribution-status]").inner_text(),
+        )
+        self.assertEqual(
+            note.locator('a[href="https://github.com/EthanSMC"]').count(),
+            1,
         )
 
     def test_view_all_repositories_is_same_tab(self):
