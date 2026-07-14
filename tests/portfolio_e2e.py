@@ -618,23 +618,29 @@ class PortfolioE2E(unittest.TestCase):
         ):
             with self.subTest(selector=selector):
                 day = page.locator(selector)
-                day.evaluate(
-                    """button => {
-                      button.dispatchEvent(new PointerEvent("pointerdown", {
-                        bubbles: true,
-                        pointerType: "touch",
-                      }));
-                      button.dispatchEvent(new PointerEvent("pointerup", {
-                        bubbles: true,
-                        pointerType: "touch",
-                      }));
-                      button.click();
-                    }"""
+                day.scroll_into_view_if_needed()
+                box = day.bounding_box()
+                self.assertIsNotNone(box)
+                x = box["x"] + box["width"] / 2
+                y = box["y"] + box["height"] / 2
+                resolved_day = page.evaluate(
+                    """({ x, y }) => {
+                      const day = document.elementFromPoint(x, y)
+                        ?.closest('[data-contribution-day]');
+                      return day && {
+                        ariaLabel: day.getAttribute('aria-label'),
+                        weekIndex: day.dataset.weekIndex,
+                        weekday: day.dataset.weekday,
+                      };
+                    }""",
+                    {"x": x, "y": y},
                 )
+                self.assertIsNotNone(resolved_day)
+                page.touchscreen.tap(x, y)
                 self.assertFalse(tooltip.is_hidden())
-                self.assertIn(
-                    day.get_attribute("aria-label")[:10],
+                self.assertEqual(
                     tooltip.inner_text(),
+                    resolved_day["ariaLabel"].replace(": ", " · ", 1),
                 )
                 bounds = page.evaluate(
                     """() => {
