@@ -31,38 +31,67 @@ const QUERY = `
 const isoDate = (date) => date.toISOString().slice(0, 10);
 const rangeFor = (now) => {
   const to = new Date(now);
-  const from = new Date(now);
-  from.setUTCFullYear(from.getUTCFullYear() - 1);
+  const from = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate()));
+  from.setUTCDate(from.getUTCDate() - 364);
   return { from: isoDate(from), to: isoDate(to) };
 };
 
+const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const isIsoDate = (value) => {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && isoDate(parsed) === value;
+};
+const isNonNegativeInteger = (value) => Number.isInteger(value) && value >= 0;
+
 const normalizeContributionCalendar = (calendar, username, from, to) => {
-  if (!calendar || !Number.isInteger(calendar.totalContributions) || !Array.isArray(calendar.weeks)) {
+  if (
+    !isRecord(calendar)
+    || !isNonNegativeInteger(calendar.totalContributions)
+    || !Array.isArray(calendar.weeks)
+    || ![52, 53].includes(calendar.weeks.length)
+  ) {
     throw new Error("Invalid contribution calendar");
   }
 
-  return {
-    username,
-    from,
-    to,
-    total: calendar.totalContributions,
-    weeks: calendar.weeks.map((week) => ({
+  const weeks = calendar.weeks.map((week) => {
+    if (
+      !isRecord(week)
+      || !Array.isArray(week.contributionDays)
+      || week.contributionDays.length > 7
+    ) {
+      throw new Error("Invalid contribution calendar");
+    }
+
+    return {
       days: week.contributionDays.map((day) => {
-        const level = CONTRIBUTION_LEVELS[day.contributionLevel];
+        if (!isRecord(day)) throw new Error("Invalid contribution calendar");
+        const levelIsRecognized = typeof day.contributionLevel === "string"
+          && Object.hasOwn(CONTRIBUTION_LEVELS, day.contributionLevel);
         if (
-          typeof day.date !== "string"
-          || !Number.isInteger(day.contributionCount)
-          || level === undefined
+          !isIsoDate(day.date)
+          || !isNonNegativeInteger(day.contributionCount)
+          || !levelIsRecognized
         ) {
           throw new Error("Invalid contribution calendar");
         }
         return {
           date: day.date,
           count: day.contributionCount,
-          level,
+          level: CONTRIBUTION_LEVELS[day.contributionLevel],
         };
       }),
-    })),
+    };
+  });
+
+  if (weeks.length === 52) weeks.unshift({ days: [] });
+
+  return {
+    username,
+    from,
+    to,
+    total: calendar.totalContributions,
+    weeks,
   };
 };
 

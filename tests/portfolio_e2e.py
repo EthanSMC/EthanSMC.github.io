@@ -34,6 +34,15 @@ def contribution_fixture():
     }
 
 
+def contribution_fixture_52_weeks():
+    payload = contribution_fixture()
+    payload["weeks"] = payload["weeks"][1:]
+    payload["total"] = sum(
+        day["count"] for week in payload["weeks"] for day in week["days"]
+    )
+    return payload
+
+
 EXPECTED_PROJECT_TITLES = [
     "AI-native Wealth & Asset Management System",
     "Bond Agent & Financial Q",
@@ -503,13 +512,21 @@ class PortfolioE2E(unittest.TestCase):
         page.wait_for_function(
             "document.querySelector('[data-contributions]')?.dataset.state === 'ready'"
         )
-        cells = note.locator("[data-contribution-grid] > *")
+        cells = note.locator("[data-contribution-grid] [role='row'] > *")
         self.assertEqual(cells.count(), 371)
         self.assertEqual(note.locator("[data-contribution-day]").count(), 365)
-        self.assertEqual(cells.nth(2).get_attribute("data-week-index"), "0")
-        self.assertEqual(cells.nth(2).get_attribute("data-weekday"), "2")
-        self.assertEqual(cells.nth(366).get_attribute("data-week-index"), "52")
-        self.assertEqual(cells.nth(366).get_attribute("data-weekday"), "2")
+        self.assertEqual(
+            note.locator(
+                '[data-contribution-day][data-week-index="0"][data-weekday="2"]'
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            note.locator(
+                '[data-contribution-day][data-week-index="52"][data-weekday="2"]'
+            ).count(),
+            1,
+        )
         self.assertEqual(
             note.locator("[data-contribution-total]").inner_text(),
             f"{payload['total']:,} contributions",
@@ -518,6 +535,80 @@ class PortfolioE2E(unittest.TestCase):
             note.locator("[data-contribution-grid]").get_attribute("aria-busy"),
             "false",
         )
+
+    def test_contribution_heatmap_pads_52_weeks_on_the_leading_edge(self):
+        payload = contribution_fixture_52_weeks()
+        first_source_date = payload["weeks"][0]["days"][0]["date"]
+        latest_source_date = payload["weeks"][-1]["days"][-1]["date"]
+        page = self.open_page(contribution_payload=payload)
+        page.wait_for_function(
+            "document.querySelector('[data-contributions]')?.dataset.state === 'ready'"
+        )
+        note = page.locator("[data-contributions]")
+
+        self.assertEqual(
+            note.locator("[data-contribution-grid] [role='row'] > *").count(),
+            371,
+        )
+        self.assertEqual(
+            note.locator('[data-contribution-day][data-week-index="0"]').count(),
+            0,
+        )
+        self.assertEqual(
+            note.locator(
+                f'[data-contribution-day][data-week-index="1"]'
+                f'[aria-label^="{first_source_date}:"]'
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            note.locator(
+                f'[data-contribution-day][data-week-index="52"]'
+                f'[aria-label^="{latest_source_date}:"]'
+            ).count(),
+            1,
+        )
+
+    def test_contribution_heatmap_gridcells_belong_to_weekday_rows(self):
+        page = self.open_page(contribution_payload=contribution_fixture())
+        page.wait_for_function(
+            "document.querySelector('[data-contributions]')?.dataset.state === 'ready'"
+        )
+        structure = page.locator("[data-contribution-grid]").evaluate(
+            """grid => {
+              const rows = Array.from(grid.children);
+              const cells = Array.from(grid.querySelectorAll('[role="gridcell"]'));
+              return {
+                rowCount: rows.filter(row => row.getAttribute('role') === 'row').length,
+                directRowsOnly: rows.every(row => row.getAttribute('role') === 'row'),
+                everyCellOwned: cells.every(cell => {
+                  const row = cell.closest('[role="row"]');
+                  return row && row.parentElement === grid;
+                }),
+              };
+            }"""
+        )
+        self.assertEqual(structure["rowCount"], 7)
+        self.assertTrue(structure["directRowsOnly"])
+        self.assertTrue(structure["everyCellOwned"])
+
+    def test_contribution_level_zero_is_distinct_from_loading_placeholders(self):
+        page = self.open_page(contribution_payload=contribution_fixture())
+        page.wait_for_function(
+            "document.querySelector('[data-contributions]')?.dataset.state === 'ready'"
+        )
+        colors = page.locator("[data-contribution-grid]").evaluate(
+            """grid => ({
+              zero: getComputedStyle(
+                grid.querySelector('[data-contribution-day][data-level="0"]')
+              ).backgroundColor,
+              placeholder: getComputedStyle(
+                grid.querySelector('.contribution-placeholder')
+              ).backgroundColor,
+            })"""
+        )
+        self.assertEqual(colors["zero"], "rgb(255, 250, 240)")
+        self.assertNotEqual(colors["zero"], colors["placeholder"])
 
     def test_contribution_heatmap_is_responsive_and_stable(self):
         payload = contribution_fixture()
@@ -562,6 +653,10 @@ class PortfolioE2E(unittest.TestCase):
         page.wait_for_function(
             "document.querySelector('[data-contributions]')?.dataset.state === 'ready'"
         )
+        initial = page.locator('[data-contribution-day][tabindex="0"]')
+        self.assertEqual(initial.count(), 1)
+        self.assertEqual(initial.get_attribute("data-week-index"), "0")
+        self.assertEqual(initial.get_attribute("data-weekday"), "2")
         start = page.locator(
             '[data-contribution-day][data-week-index="1"][data-weekday="2"]'
         )
@@ -623,6 +718,11 @@ class PortfolioE2E(unittest.TestCase):
                 self.assertIsNotNone(box)
                 x = box["x"] + box["width"] / 2
                 y = box["y"] + box["height"] / 2
+                intended_day = {
+                    "ariaLabel": day.get_attribute("aria-label"),
+                    "weekIndex": day.get_attribute("data-week-index"),
+                    "weekday": day.get_attribute("data-weekday"),
+                }
                 resolved_day = page.evaluate(
                     """({ x, y }) => {
                       const day = document.elementFromPoint(x, y)
@@ -636,11 +736,13 @@ class PortfolioE2E(unittest.TestCase):
                     {"x": x, "y": y},
                 )
                 self.assertIsNotNone(resolved_day)
+                self.assertEqual(resolved_day["weekIndex"], intended_day["weekIndex"])
+                self.assertEqual(resolved_day["weekday"], intended_day["weekday"])
                 page.touchscreen.tap(x, y)
                 self.assertFalse(tooltip.is_hidden())
                 self.assertEqual(
                     tooltip.inner_text(),
-                    resolved_day["ariaLabel"].replace(": ", " · ", 1),
+                    intended_day["ariaLabel"].replace(": ", " · ", 1),
                 )
                 bounds = page.evaluate(
                     """() => {

@@ -295,11 +295,18 @@ const initContributionHeatmap = (root) => {
 
   const renderSkeleton = () => {
     grid.replaceChildren();
-    for (let index = 0; index < 371; index += 1) {
-      const cell = document.createElement("span");
-      cell.className = "contribution-placeholder";
-      cell.setAttribute("aria-hidden", "true");
-      grid.appendChild(cell);
+    for (let weekday = 0; weekday < 7; weekday += 1) {
+      const row = document.createElement("div");
+      row.className = "contribution-row";
+      row.dataset.weekdayRow = String(weekday);
+      row.setAttribute("role", "row");
+      for (let weekIndex = 0; weekIndex < 53; weekIndex += 1) {
+        const cell = document.createElement("span");
+        cell.className = "contribution-placeholder";
+        cell.setAttribute("aria-hidden", "true");
+        row.appendChild(cell);
+      }
+      grid.appendChild(row);
     }
   };
 
@@ -315,17 +322,26 @@ const initContributionHeatmap = (root) => {
     && Number.isInteger(day.level)
     && day.level >= 0
     && day.level <= 4;
-  const isValidPayload = (payload) => payload
-    && payload.username === "EthanSMC"
-    && isIsoDate(payload.from)
-    && isIsoDate(payload.to)
-    && Number.isInteger(payload.total)
-    && payload.total >= 0
-    && Array.isArray(payload.weeks)
-    && payload.weeks.length === 53
-    && payload.weeks.every((week) => Array.isArray(week.days)
-      && week.days.length <= 7
-      && week.days.every(isValidDay));
+  const normalizePayload = (payload) => {
+    const isValid = payload
+      && payload.username === "EthanSMC"
+      && isIsoDate(payload.from)
+      && isIsoDate(payload.to)
+      && Number.isInteger(payload.total)
+      && payload.total >= 0
+      && Array.isArray(payload.weeks)
+      && [52, 53].includes(payload.weeks.length)
+      && payload.weeks.every((week) => week
+        && !Array.isArray(week)
+        && Array.isArray(week.days)
+        && week.days.length <= 7
+        && week.days.every(isValidDay));
+    if (!isValid) return null;
+
+    const weeks = payload.weeks.slice();
+    if (weeks.length === 52) weeks.unshift({ days: [] });
+    return { ...payload, weeks };
+  };
 
   const hideTooltip = () => {
     tooltip.hidden = true;
@@ -365,20 +381,27 @@ const initContributionHeatmap = (root) => {
 
   const renderCalendar = (payload) => {
     grid.replaceChildren();
-    let firstButton;
-    payload.weeks.forEach((week, weekIndex) => {
-      const daysByWeekday = new Map(week.days.map((day) => [
-        new Date(`${day.date}T00:00:00Z`).getUTCDay(),
-        day,
-      ]));
-      for (let weekday = 0; weekday < 7; weekday += 1) {
+    const daysByWeek = payload.weeks.map((week) => new Map(week.days.map((day) => [
+      new Date(`${day.date}T00:00:00Z`).getUTCDay(),
+      day,
+    ])));
+    const initialWeekIndex = daysByWeek.findIndex((days) => days.size > 0);
+    const initialWeekday = initialWeekIndex >= 0
+      ? Math.min(...daysByWeek[initialWeekIndex].keys())
+      : -1;
+    for (let weekday = 0; weekday < 7; weekday += 1) {
+      const row = document.createElement("div");
+      row.className = "contribution-row";
+      row.dataset.weekdayRow = String(weekday);
+      row.setAttribute("role", "row");
+      daysByWeek.forEach((daysByWeekday, weekIndex) => {
         const day = daysByWeekday.get(weekday);
         if (!day) {
           const placeholder = document.createElement("span");
           placeholder.className = "contribution-placeholder";
           placeholder.setAttribute("aria-hidden", "true");
-          grid.appendChild(placeholder);
-          continue;
+          row.appendChild(placeholder);
+          return;
         }
         const button = document.createElement("button");
         button.type = "button";
@@ -387,7 +410,7 @@ const initContributionHeatmap = (root) => {
         button.dataset.weekIndex = String(weekIndex);
         button.dataset.weekday = String(weekday);
         button.dataset.level = String(day.level);
-        button.tabIndex = firstButton ? -1 : 0;
+        button.tabIndex = weekIndex === initialWeekIndex && weekday === initialWeekday ? 0 : -1;
         button.setAttribute("role", "gridcell");
         button.setAttribute(
           "aria-label",
@@ -413,10 +436,10 @@ const initContributionHeatmap = (root) => {
           event.preventDefault();
           focusNeighbor(button, move[0], move[1]);
         });
-        firstButton ||= button;
-        grid.appendChild(button);
-      }
-    });
+        row.appendChild(button);
+      });
+      grid.appendChild(row);
+    }
     total.textContent = `${payload.total.toLocaleString("en-US")} contributions`;
     grid.setAttribute("aria-label", `${payload.username} GitHub contributions from ${payload.from} to ${payload.to}: ${payload.total} total`);
     grid.setAttribute("aria-busy", "false");
@@ -448,8 +471,9 @@ const initContributionHeatmap = (root) => {
       return response.json();
     })
     .then((payload) => {
-      if (!isValidPayload(payload)) throw new Error("Invalid contribution payload");
-      renderCalendar(payload);
+      const normalizedPayload = normalizePayload(payload);
+      if (!normalizedPayload) throw new Error("Invalid contribution payload");
+      renderCalendar(normalizedPayload);
     })
     .catch(renderUnavailable)
     .finally(() => window.clearTimeout(timeoutId));

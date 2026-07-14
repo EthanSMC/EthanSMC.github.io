@@ -30,9 +30,12 @@ Then run `vercel dev`. For production, add the same variable through Vercel's
 secure Production environment-variable UI or
 `vercel env add GITHUB_TOKEN production`.
 
-## 发布到 GitHub Pages
+## Production deployment
 
-这个仓库使用 GitHub Pages user site 形式，推送到 `main` 分支后从根目录发布。
+Production is deployed through the linked Vercel project so the serverless
+contribution endpoint and static portfolio ship together. Configure
+`GITHUB_TOKEN` in Vercel's Production environment, then deploy the `main`
+branch through Vercel.
 
 ## 内容来源
 
