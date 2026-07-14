@@ -1193,6 +1193,94 @@ canvas {
   content: "★";
 }
 
+.contribution-note {
+  position: relative;
+  margin-top: 34px;
+  padding: 24px;
+  border: 2px solid rgba(58, 53, 45, 0.48);
+  border-radius: 5px;
+  background: rgba(255, 250, 240, 0.88);
+  box-shadow: 9px 12px 0 rgba(64, 49, 31, 0.055);
+  transform: rotate(-0.3deg);
+}
+
+.contribution-tape {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  width: 92px;
+  height: 20px;
+  background: rgba(231, 185, 54, 0.3);
+  transform: translateX(-50%) rotate(-1deg);
+}
+
+.contribution-heading,
+.contribution-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.contribution-kicker,
+.contribution-total,
+.contribution-status {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--hand);
+  font-weight: 850;
+}
+
+.contribution-heading h3 {
+  margin: 4px 0 0;
+  color: var(--blue);
+  font-family: var(--hand);
+  font-size: 1.55rem;
+  line-height: 1.2;
+}
+
+.contribution-calendar-wrap {
+  position: relative;
+  margin: 22px 0 16px;
+}
+
+.contribution-grid {
+  display: grid;
+  grid-template-columns: repeat(53, minmax(0, 1fr));
+  grid-template-rows: repeat(7, auto);
+  grid-auto-flow: column;
+  gap: clamp(1px, 0.22vw, 4px);
+  width: 100%;
+}
+
+.contribution-day,
+.contribution-placeholder {
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 1;
+  border: 1px solid rgba(58, 53, 45, 0.11);
+  border-radius: 2px;
+  background: rgba(89, 84, 76, 0.07);
+}
+
+.contribution-day[data-level="1"] { background: #c9d3df; }
+.contribution-day[data-level="2"] { background: #8da9ca; }
+.contribution-day[data-level="3"] { background: #527fb5; }
+.contribution-day[data-level="4"] { background: var(--blue); }
+
+.contribution-tooltip {
+  position: absolute;
+  z-index: 5;
+  max-width: 220px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 0.78rem;
+  pointer-events: none;
+}
+
 .now {
   position: relative;
   display: grid;
@@ -1842,6 +1930,11 @@ canvas {
     grid-template-columns: 1fr;
   }
 
+  .contribution-note { padding: 18px 14px; }
+  .contribution-heading { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .contribution-grid { gap: 1px; }
+  .contribution-heading h3 { font-size: 1.3rem; }
+
   .now {
     gap: 22px;
   }
@@ -1913,6 +2006,9 @@ canvas {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .contribution-note,
+  .contribution-day { transition: none; }
+
   *,
   *::before,
   *::after {

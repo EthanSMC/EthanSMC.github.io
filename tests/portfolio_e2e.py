@@ -398,6 +398,25 @@ class PortfolioE2E(unittest.TestCase):
         with self.subTest(contract="jinshi-finpm not featured"):
             self.assertNotIn("jinshi-finpm", [record["name"] for record in records])
 
+    def test_contribution_note_follows_repository_cards(self):
+        page = self.open_page()
+        note = page.locator("[data-contributions]")
+        self.assertEqual(note.count(), 1)
+        self.assertEqual(note.locator("h3").inner_text(), "365 days of making")
+        self.assertEqual(
+            note.get_attribute("aria-labelledby"),
+            "contributions-title",
+        )
+        self.assertTrue(
+            page.evaluate(
+                """() => {
+              const cards = document.querySelector("#repos .repo-cards");
+              const note = document.querySelector("[data-contributions]");
+              return cards?.nextElementSibling === note;
+            }"""
+            )
+        )
+
     def test_view_all_repositories_is_same_tab(self):
         page = self.open_page()
         view_all = page.locator("#repos .section-heading > a")
