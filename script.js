@@ -456,7 +456,7 @@ const initContributionHeatmap = (root) => {
   const profileLink = root.querySelector('a[href="https://github.com/EthanSMC"]');
   root.addEventListener("click", (event) => {
     if (!profileLink || event.target.closest("a, [data-contribution-day]")) return;
-    window.location.href = profileLink.href;
+    profileLink.click();
   });
 
   renderSkeleton();

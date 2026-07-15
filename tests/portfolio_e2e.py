@@ -203,6 +203,7 @@ class PortfolioE2E(unittest.TestCase):
                 label: normalizedText(element),
                 href: element.getAttribute("href"),
                 target: element.getAttribute("target"),
+                rel: element.getAttribute("rel"),
               } : null;
 
               return {
@@ -218,6 +219,7 @@ class PortfolioE2E(unittest.TestCase):
                   tag: card.tagName,
                   href: card.getAttribute("href"),
                   target: card.getAttribute("target"),
+                  rel: card.getAttribute("rel"),
                 })),
                 viewAllRepositories: linkSummary(
                   document.querySelector("#repos .section-heading > a")
@@ -228,9 +230,12 @@ class PortfolioE2E(unittest.TestCase):
                 externalTargetOffenders: [...document.querySelectorAll("a[href]")]
                   .filter(anchor => {
                     const href = anchor.getAttribute("href") || "";
-                    return /^https?:\/\//i.test(href) &&
-                      anchor.hasAttribute("target") &&
-                      href !== "https://noveltystudio.cn";
+                    const rel = new Set((anchor.getAttribute("rel") || "").split(/\s+/));
+                    return /^https?:\/\//i.test(href) && (
+                      anchor.getAttribute("target") !== "_blank" ||
+                      !rel.has("noopener") ||
+                      !rel.has("noreferrer")
+                    );
                   })
                   .map(linkSummary),
               };
@@ -245,6 +250,7 @@ class PortfolioE2E(unittest.TestCase):
                 label: anchor.textContent.replace(/\s+/g, " ").trim(),
                 href: anchor.getAttribute("href"),
                 target: anchor.getAttribute("target"),
+                rel: anchor.getAttribute("rel"),
               }))"""
         )
 
@@ -280,18 +286,26 @@ class PortfolioE2E(unittest.TestCase):
             },
         ]
         expected_repositories = [
-            {"name": name, "tag": "A", "href": href, "target": None}
+            {
+                "name": name,
+                "tag": "A",
+                "href": href,
+                "target": "_blank",
+                "rel": "noopener noreferrer",
+            }
             for name, href in EXPECTED_REPOSITORIES
         ]
         expected_view_all = {
             "label": "View all repos",
             "href": "https://github.com/EthanSMC?tab=repositories",
-            "target": None,
+            "target": "_blank",
+            "rel": "noopener noreferrer",
         }
         expected_credit = {
             "label": "David Heckhoff",
             "href": "https://david-hckh.com/",
-            "target": None,
+            "target": "_blank",
+            "rel": "noopener noreferrer",
         }
 
         issues = []
@@ -331,7 +345,7 @@ class PortfolioE2E(unittest.TestCase):
             "Content/link contract violations:\n- " + "\n- ".join(issues),
         )
 
-    def test_only_novelty_studio_opens_in_a_new_tab(self):
+    def test_all_external_http_links_open_securely_in_a_new_tab(self):
         page = self.open_page()
         links = self.external_http_links(page)
         self.assertGreater(len(links), 0, "Expected at least one external HTTP(S) link")
@@ -342,12 +356,8 @@ class PortfolioE2E(unittest.TestCase):
                 label=link["label"],
                 href=link["href"],
             ):
-                expected_target = (
-                    "_blank"
-                    if link["href"] == "https://noveltystudio.cn"
-                    else None
-                )
-                self.assertEqual(link["target"], expected_target)
+                self.assertEqual(link["target"], "_blank")
+                self.assertEqual(link["rel"], "noopener noreferrer")
 
     def test_featured_projects_has_only_novelty_external_link(self):
         page = self.open_page()
@@ -448,7 +458,7 @@ class PortfolioE2E(unittest.TestCase):
         page.keyboard.press("Escape")
         self.assertFalse(dialog.evaluate("element => element.open"))
 
-    def test_repository_cards_are_exact_same_tab_anchors(self):
+    def test_repository_cards_are_exact_new_tab_anchors(self):
         page = self.open_page()
         cards = page.locator("#repos .repo-card")
         records = cards.evaluate_all(
@@ -457,6 +467,7 @@ class PortfolioE2E(unittest.TestCase):
               tag: element.tagName,
               href: element.getAttribute("href"),
               target: element.getAttribute("target"),
+              rel: element.getAttribute("rel"),
             }))"""
         )
 
@@ -471,8 +482,10 @@ class PortfolioE2E(unittest.TestCase):
         for record in records:
             with self.subTest(repository=record["name"], contract="anchor"):
                 self.assertEqual(record["tag"], "A")
-            with self.subTest(repository=record["name"], contract="same tab"):
-                self.assertIsNone(record["target"])
+            with self.subTest(repository=record["name"], contract="new tab"):
+                self.assertEqual(record["target"], "_blank")
+            with self.subTest(repository=record["name"], contract="secure opener"):
+                self.assertEqual(record["rel"], "noopener noreferrer")
 
         for name, expected_href in EXPECTED_REPOSITORIES:
             matches = [record for record in records if record["name"] == name]
@@ -809,7 +822,7 @@ class PortfolioE2E(unittest.TestCase):
             "false",
         )
 
-    def test_contribution_note_space_navigates_to_profile(self):
+    def test_contribution_note_space_opens_profile_in_new_tab(self):
         page = self.open_page(contribution_payload=contribution_fixture())
         page.route(
             "https://github.com/EthanSMC",
@@ -823,11 +836,13 @@ class PortfolioE2E(unittest.TestCase):
             "document.querySelector('[data-contributions]')?.dataset.state === 'ready'"
         )
 
-        page.locator("#contributions-title").click()
-        page.wait_for_url("https://github.com/EthanSMC")
-        self.assertEqual(page.title(), "GitHub profile test stub")
+        with page.expect_popup() as popup_info:
+            page.locator("#contributions-title").click()
+        popup = popup_info.value
+        popup.wait_for_load_state("domcontentloaded")
+        self.assertEqual(popup.url, "https://github.com/EthanSMC")
 
-    def test_view_all_repositories_is_same_tab(self):
+    def test_view_all_repositories_opens_in_new_tab(self):
         page = self.open_page()
         view_all = page.locator("#repos .section-heading > a")
         link_count = view_all.count()
@@ -841,8 +856,13 @@ class PortfolioE2E(unittest.TestCase):
                     view_all.get_attribute("href"),
                     "https://github.com/EthanSMC?tab=repositories",
                 )
-            with self.subTest(contract="View all repos same tab"):
-                self.assertIsNone(view_all.get_attribute("target"))
+            with self.subTest(contract="View all repos new tab"):
+                self.assertEqual(view_all.get_attribute("target"), "_blank")
+            with self.subTest(contract="View all repos secure opener"):
+                self.assertEqual(
+                    view_all.get_attribute("rel"),
+                    "noopener noreferrer",
+                )
 
     def test_footer_has_visible_david_heckhoff_credit(self):
         page = self.open_page()
@@ -866,8 +886,13 @@ class PortfolioE2E(unittest.TestCase):
                     self.assert_element_readable(link)
                 with self.subTest(contract="David Heckhoff href"):
                     self.assertEqual(link.get_attribute("href"), "https://david-hckh.com/")
-                with self.subTest(contract="David Heckhoff same tab"):
-                    self.assertIsNone(link.get_attribute("target"))
+                with self.subTest(contract="David Heckhoff new tab"):
+                    self.assertEqual(link.get_attribute("target"), "_blank")
+                with self.subTest(contract="David Heckhoff secure opener"):
+                    self.assertEqual(
+                        link.get_attribute("rel"),
+                        "noopener noreferrer",
+                    )
 
     def test_intro_structure_is_staged(self):
         page = self.open_page()
