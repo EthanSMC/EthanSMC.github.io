@@ -97,6 +97,7 @@ const normalizeContributionCalendar = (calendar, username, from, to) => {
 
 const sendJson = (response, statusCode, body, cacheControl) => {
   response.statusCode = statusCode;
+  response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Content-Type", "application/json; charset=utf-8");
   response.setHeader("Cache-Control", cacheControl);
   response.end(JSON.stringify(body));

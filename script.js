@@ -462,7 +462,11 @@ const initContributionHeatmap = (root) => {
   renderSkeleton();
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 8000);
-  fetch("/api/github-contributions", {
+  const contributionEndpoint = location.protocol === "file:"
+    || location.hostname === "ethansmc.github.io"
+    ? "https://ethansmc-personal-page.vercel.app/api/github-contributions"
+    : "/api/github-contributions";
+  fetch(contributionEndpoint, {
     headers: { Accept: "application/json" },
     signal: controller.signal,
   })

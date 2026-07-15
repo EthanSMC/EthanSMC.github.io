@@ -205,6 +205,7 @@ test("requests exactly 365 inclusive days and returns normalized data with edge 
     response.headers["Cache-Control"],
     "public, s-maxage=3600, stale-while-revalidate=86400",
   );
+  assert.equal(response.headers["Access-Control-Allow-Origin"], "*");
   const body = JSON.parse(response.body);
   assert.equal(body.from, "2025-07-15");
   assert.equal(body.to, "2026-07-14");
