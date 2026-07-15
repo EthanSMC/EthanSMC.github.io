@@ -49,8 +49,8 @@ EXPECTED_PROJECT_TITLES = [
     "Novelty Studio",
 ]
 EXPECTED_REPOSITORIES = [
-    ("pm-skills", "https://github.com/EthanSMC/pm-skills"),
     ("digital-me", "https://github.com/EthanSMC/digital-me"),
+    ("pm-skills", "https://github.com/EthanSMC/pm-skills"),
     ("mcd-skill", "https://github.com/EthanSMC/mcd-skill"),
     ("learn-back", "https://github.com/EthanSMC/learn-back"),
 ]
