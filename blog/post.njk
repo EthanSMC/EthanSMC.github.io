@@ -1,0 +1,34 @@
+---
+layout: layouts/blog-shell.njk
+pagination:
+  data: blog.posts
+  size: 1
+  alias: post
+  addAllPagesToCollections: true
+permalink: "{{ post.outputPath }}"
+---
+<article class="post-page post-page--{{ post.type | lower }}">
+  <header class="post-heading">
+    <div class="post-margin-meta">
+      <span>{{ post.type }}</span>
+      <time datetime="{{ post.iso }}">{{ post.display }}</time>
+      <span>{{ post.readingMinutes }} min read</span>
+      {% if post.tags.length %}
+        <ul aria-label="Tags">
+          {% for tag in post.tags %}<li><a href="/blog/tag/{{ tag.normalized | urlencode }}/">#{{ tag.label }}</a></li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+    <div>
+      <p class="post-ledger">WRITING / {{ post.id }}</p>
+      {% if post.showTitle %}<h1>{{ post.title }}</h1>{% endif %}
+      {% if post.type == "Essay" %}<p class="post-deck">{{ post.summary }}</p>{% endif %}
+    </div>
+  </header>
+  <div class="post-body prose">{{ post.bodyHtml | safe }}</div>
+  <nav class="post-navigation" aria-label="相邻文章">
+    {% if post.older %}<a href="{{ post.older.url }}"><small>上一篇</small>{{ post.older.title }}</a>{% else %}<span></span>{% endif %}
+    <a class="post-back" href="/blog/">返回 Writing</a>
+    {% if post.newer %}<a class="post-next" href="{{ post.newer.url }}"><small>下一篇</small>{{ post.newer.title }}</a>{% endif %}
+  </nav>
+</article>

@@ -1,0 +1,29 @@
+---
+layout: layouts/blog-shell.njk
+pagination:
+  data: blog.tagPages
+  size: 1
+  alias: tagPage
+permalink: "{{ tagPage.outputPath }}"
+---
+<section class="tag-archive-heading">
+  <p class="writing-kicker">FIELD INDEX</p>
+  <a href="/blog/">← 全部 Writing</a>
+  <h1>#{{ tagPage.tag.label }}</h1>
+  <p>{{ tagPage.tag.count }} 篇记录，按时间倒序排列。</p>
+</section>
+
+<section class="field-log" aria-label="#{{ tagPage.tag.label }} timeline">
+  {% for postItem in tagPage.posts %}
+    {% set entry = postItem %}
+    {% include "partials/blog-entry.njk" %}
+  {% endfor %}
+</section>
+
+{% if tagPage.totalPages > 1 %}
+  <nav class="blog-pagination" aria-label="Tag pages">
+    {% if tagPage.previousUrl %}<a href="{{ tagPage.previousUrl }}">← 更新的记录</a>{% else %}<span></span>{% endif %}
+    <span>{{ tagPage.pageNumber | plus(1) }} / {{ tagPage.totalPages }}</span>
+    {% if tagPage.nextUrl %}<a href="{{ tagPage.nextUrl }}">更早的记录 →</a>{% endif %}
+  </nav>
+{% endif %}

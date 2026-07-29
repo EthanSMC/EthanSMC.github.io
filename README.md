@@ -2,15 +2,29 @@
 
 Hand-drawn personal site for EthanSMC, inspired by interactive portfolio layouts and powered by a lightweight Three.js Digital Ethan scene.
 
-## 本地预览
+## 本地开发
 
-因为页面使用 ES modules 和 Three.js CDN import，建议用本地 HTTP server：
+网站使用 Eleventy 生成首页、Writing、文章页、Tag 归档、RSS 和 sitemap。
 
 ```bash
-python3 -m http.server 4173
+pnpm install
+pnpm dev
 ```
 
 然后打开 <http://localhost:4173>。
+
+构建与测试：
+
+```bash
+pnpm test
+pnpm build
+```
+
+## Obsidian Writing
+
+Obsidian 只需打开仓库中的 `content/` 文件夹。文章不需要 YAML：使用时间戳文件名、正文第一个一级标题和任意 `#标签` 即可。完成后把 Markdown 从 `drafts/` 移到 `published/`，Obsidian Git 会自动提交并推送。
+
+首次设置、发布规则和错误处理参见 [Obsidian 发布说明](docs/obsidian-publishing.md)。
 
 ## GitHub contribution calendar
 
@@ -32,10 +46,15 @@ secure Production environment-variable UI or
 
 ## Production deployment
 
-Production is deployed through the linked Vercel project so the serverless
-contribution endpoint and static portfolio ship together. Configure
-`GITHUB_TOKEN` in Vercel's Production environment, then deploy the `main`
-branch through Vercel.
+Production is deployed through the linked Vercel project so the generated site
+and serverless contribution endpoint ship together. Configure `GITHUB_TOKEN`
+and, when using a custom domain, `SITE_URL` in Vercel's Production environment,
+then deploy the `main` branch through Vercel.
+
+Vercel is the canonical host. The legacy GitHub Pages address redirects to the
+same path on Vercel so the raw repository source and the generated site cannot
+drift into two public versions. GitHub Actions validates content, hooks, and the
+production build on every push to `main`.
 
 ## 内容来源
 

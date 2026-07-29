@@ -1,0 +1,25 @@
+---
+permalink: blog/feed.xml
+eleventyExcludeFromCollections: true
+---
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Ethan 的 Writing</title>
+  <subtitle>记录产品现场、AI 实践，以及那些暂时没有结论的想法。</subtitle>
+  <link href="{{ '/blog/feed.xml' | absoluteUrl(site.url) }}" rel="self" />
+  <link href="{{ '/blog/' | absoluteUrl(site.url) }}" />
+  <updated>{{ blog.latestDate | dateToRfc3339 }}</updated>
+  <id>{{ '/blog/' | absoluteUrl(site.url) }}</id>
+  <author><name>{{ site.author }}</name><email>{{ site.email }}</email></author>
+  {% for post in blog.posts %}
+  <entry>
+    <title>{{ post.title | xmlEscape | safe }}</title>
+    <link href="{{ post.url | absoluteUrl(site.url) }}" />
+    <id>{{ post.url | absoluteUrl(site.url) }}</id>
+    <published>{{ post.date | dateToRfc3339 }}</published>
+    <updated>{{ post.date | dateToRfc3339 }}</updated>
+    <summary>{{ post.summary | xmlEscape | safe }}</summary>
+    <content type="html">{{ post.bodyHtml | htmlToAbsoluteUrls(site.url) | xmlEscape | safe }}</content>
+  </entry>
+  {% endfor %}
+</feed>

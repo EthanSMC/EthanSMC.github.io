@@ -119,6 +119,7 @@ const createIntroController = (stage, sequence) => {
 const header = document.querySelector("[data-header]");
 const navLinks = Array.from(document.querySelectorAll(".nav-links a"));
 const sections = navLinks
+  .filter((link) => link.getAttribute("href")?.startsWith("#"))
   .map((link) => document.querySelector(link.getAttribute("href")))
   .filter(Boolean);
 

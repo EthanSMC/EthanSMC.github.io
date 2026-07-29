@@ -11,6 +11,13 @@
     <title>申名翀 Ethan | Personal Site</title>
     <link rel="icon" href="assets/favicon.svg" />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="blog.css" />
+    <script>
+      if (location.hostname === "ethansmc.github.io") {
+        const destination = new URL(location.pathname + location.search + location.hash, "https://ethansmc-personal-page.vercel.app");
+        location.replace(destination.href);
+      }
+    </script>
     <script>
       window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
     </script>
@@ -28,6 +35,7 @@
       <nav class="nav-links" aria-label="Primary navigation">
         <a href="#about">About</a>
         <a href="#projects">Projects</a>
+        <a href="#writing">Writing</a>
         <a href="#contact">Contact</a>
       </nav>
 
@@ -216,6 +224,26 @@
               <path d="m10 5 7 7-7 7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
             </svg>
           </button>
+        </div>
+      </section>
+
+      <section class="writing section-anchor" id="writing" aria-labelledby="writing-home-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="writing-home-title">Writing</h2>
+            <p>记录产品现场、AI 实践，以及那些暂时没有结论的想法。</p>
+          </div>
+          <a href="https://ethansmc-personal-page.vercel.app/blog/" data-site-href="/blog/">查看全部文章</a>
+        </div>
+
+        <div class="home-writing-grid">
+          <!-- HOME_WRITING_CONTENT_START -->
+          <div class="home-writing-empty">
+            <h3>第一篇还在纸上。</h3>
+            <p>从 Obsidian 发布后，最新的 Essay 和 Note 会自动出现在这里。</p>
+            <a class="home-writing-link" href="https://ethansmc-personal-page.vercel.app/blog/" data-site-href="/blog/">进入 Writing <span aria-hidden="true">→</span></a>
+          </div>
+          <!-- HOME_WRITING_CONTENT_END -->
         </div>
       </section>
 

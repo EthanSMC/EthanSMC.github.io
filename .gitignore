@@ -4,6 +4,15 @@
 .superpowers/
 .worktrees/
 output/
+_site/
+node_modules/
+__pycache__/
+*.pyc
+content/drafts/
+content/.obsidian/
+content/.trash/
+content/assets/*
+!content/assets/.gitkeep
 assets/avatar.png
 assets/avatar-digital-ethan*.png
 assets/generated/

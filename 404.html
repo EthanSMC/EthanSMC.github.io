@@ -1,0 +1,29 @@
+---
+permalink: 404.html
+eleventyExcludeFromCollections: true
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>页面未找到 | EthanSMC</title>
+    <script>
+      if (location.hostname === "ethansmc.github.io") {
+        const destination = new URL(location.pathname + location.search + location.hash, "https://ethansmc-personal-page.vercel.app");
+        location.replace(destination.href);
+      }
+    </script>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/blog.css" />
+  </head>
+  <body class="blog-body">
+    <main id="content" class="writing-empty">
+      <span aria-hidden="true">404</span>
+      <h1>这一页还没有写下来。</h1>
+      <p>地址可能已经变化，或者内容尚未发布。</p>
+      <a class="home-writing-link" href="/">返回首页 <span aria-hidden="true">→</span></a>
+    </main>
+  </body>
+</html>

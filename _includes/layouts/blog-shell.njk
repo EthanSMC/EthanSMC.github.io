@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="{{ site.language }}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f0df" />
+    {% if post %}
+      {% set metaTitle = post.title + " | Writing by Ethan" %}
+      {% set metaDescription = post.summary %}
+      {% set canonicalPath = post.url %}
+      {% set metaType = "article" %}
+    {% elif tagPage %}
+      {% set metaTitle = "#" + tagPage.tag.label + " | Writing by Ethan" %}
+      {% set metaDescription = tagPage.tag.count + " 篇关于 #" + tagPage.tag.label + " 的记录。" %}
+      {% set canonicalPath = tagPage.url %}
+      {% set metaType = "website" %}
+    {% else %}
+      {% set metaTitle = pageTitle or "Writing | 申名翀 Ethan" %}
+      {% set metaDescription = pageDescription or "记录产品现场、AI 实践，以及那些暂时没有结论的想法。" %}
+      {% set canonicalPath = canonicalPath or page.url %}
+      {% set metaType = "website" %}
+    {% endif %}
+    <title>{{ metaTitle }}</title>
+    <meta name="description" content="{{ metaDescription }}" />
+    <link rel="canonical" href="{{ canonicalPath | absoluteUrl(site.url) }}" />
+    <meta property="og:type" content="{{ metaType }}" />
+    <meta property="og:title" content="{{ metaTitle }}" />
+    <meta property="og:description" content="{{ metaDescription }}" />
+    <meta property="og:url" content="{{ canonicalPath | absoluteUrl(site.url) }}" />
+    <meta property="og:site_name" content="{{ site.name }}" />
+    <meta name="twitter:card" content="summary" />
+    {% if post %}<meta property="article:published_time" content="{{ post.iso }}" />{% endif %}
+    <link rel="icon" href="/assets/favicon.svg" />
+    <link rel="alternate" type="application/rss+xml" title="Ethan 的 Writing" href="/blog/feed.xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/blog.css" />
+    <script>
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
+  </head>
+  <body class="blog-body">
+    <a class="skip-link" href="#content">Skip to content</a>
+    <header class="blog-header">
+      <a class="blog-brand" href="/" aria-label="返回 Ethan 的个人主页">
+        <span class="brand-mark" aria-hidden="true">E</span>
+        <span>EthanSMC</span>
+      </a>
+      <nav class="blog-nav" aria-label="Writing navigation">
+        <a href="/">Home</a>
+        <a href="/blog/"{% if page.url and page.url.startsWith('/blog/') %} aria-current="page"{% endif %}>Writing</a>
+        <a href="/blog/feed.xml">RSS</a>
+      </nav>
+    </header>
+    <main id="content" tabindex="-1">
+      {{ content | safe }}
+    </main>
+    <footer class="blog-footer">
+      <span>© 2026 EthanSMC</span>
+      <p>写下正在形成的判断，也保留暂时没有答案的问题。</p>
+      <a href="/">返回个人主页 ↑</a>
+    </footer>
+    <script type="module" src="/blog.js"></script>
+  </body>
+</html>

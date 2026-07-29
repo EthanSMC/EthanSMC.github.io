@@ -1,0 +1,33 @@
+<article
+  class="field-entry field-entry--{{ entry.type | lower }}"
+  data-blog-entry
+  data-tags='{{ entry.tagKeys | json }}'
+>
+  <span class="field-node" aria-hidden="true"></span>
+  <div class="field-entry-meta">
+    <span>{{ entry.type }}</span>
+    <time datetime="{{ entry.iso }}">{{ entry.display }}</time>
+    {% if entry.type == "Essay" %}<span>{{ entry.readingMinutes }} min read</span>{% endif %}
+  </div>
+  <div class="field-entry-content">
+    {% if entry.showTitle %}
+      <h2><a href="{{ entry.url }}">{{ entry.title }}</a></h2>
+    {% endif %}
+    {% if entry.type == "Essay" %}
+      <p class="field-summary">{{ entry.summary }}</p>
+    {% else %}
+      <div class="field-note-body prose">{{ entry.bodyHtml | safe }}</div>
+    {% endif %}
+    {% if entry.tags.length %}
+      <ul class="field-tags" aria-label="Tags">
+        {% for tag in entry.tags %}
+          <li><a href="/blog/tag/{{ tag.normalized | urlencode }}/">#{{ tag.label }}</a></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    <a class="field-permalink" href="{{ entry.url }}">
+      {% if entry.type == "Essay" %}阅读全文{% else %}永久链接{% endif %}
+      <span aria-hidden="true">→</span>
+    </a>
+  </div>
+</article>

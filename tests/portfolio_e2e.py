@@ -1053,6 +1053,43 @@ class PortfolioE2E(unittest.TestCase):
             with self.subTest(contract="fallback character visible"):
                 self.assert_element_readable(fallback_character)
 
+    def test_writing_entrypoint_and_generated_index_are_reachable(self):
+        page = self.open_page(width=1024, height=900)
+        writing_link = page.locator(".nav-links a[href='#writing']")
+        self.assertEqual(writing_link.count(), 1)
+        self.assertEqual(page.locator("#writing").count(), 1)
+
+        writing_link.click()
+        page.wait_for_function("location.hash === '#writing'")
+        page.wait_for_timeout(1000)
+        heading_top = page.locator("#writing-home-title").evaluate(
+            "element => element.getBoundingClientRect().top"
+        )
+        self.assertGreaterEqual(heading_top, 64)
+        self.assertLessEqual(heading_top, 144)
+        self.assertEqual(
+            page.locator(".nav-links a[href='#writing']").get_attribute("class"),
+            "active",
+        )
+
+        page.goto(f"{BASE_URL.rstrip('/')}/blog/", wait_until="networkidle")
+        self.assertEqual(page.locator("h1#writing-title").inner_text(), "Writing")
+        self.assertEqual(page.locator(".blog-nav a[href='/blog/']").get_attribute("aria-current"), "page")
+        self.assertTrue(
+            page.locator("[data-blog-entry]").count() > 0
+            or page.locator(".writing-empty").count() == 1
+        )
+
+    def test_writing_index_has_no_horizontal_overflow(self):
+        for width, height in [(1440, 1000), (390, 844)]:
+            with self.subTest(width=width):
+                page = self.open_page(width=width, height=height)
+                page.goto(f"{BASE_URL.rstrip('/')}/blog/", wait_until="networkidle")
+                dimensions = page.evaluate(
+                    "({inner: window.innerWidth, scroll: document.documentElement.scrollWidth})"
+                )
+                self.assertLessEqual(dimensions["scroll"], dimensions["inner"] + 1)
+
     def test_no_horizontal_overflow(self):
         for width, height in [(1440, 1000), (1024, 900), (820, 900), (390, 844)]:
             with self.subTest(width=width):

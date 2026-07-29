@@ -70,7 +70,7 @@ Personal_Page/
 │   └── prepare-content.mjs     # Deterministic metadata extraction
 ├── .githooks/
 │   ├── pre-commit              # Referenced-attachment staging and validation
-│   └── commit-msg              # Obsidian auto-commit path guard
+│   └── commit-msg              # Message-based fallback guard
 └── _site/                      # Generated output, ignored by Git
 ```
 
@@ -134,7 +134,7 @@ The timestamp represents when the thought was first recorded. The site labels it
 - **Reading time:** Calculated from normalized Chinese characters and Latin words.
 - **Updated time:** Not shown in the first release, avoiding unstable filesystem timestamps.
 
-Tag labels retain the author's casing for display. Matching is case-insensitive for Latin text. Tag archive paths use the URL-encoded normalized label, avoiding transliteration dependencies and collisions.
+Tag labels retain the author's casing for display. Matching is case-insensitive for Latin text. Public Tag URLs use the URL-encoded normalized label, while generated filesystem directories retain the normalized Unicode label so static hosts resolve encoded requests correctly.
 
 ## Obsidian Workflow
 
@@ -164,8 +164,7 @@ Install and enable the community plugin **Git** by Vinzent03. Configure:
 
 - Pull when Obsidian starts.
 - Enable **Auto commit-and-sync after stopping file edits**.
-- Idle delay: 2 minutes.
-- Disable the unrelated fixed-interval auto commit timer.
+- Set the shared auto commit-and-sync interval to 2 minutes.
 - Enable pull before push and automatic push.
 - Commit message: `blog: sync {{date}}`.
 - Keep visible status and error notifications enabled.
@@ -202,14 +201,17 @@ Drafts are therefore local-only and are not backed up by Git. Time Machine or a 
 
 Obsidian Git's automatic commit-and-sync stages repository changes. To prevent a content sync from accidentally including unfinished website code, repository-managed Git hooks enforce:
 
-- The pre-commit hook validates staged published content and force-stages only the local assets referenced by that content.
-- The commit-message hook recognizes the configured `blog: sync` prefix.
-- An automatic `blog: sync` commit is allowed only when every staged path belongs to `content/published/` or its referenced `content/assets/` allowlist.
+- The pre-commit hook recognizes the `OBSIDIAN_GIT=1` environment exported by Obsidian Git, validates staged published content, and force-stages only local assets referenced by that content.
+- The commit-message hook recognizes the configured `blog: sync` prefix and repeats the path validation as a compatibility fallback.
+- An automatic `blog: sync` commit removes non-content paths from the plugin-created index, then commits only `content/published/`, referenced `content/assets/`, and safe deletions of no-longer-referenced tracked attachments.
+- Website changes remain in the working tree and are never included in the automatic publishing push.
 - An automatic commit containing website code—whether code-only or mixed with content—is rejected.
 - Ordinary developer commits with non-Obsidian messages remain unaffected.
 - The rejection explains that website changes must be committed or stashed separately before Obsidian retries.
 
-This guard also covers a subtle case: editing an ignored draft can wake the Obsidian Git timer while unrelated website changes exist. The resulting automatic code-only commit is rejected by its `blog: sync` message. The hook path is enabled locally during setup with `git config core.hooksPath .githooks`.
+This guard also covers a subtle case: editing an ignored draft can wake the Obsidian Git timer while unrelated website changes exist. The resulting automatic code-only commit is rejected before it can be pushed. The hook path is enabled locally during setup with `git config core.hooksPath .githooks`.
+
+The hook is workflow protection rather than a server security boundary. It does not intercept destructive Git commands such as `discard all changes`, so those commands must not be used from Obsidian's source-control view. GitHub separately blocks deletion and force-push on `main` while continuing to allow the direct fast-forward pushes required by automatic publishing.
 
 ## Page Design
 

@@ -1,0 +1,54 @@
+---
+layout: layouts/blog-shell.njk
+pageTitle: Writing | 申名翀 Ethan
+pageDescription: 记录产品现场、AI 实践，以及那些暂时没有结论的想法。
+pagination:
+  data: blog.posts
+  size: 20
+  alias: pagePosts
+  generatePageOnEmptyData: true
+permalink: "blog/{% if pagination.pageNumber > 0 %}page/{{ pagination.pageNumber | plus(1) }}/{% endif %}index.html"
+---
+<section class="writing-hero" aria-labelledby="writing-title">
+  <div>
+    <p class="writing-kicker">FIELD NOTES · ETHAN SMC</p>
+    <h1 id="writing-title">Writing</h1>
+    <p>记录产品现场、AI 实践，以及那些暂时没有结论的想法。</p>
+  </div>
+  <aside class="writing-index-note" aria-label="Writing legend">
+    <span><i class="legend-dot legend-dot--essay"></i>Essay · 展开的判断</span>
+    <span><i class="legend-dot legend-dot--note"></i>Note · 当下的片段</span>
+  </aside>
+</section>
+
+{% if blog.tags.length %}
+  <nav class="tag-filter" aria-label="按标签筛选文章" data-tag-filter-nav>
+    <a class="active" href="/blog/" data-tag-filter="all" aria-current="page">全部 <span>{{ blog.posts.length }}</span></a>
+    {% for tag in blog.tags %}
+      <a href="{{ tag.url }}" data-tag-filter="{{ tag.normalized }}">#{{ tag.label }} <span>{{ tag.count }}</span></a>
+    {% endfor %}
+  </nav>
+{% endif %}
+
+<section class="field-log" aria-label="Writing timeline" data-field-log>
+  {% if pagePosts.length %}
+    {% for postItem in pagePosts %}
+      {% set entry = postItem %}
+      {% include "partials/blog-entry.njk" %}
+    {% endfor %}
+  {% else %}
+    <div class="writing-empty">
+      <span aria-hidden="true">✎</span>
+      <h2>第一篇还在纸上。</h2>
+      <p>文章发布后，会自动出现在这条时间线上。</p>
+    </div>
+  {% endif %}
+</section>
+
+{% if pagination.pages.length > 1 %}
+  <nav class="blog-pagination" aria-label="Writing pages">
+    {% if pagination.href.previous %}<a href="{{ pagination.href.previous }}">← 更新的记录</a>{% else %}<span></span>{% endif %}
+    <span>{{ pagination.pageNumber | plus(1) }} / {{ pagination.pages.length }}</span>
+    {% if pagination.href.next %}<a href="{{ pagination.href.next }}">更早的记录 →</a>{% endif %}
+  </nav>
+{% endif %}

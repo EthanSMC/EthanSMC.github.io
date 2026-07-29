@@ -1,0 +1,22 @@
+#!/bin/sh
+set -eu
+
+# Defense in depth: retain the guard if a future Obsidian Git release stops
+# exporting OBSIDIAN_GIT but still uses the configured automatic message.
+first_line=$(sed -n '1p' "$1")
+case "$first_line" in
+  "blog: sync"*)
+    repo_root=$(git rev-parse --show-toplevel)
+    python_bin=/usr/bin/python3
+    if [ ! -x "$python_bin" ]; then
+      python_bin=$(command -v python3 || true)
+    fi
+    if [ -z "$python_bin" ]; then
+      echo "Obsidian Git commit rejected: Python 3 is required by the content guard." >&2
+      exit 1
+    fi
+    exec env OBSIDIAN_GIT=1 "$python_bin" "$repo_root/.githooks/obsidian_guard.py"
+    ;;
+esac
+
+exit 0
