@@ -51,9 +51,10 @@ and serverless contribution endpoint ship together. Configure `GITHUB_TOKEN`
 and, when using a custom domain, `SITE_URL` in Vercel's Production environment,
 then deploy the `main` branch through Vercel.
 
-Vercel is the canonical host. The legacy GitHub Pages address redirects to the
-same path on Vercel so the raw repository source and the generated site cannot
-drift into two public versions. GitHub Actions validates content, hooks, and the
+Vercel is the canonical host and provides the serverless contribution endpoint.
+GitHub Pages is built from the same Eleventy output by GitHub Actions, so
+`ethansmc.github.io` remains a working static mirror instead of publishing raw
+repository templates. GitHub Actions validates content, hooks, and the
 production build on every push to `main`.
 
 ## 内容来源

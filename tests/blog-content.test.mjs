@@ -96,7 +96,7 @@ test("keeps the source homepage readable without exposing build templates", () =
   assert.doesNotMatch(source, /{%|{{/);
   assert.match(source, /第一篇还在纸上。/);
   assert.match(source, /href="https:\/\/ethansmc-personal-page\.vercel\.app\/blog\/" data-site-href="\/blog\/"/);
-  assert.match(source, /location\.hostname === "ethansmc\.github\.io"/);
+  assert.doesNotMatch(source, /location\.replace|ethansmc\.github\.io/);
 });
 
 test("injects Writing content and web links during the site build", () => {

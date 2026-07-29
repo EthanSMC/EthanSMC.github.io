@@ -101,4 +101,4 @@ Obsidian Git 本身会先暂存整个仓库。发布保护会在提交前自动�
 - Push 失败：先确认普通终端中的 `git push` 可用，再检查 Obsidian Git 的认证提示。
 - Vercel 构建失败：到 Vercel Deployment 查看构建日志；失败构建不会生成新的 Writing 页面。
 
-正式网站以 Vercel 为准。`ethansmc.github.io` 仅作为兼容入口，会自动跳转到 Vercel；本地预览始终使用 <http://localhost:4173/>，不要直接双击 `index.html` 作为正式预览。
+正式网站以 Vercel 为准。`ethansmc.github.io` 由 GitHub Actions 构建同一份静态网站，作为可直接访问的镜像；本地预览始终使用 <http://localhost:4173/>，不要直接双击 `index.html` 作为正式预览。
