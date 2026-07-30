@@ -1,5 +1,9 @@
 import * as THREE from "./assets/vendor/three/three.module.min.js";
 
+const siteI18n = window.siteI18n;
+const translate = (key, values = {}) => siteI18n?.t(key, values) || key;
+const localizedNumber = (value) => new Intl.NumberFormat(document.documentElement.lang).format(value);
+
 const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
 const reducedMotion = window.matchMedia(reducedMotionQuery);
 
@@ -37,6 +41,7 @@ const smoothstep = (start, end, value) => {
 const createIntroController = (stage, sequence) => {
   const state = { progress: 0, target: 0 };
   let frameId = 0;
+  let lastFrameTime = 0;
   let destroyed = false;
 
   const applyProgress = () => {
@@ -58,22 +63,40 @@ const createIntroController = (stage, sequence) => {
     if (reducedMotion.matches) {
       state.progress = state.target;
       applyProgress();
+      return;
     }
+
+    start();
   };
 
-  const render = () => {
+  const render = (time) => {
     frameId = 0;
     if (destroyed || reducedMotion.matches) return;
 
-    state.progress += (state.target - state.progress) * 0.12;
+    const delta = state.target - state.progress;
+    if (Math.abs(delta) < 0.001) {
+      state.progress = state.target;
+      lastFrameTime = 0;
+      applyProgress();
+      return;
+    }
+
+    const elapsedFrames = lastFrameTime
+      ? Math.min((time - lastFrameTime) / (1000 / 60), 6)
+      : 1;
+    const easing = 1 - Math.pow(0.82, elapsedFrames);
+    lastFrameTime = time;
+    state.progress += delta * easing;
     applyProgress();
     frameId = requestAnimationFrame(render);
   };
 
   const stop = () => {
-    if (!frameId) return;
-    cancelAnimationFrame(frameId);
-    frameId = 0;
+    if (frameId) {
+      cancelAnimationFrame(frameId);
+      frameId = 0;
+    }
+    lastFrameTime = 0;
   };
 
   const start = () => {
@@ -293,6 +316,16 @@ const initContributionHeatmap = (root) => {
   const status = root.querySelector("[data-contribution-status]");
   const tooltip = root.querySelector("[data-contribution-tooltip]");
   if (!grid || !total || !status || !tooltip) return;
+  let latestPayload = null;
+  let contributionState = "loading";
+
+  const contributionDayLabel = (day) => translate("contributions.day", {
+    date: day.date,
+    count: localizedNumber(day.count),
+    unit: translate(day.count === 1 ? "contributions.singular" : "contributions.plural"),
+  });
+
+  const contributionTooltipLabel = (day) => contributionDayLabel(day).replace(/[:：]\s*/, " · ");
 
   const renderSkeleton = () => {
     grid.replaceChildren();
@@ -349,7 +382,7 @@ const initContributionHeatmap = (root) => {
   };
 
   const showTooltip = (day, button) => {
-    tooltip.textContent = `${day.date} · ${day.count} ${day.count === 1 ? "contribution" : "contributions"}`;
+    tooltip.textContent = contributionTooltipLabel(day);
     tooltip.hidden = false;
     const wrapBounds = grid.parentElement.getBoundingClientRect();
     const buttonBounds = button.getBoundingClientRect();
@@ -415,7 +448,7 @@ const initContributionHeatmap = (root) => {
         button.setAttribute("role", "gridcell");
         button.setAttribute(
           "aria-label",
-          `${day.date}: ${day.count} ${day.count === 1 ? "contribution" : "contributions"}`,
+          contributionDayLabel(day),
         );
         button.addEventListener("pointerenter", () => showTooltip(day, button));
         button.addEventListener("pointerleave", hideTooltip);
@@ -441,18 +474,32 @@ const initContributionHeatmap = (root) => {
       });
       grid.appendChild(row);
     }
-    total.textContent = `${payload.total.toLocaleString("en-US")} contributions`;
-    grid.setAttribute("aria-label", `${payload.username} GitHub contributions from ${payload.from} to ${payload.to}: ${payload.total} total`);
+    total.textContent = translate("contributions.total", { count: localizedNumber(payload.total) });
+    grid.setAttribute("aria-label", translate("contributions.grid", {
+      username: payload.username,
+      from: payload.from,
+      to: payload.to,
+      count: localizedNumber(payload.total),
+    }));
     grid.setAttribute("aria-busy", "false");
     root.dataset.state = "ready";
+    contributionState = "ready";
+    latestPayload = payload;
   };
 
   const renderUnavailable = () => {
     root.dataset.state = "unavailable";
     grid.setAttribute("aria-busy", "false");
-    total.textContent = "GitHub activity";
-    status.textContent = "Contribution data is temporarily unavailable";
+    total.textContent = translate("contributions.activity");
+    status.textContent = translate("contributions.unavailable");
+    contributionState = "unavailable";
   };
+
+  siteI18n?.onChange(() => {
+    if (contributionState === "ready" && latestPayload) renderCalendar(latestPayload);
+    else if (contributionState === "unavailable") renderUnavailable();
+    else total.textContent = translate("contributions.loading");
+  });
 
   const profileLink = root.querySelector('a[href="https://github.com/EthanSMC"]');
   root.addEventListener("click", (event) => {
@@ -516,6 +563,17 @@ wechatDialog?.addEventListener("click", (event) => {
 const soundToggle = document.querySelector(".sound-toggle");
 let audioContext;
 
+const updateSoundLabel = () => {
+  if (!soundToggle) return;
+  const enabled = soundToggle.getAttribute("aria-pressed") === "true";
+  const key = enabled ? "common.disableSounds" : "common.enableSounds";
+  soundToggle.dataset.i18nAriaLabel = key;
+  soundToggle.setAttribute("aria-label", translate(key));
+};
+
+siteI18n?.onChange(updateSoundLabel);
+updateSoundLabel();
+
 const playUiTone = (frequency = 420, duration = 0.045, volume = 0.018) => {
   if (soundToggle?.getAttribute("aria-pressed") !== "true") return;
 
@@ -548,7 +606,7 @@ soundToggle?.addEventListener("click", () => {
   }
 
   soundToggle.setAttribute("aria-pressed", String(!enabled));
-  soundToggle.setAttribute("aria-label", enabled ? "Enable sounds" : "Disable sounds");
+  updateSoundLabel();
 
   if (!enabled) {
     playUiTone(520, 0.07, 0.024);
@@ -595,12 +653,14 @@ const initThreeScene = (stage, controller) => {
   const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
   const pointer = { x: 0, y: 0 };
   const targetPointer = { x: 0, y: 0 };
-  const loader = new THREE.TextureLoader();
+  const fallbackImage = stage.querySelector("img.hero-character");
   let frameId = 0;
   let destroyed = false;
   let ready = false;
   let contextLost = false;
+  let stageVisible = true;
   let pointerListening = false;
+  let removeImageListeners = () => {};
   let renderScene = () => {};
 
   const resizeRenderer = () => {
@@ -658,14 +718,29 @@ const initThreeScene = (stage, controller) => {
 
   const animate = (time) => {
     frameId = 0;
-    if (destroyed || contextLost || reducedMotion.matches || !ready) return;
+    if (
+      destroyed
+      || contextLost
+      || reducedMotion.matches
+      || !ready
+      || !stageVisible
+      || document.hidden
+    ) return;
 
     renderScene(time);
     frameId = requestAnimationFrame(animate);
   };
 
   const startAnimation = () => {
-    if (destroyed || contextLost || reducedMotion.matches || !ready || frameId) return;
+    if (
+      destroyed
+      || contextLost
+      || reducedMotion.matches
+      || !ready
+      || !stageVisible
+      || document.hidden
+      || frameId
+    ) return;
     frameId = requestAnimationFrame(animate);
   };
 
@@ -690,11 +765,34 @@ const initThreeScene = (stage, controller) => {
       return;
     }
 
-    if (!ready || contextLost) return;
+    if (!ready || contextLost || !stageVisible || document.hidden) return;
     stage.classList.add("three-ready");
     enablePointer();
     startAnimation();
   };
+
+  const handleVisibilityChange = () => {
+    if (destroyed) return;
+
+    if (document.hidden || !stageVisible) {
+      stopAnimation();
+      disablePointer();
+      return;
+    }
+
+    if (!ready || contextLost || reducedMotion.matches) return;
+    resizeRenderer();
+    stage.classList.add("three-ready");
+    enablePointer();
+    startAnimation();
+  };
+
+  const visibilityObserver = "IntersectionObserver" in window
+    ? new IntersectionObserver(([entry]) => {
+      stageVisible = entry.isIntersecting;
+      handleVisibilityChange();
+    }, { rootMargin: "15% 0px" })
+    : null;
 
   const handleContextLost = (event) => {
     event.preventDefault();
@@ -724,6 +822,9 @@ const initThreeScene = (stage, controller) => {
     stage.classList.remove("three-ready");
     window.removeEventListener("resize", handleResize);
     window.removeEventListener("orientationchange", handleResize);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    visibilityObserver?.disconnect();
+    removeImageListeners();
     removeMotionListener();
     canvas.removeEventListener("webglcontextlost", handleContextLost);
     disposeScene();
@@ -731,10 +832,10 @@ const initThreeScene = (stage, controller) => {
 
   const removeMotionListener = listenForReducedMotion(handleMotionChange);
   canvas.addEventListener("webglcontextlost", handleContextLost);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  visibilityObserver?.observe(stage);
 
-  loader.load(
-    "assets/digital-ethan/digital-ethan-main-cutout.png",
-    (ethanTexture) => {
+  const handleTextureLoad = (ethanTexture) => {
       if (destroyed) {
         ethanTexture.dispose();
         return;
@@ -823,14 +924,44 @@ const initThreeScene = (stage, controller) => {
       }
 
       stage.classList.add("three-ready");
-      enablePointer();
+      if (stageVisible && !document.hidden) enablePointer();
       startAnimation();
-    },
-    undefined,
-    () => {
-      if (!destroyed) cleanup();
-    },
-  );
+  };
+
+  const handleTextureError = () => {
+    if (!destroyed) cleanup();
+  };
+
+  if (fallbackImage) {
+    const createTextureFromImage = () => {
+      if (destroyed || !fallbackImage.naturalWidth) {
+        handleTextureError();
+        return;
+      }
+
+      const texture = new THREE.Texture(fallbackImage);
+      texture.needsUpdate = true;
+      handleTextureLoad(texture);
+    };
+
+    if (fallbackImage.complete) {
+      createTextureFromImage();
+    } else {
+      fallbackImage.addEventListener("load", createTextureFromImage, { once: true });
+      fallbackImage.addEventListener("error", handleTextureError, { once: true });
+      removeImageListeners = () => {
+        fallbackImage.removeEventListener("load", createTextureFromImage);
+        fallbackImage.removeEventListener("error", handleTextureError);
+      };
+    }
+  } else {
+    new THREE.TextureLoader().load(
+      "assets/digital-ethan/digital-ethan-main-cutout.png",
+      handleTextureLoad,
+      undefined,
+      handleTextureError,
+    );
+  }
 
   return cleanup;
 };

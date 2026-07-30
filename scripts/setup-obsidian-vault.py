@@ -78,6 +78,7 @@ if plugin_target.is_dir():
         {
             "commitMessage": "blog: sync {{date}}",
             "autoCommitMessage": "blog: sync {{date}}",
+            "commitMessageScript": ".githooks/obsidian-commit-message.sh",
             "commitDateFormat": "YYYY-MM-DD HH:mm:ss",
             "autoSaveInterval": 2,
             "autoPushInterval": 0,

@@ -30,10 +30,7 @@ cd /Users/ethancc/Documents/Personal_Page
 - 新链接格式：基于当前笔记的相对路径。
 - 关闭“使用 [[Wikilinks]]”。公开内容使用标准 Markdown 链接和图片。
 
-启用核心插件“唯一笔记创建器”（Unique note creator）：
-
-- 文件名格式：`YYYY-MM-DD-HHmmss`
-- 新笔记文件夹：`drafts`
+不需要启用“唯一笔记创建器”，也不需要按时间戳给文章命名。直接使用 Obsidian 的普通“新建笔记”，文件名写成你自己看得懂的标题即可。
 
 ## 3. Obsidian Git 设置
 
@@ -70,10 +67,10 @@ cd /Users/ethancc/Documents/Personal_Page
 #产品 #工作
 ```
 
-完成后只需要把 Markdown 从 `drafts/` 移到 `published/`。停止编辑两分钟后：
+完成后只需要把 Markdown 从 `drafts/` 移到 `published/`。停止编辑两分钟后，Git 保护脚本会自动把文件名转换为内部时间戳 ID，再继续发布：
 
 ```text
-Obsidian Git 提交 → 拉取 → 推送 → Vercel 构建 → Writing 更新
+自动分配时间戳 → Obsidian Git 提交 → 拉取 → 推送 → Vercel 构建 → Writing 更新
 ```
 
 类型会自动判断：包含二级标题或正文超过 600 个可见字符的是 Essay，否则是 Note。需要覆盖判断时，可添加 `#essay` 或 `#note`；它们不会显示成公开 Tag。
@@ -82,7 +79,7 @@ Obsidian Git 提交 → 拉取 → 推送 → Vercel 构建 → Writing 更新
 
 自动提交时，仓库 hook 只允许：
 
-- `content/published/` 中符合时间戳命名的 Markdown。
+- `content/published/` 中的 Markdown；普通文件名会在提交前自动转换为时间戳 ID。
 - 这些已发布 Markdown 实际引用的 `content/assets/` 附件。
 
 Obsidian Git 本身会先暂存整个仓库。发布保护会在提交前自动移除网站代码，只把 `published/` 和被正文引用的附件放进本次提交；网站代码仍留在工作区，不会被推送。若只有网站代码、没有可发布内容，自动提交会停止。
@@ -96,7 +93,7 @@ Obsidian Git 本身会先暂存整个仓库。发布保护会在提交前自动�
 ## 6. 常见错误
 
 - `automatic sync found no publishable content`：只有网站代码变化，没有新文章；代码仍在本地，无需处理。
-- `published filename must use YYYY-MM-DD-HHmmss.md`：文章文件名不是唯一笔记创建器的时间戳格式。
+- `published filename must use YYYY-MM-DD-HHmmss.md`：通常不会再出现；若出现，表示自动命名脚本未能完成，请保留原文件并检查 Obsidian Git 通知。
 - `missing published attachment`：文章引用的本地图片被移动或删除；修正链接或恢复图片。
 - Push 失败：先确认普通终端中的 `git push` 可用，再检查 Obsidian Git 的认证提示。
 - Vercel 构建失败：到 Vercel Deployment 查看构建日志；失败构建不会生成新的 Writing 页面。

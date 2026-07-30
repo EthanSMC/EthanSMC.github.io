@@ -2,13 +2,13 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f0df" />
     <meta
       name="description"
-      content="申名翀 Ethan 的手绘交互式个人网站：金融科技产品、AI Agent 工作流与可复用的个人项目。"
+      content="是 Ethan 不是埃森的手绘交互式个人网站：金融科技产品、AI Agent 工作流与持续写作。"
     />
-    <title>申名翀 Ethan | Personal Site</title>
+    <title>是 Ethan 不是埃森｜个人网站</title>
     <link rel="icon" href="assets/favicon.svg" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="blog.css" />
@@ -17,24 +17,29 @@
     </script>
     <script defer src="/_vercel/insights/script.js"></script>
   </head>
-  <body>
-    <a class="skip-link" href="#top">Skip to content</a>
+  <body data-i18n-title="meta.home.title" data-i18n-description="meta.home.description">
+    <a class="skip-link" href="#top" data-i18n="common.skip">跳到主要内容</a>
 
     <header class="site-header" data-header>
-      <a class="brand" href="#top" aria-label="申名翀 Ethan home">
+      <a class="brand" href="#top" aria-label="是 Ethan 不是埃森首页" data-i18n-aria-label="common.homeAria">
         <span class="brand-mark" aria-hidden="true">E</span>
         <span>EthanSMC</span>
       </a>
 
-      <nav class="nav-links" aria-label="Primary navigation">
-        <a href="#about">About</a>
-        <a href="#projects">Projects</a>
-        <a href="#writing">Writing</a>
-        <a href="#contact">Contact</a>
+      <nav class="nav-links" aria-label="主导航" data-i18n-aria-label="common.primaryNavigation">
+        <a href="#about" data-i18n="nav.about">关于</a>
+        <a href="#projects" data-i18n="nav.projects">项目</a>
+        <a href="#writing" data-i18n="nav.writing">写作</a>
+        <a href="#contact" data-i18n="nav.contact">联系</a>
       </nav>
 
       <div class="header-actions">
-        <button class="icon-button sound-toggle" type="button" aria-label="Enable sounds" aria-pressed="false">
+        <div class="language-switcher" role="group" aria-label="切换语言" data-i18n-aria-label="common.languageSwitcher">
+          <button type="button" data-locale-option="zh" lang="zh-CN" aria-label="中文" aria-pressed="true">中</button>
+          <button type="button" data-locale-option="ja" lang="ja-JP" aria-label="日本語" aria-pressed="false">日</button>
+          <button type="button" data-locale-option="en" lang="en" aria-label="English" aria-pressed="false">EN</button>
+        </div>
+        <button class="icon-button sound-toggle" type="button" aria-label="开启界面音效" data-i18n-aria-label="common.enableSounds" aria-pressed="false">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M4 9v6h4l5 4V5L8 9H4Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" />
             <path class="sound-wave" d="M16 9.5c1.1 1.4 1.1 3.6 0 5M18.5 7c2.4 2.8 2.4 7.2 0 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
@@ -43,12 +48,13 @@
         <button
           class="say-hi"
           type="button"
-          aria-label="Open Ethan's WeChat QR code"
+          aria-label="打开 Ethan 的微信二维码"
+          data-i18n-aria-label="common.openWechat"
           aria-haspopup="dialog"
           aria-controls="wechat-dialog"
           data-wechat-open
         >
-          Say hi
+          <span data-i18n="common.sayHi">打个招呼</span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 12h13m-5-6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" />
           </svg>
@@ -59,60 +65,75 @@
     <main id="top" tabindex="-1">
       <section class="intro-sequence section-anchor" id="about" data-intro aria-labelledby="intro-title">
         <div class="intro-sticky" data-intro-stage data-phase="hero">
-          <canvas class="three-canvas" id="ethan-three" aria-label="Interactive hand-drawn Digital Ethan scene"></canvas>
+          <canvas class="three-canvas" id="ethan-three" aria-label="手绘数字 Ethan 互动场景" data-i18n-aria-label="home.canvasAria"></canvas>
           <div class="intro-floor" aria-hidden="true"></div>
 
           <div class="hero-copy" data-hero-copy>
-            <h1 id="intro-title">申名翀<br><span>Ethan</span></h1>
-            <p class="hero-banner">Fintech Product Manager × AI Agent Builder</p>
+            <h1 id="intro-title"><span data-i18n="home.hero.nameTop">是 Ethan</span><br><span data-i18n="home.hero.nameBottom">不是埃森</span></h1>
+            <p class="hero-banner" data-i18n="home.hero.tagline">金融科技产品经理 × AI Agent 构建者</p>
           </div>
 
-          <div class="intro-callouts" aria-label="About Ethan">
+          <div class="intro-callouts" aria-label="关于 Ethan" data-i18n-aria-label="home.calloutsAria">
             <article class="intro-callout identity" data-intro-callout>
-              <h2>申名翀 Ethan</h2><p>Shanghai, China</p>
+              <h2>申名翀 Ethan</h2><p data-i18n="home.identity.location">中国上海</p>
             </article>
             <article class="intro-callout role" data-intro-callout>
-              <h2>Fintech Product Manager</h2><p>Wealth &amp; asset management workflows</p>
+              <h2 data-i18n="home.role.title">金融科技产品经理</h2><p data-i18n="home.role.body">财富与资产管理工作流</p>
             </article>
+            <details class="intro-callout education" data-intro-callout>
+              <summary>
+                <span>
+                  <span class="education-label" data-i18n="home.education.title">教育经历</span>
+                  <strong data-i18n="home.education.degree">圣路易斯华盛顿大学</strong>
+                </span>
+                <span class="education-toggle" aria-hidden="true">+</span>
+              </summary>
+              <div class="education-details">
+                <p class="education-period">2020.12 — 2022.06</p>
+                <p data-i18n="home.education.detail">金融学硕士，资产管理方向 · GPA 3.95 / 4.0 · Beta Gamma Sigma</p>
+                <p class="education-coursework" data-i18n="home.education.coursework">衍生品 · 随机过程 · 风险管理 · 固定收益 · Python · SQL</p>
+              </div>
+            </details>
             <article class="intro-callout domain" data-intro-callout>
-              <h2>Domain</h2><p>Bonds · Trading · Risk</p>
+              <h2 data-i18n="home.domain.title">专业领域</h2><p data-i18n="home.domain.body">债券 · 交易 · 风控</p>
             </article>
             <article class="intro-callout builder" data-intro-callout>
-              <h2>AI Builder</h2><p>Agent-assisted systems</p>
+              <h2 data-i18n="home.builder.title">AI 构建者</h2><p data-i18n="home.builder.body">Agent 辅助系统</p>
             </article>
           </div>
 
           <img
             class="digital-ethan hero-character"
             src="assets/digital-ethan/digital-ethan-main-cutout.png"
-            alt="Hand-drawn Digital Ethan standing with a MacBook"
+            alt="手绘数字 Ethan 手持 MacBook 站立"
+            data-i18n-alt="home.characterAlt"
             width="364"
             height="941"
             fetchpriority="high"
           />
-          <a class="scroll-cue" href="#experience" aria-label="Scroll to experience">Scroll</a>
+          <a class="scroll-cue" href="#experience" aria-label="滚动到工作经历" data-i18n-aria-label="home.scrollAria" data-i18n="home.scroll">向下滚动</a>
         </div>
       </section>
 
       <section class="experience section-anchor" id="experience" aria-labelledby="experience-title">
         <div class="section-heading">
           <div>
-            <h2 id="experience-title">Experience</h2>
-            <p>从债券与资管业务出发，把复杂判断做成真正可用的产品与 AI 工作流。</p>
+            <h2 id="experience-title" data-i18n="experience.title">工作经历</h2>
+            <p data-i18n="experience.description">从债券与资管业务出发，把复杂判断做成真正可用的产品与 AI 工作流。</p>
           </div>
         </div>
 
         <div class="experience-grid">
           <article class="experience-card current">
             <div>
-              <time>2025.12 — Now</time>
-              <h3>上海国智技术有限公司 · AI产品经理</h3>
+              <time data-i18n="experience.now">2025.12 — 至今</time>
+              <h3 data-i18n="experience.one.title">上海国智技术有限公司 · AI 产品经理</h3>
             </div>
-            <p>
+            <p data-i18n="experience.one.body1">
               负责全资产资管平台客户端产品设计，覆盖投研、交易、风控链路；
               构建多场景工作台，让用户在一个页面完成从簿记到风控测算的交易生命周期操作。
             </p>
-            <p>
+            <p data-i18n="experience.one.body2">
               推进“AI+资管”中试基地 Agent 场景和产品经理 Agent 设计，
               将业务探查、信息收集、数据依赖和产品判断拆成可复用流程。
             </p>
@@ -121,9 +142,9 @@
           <article class="experience-card">
             <div>
               <time>2025.09 — 2025.12</time>
-              <h3>同花顺 iFinD · AI 债券产品经理</h3>
+              <h3 data-i18n="experience.two.title">同花顺 iFinD · AI 债券产品经理</h3>
             </div>
-            <p>
+            <p data-i18n="experience.two.body">
               负责债券经纪商行情筛选 Agent，让用户通过自然语言完成多维度债券筛选和过滤；
               参与 Chat 后端与问财 AI 对接测试、竞品效果对比和评分标注。
             </p>
@@ -132,38 +153,28 @@
           <article class="experience-card wide">
             <div>
               <time>2022.08 — 2025.08</time>
-              <h3>上海森浦信息服务有限公司 · 产品经理</h3>
+              <h3 data-i18n="experience.three.title">上海森浦信息服务有限公司 · 产品经理</h3>
             </div>
-            <p>
+            <p data-i18n="experience.three.body">
               设计债券信用分析、成交偏离监控、信用债曲线定价和自动化场外交易产品。
               金融 Q 使用 NLP + LLM 标准化投资经理、交易员、做市商和 Broker 之间的指令流转，
               将报价触发从约 1 分钟压缩到 1 秒，将成交单梳理从约 30 分钟缩短到 2 分钟。
             </p>
           </article>
 
-          <article class="experience-card">
-            <div>
-              <time>2020.12 — 2022.06</time>
-              <h3>Washington University in St. Louis</h3>
-            </div>
-            <p>
-              M.S. in Finance, Asset Management track. GPA 3.95 / 4.0, Beta Gamma Sigma.
-              Coursework covered derivatives, stochastic processes, risk management, fixed income, Python, and SQL.
-            </p>
-          </article>
         </div>
       </section>
 
       <section class="projects section-anchor" id="projects" aria-labelledby="projects-title">
         <div class="section-heading">
           <div>
-            <h2 id="projects-title">Featured Projects</h2>
-            <p>从真实业务问题出发，把金融判断、Agent 能力和产品方法做成可以被使用的工具。</p>
+            <h2 id="projects-title" data-i18n="projects.title">精选项目</h2>
+            <p data-i18n="projects.description">从真实业务问题出发，把金融判断、Agent 能力和产品方法做成可以被使用的工具。</p>
           </div>
         </div>
 
         <div class="project-board" data-project-board>
-          <button class="board-arrow" type="button" data-project-prev aria-label="Previous project">
+          <button class="board-arrow" type="button" data-project-prev aria-label="上一个项目" data-i18n-aria-label="projects.previous">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M14 5 7 12l7 7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
             </svg>
@@ -173,9 +184,9 @@
             <div class="project-shot finpm" aria-hidden="true">
               <span></span><span></span><span></span>
             </div>
-            <h3>AI-native Wealth &amp; Asset Management System</h3>
-            <p>AI-native wealth and asset-management workspace spanning research, trading, and risk workflows.</p>
-            <div class="tags"><span>Fintech PM</span><span>Workflow</span><span>Risk</span></div>
+            <h3 data-i18n="projects.one.title">AI 原生财富与资产管理系统</h3>
+            <p data-i18n="projects.one.body">覆盖投研、交易与风控流程的 AI 原生财富与资产管理工作台。</p>
+            <div class="tags"><span data-i18n="projects.one.tag1">金融科技 PM</span><span data-i18n="projects.one.tag2">工作流</span><span data-i18n="projects.one.tag3">风控</span></div>
           </article>
 
           <article class="project-card" data-project-card>
@@ -190,9 +201,9 @@
               </div>
               <div class="bond-prompt"><span>&gt;</span> liquid bonds · live quotes</div>
             </div>
-            <h3>Bond Agent &amp; Financial Q</h3>
-            <p>Natural-language bond screening and OTC trading automation using NLP and LLM-assisted workflows.</p>
-            <div class="tags"><span>Bond</span><span>LLM</span><span>Quote flow</span></div>
+            <h3 data-i18n="projects.two.title">债券 Agent 与金融 Q</h3>
+            <p data-i18n="projects.two.body">使用自然语言、NLP 与 LLM 辅助工作流完成债券筛选和场外交易自动化。</p>
+            <div class="tags"><span data-i18n="projects.two.tag1">债券</span><span data-i18n="projects.two.tag2">大模型</span><span data-i18n="projects.two.tag3">报价流</span></div>
           </article>
 
           <article class="project-card" data-project-card>
@@ -200,20 +211,21 @@
               <span></span><span></span><span></span><span></span>
             </div>
             <h3>Novelty Studio</h3>
-            <p>Multi-agent interactive fiction with Writer, Editor, Archiver, and Option Generator roles.</p>
-            <div class="tags"><span>Multi-Agent</span><span>Memory</span><span>Builder</span></div>
+            <p data-i18n="projects.three.body">由 Writer、Editor、Archiver 和 Option Generator 等角色协作的多 Agent 互动小说产品。</p>
+            <div class="tags"><span data-i18n="projects.three.tag1">多 Agent</span><span data-i18n="projects.three.tag2">记忆</span><span data-i18n="projects.three.tag3">构建工具</span></div>
             <a
               class="project-link"
               href="https://noveltystudio.cn"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Open Novelty Studio in a new tab"
+              aria-label="在新标签页打开 Novelty Studio"
+              data-i18n-aria-label="projects.openSiteAria"
             >
-              Open site <span aria-hidden="true">↗</span>
+              <span data-i18n="projects.openSite">打开网站</span> <span aria-hidden="true">↗</span>
             </a>
           </article>
 
-          <button class="board-arrow" type="button" data-project-next aria-label="Next project">
+          <button class="board-arrow" type="button" data-project-next aria-label="下一个项目" data-i18n-aria-label="projects.next">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m10 5 7 7-7 7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
             </svg>
@@ -224,18 +236,18 @@
       <section class="writing section-anchor" id="writing" aria-labelledby="writing-home-title">
         <div class="section-heading">
           <div>
-            <h2 id="writing-home-title">Writing</h2>
-            <p>记录产品现场、AI 实践，以及那些暂时没有结论的想法。</p>
+            <h2 id="writing-home-title" data-i18n="writing.title">写作</h2>
+            <p data-i18n="writing.description">记录产品现场、AI 实践，以及那些暂时没有结论的想法。</p>
           </div>
-          <a href="https://ethansmc-personal-page.vercel.app/blog/" data-site-href="/blog/">查看全部文章</a>
+          <a href="https://ethansmc-personal-page.vercel.app/blog/" data-site-href="/blog/" data-i18n="writing.viewAll">查看全部文章</a>
         </div>
 
         <div class="home-writing-grid">
           <!-- HOME_WRITING_CONTENT_START -->
           <div class="home-writing-empty">
-            <h3>第一篇还在纸上。</h3>
-            <p>从 Obsidian 发布后，最新的 Essay 和 Note 会自动出现在这里。</p>
-            <a class="home-writing-link" href="https://ethansmc-personal-page.vercel.app/blog/" data-site-href="/blog/">进入 Writing <span aria-hidden="true">→</span></a>
+            <h3 data-i18n="writing.emptyTitle">第一篇还在纸上。</h3>
+            <p data-i18n="writing.emptyBody">从 Obsidian 发布后，最新的长文和随记会自动出现在这里。</p>
+            <a class="home-writing-link" href="https://ethansmc-personal-page.vercel.app/blog/" data-site-href="/blog/"><span data-i18n="writing.enter">进入写作</span> <span aria-hidden="true">→</span></a>
           </div>
           <!-- HOME_WRITING_CONTENT_END -->
         </div>
@@ -244,10 +256,10 @@
       <section class="repos section-anchor" id="repos" aria-labelledby="repos-title">
         <div class="section-heading">
           <div>
-            <h2 id="repos-title">Featured Repositories</h2>
-            <p>公开仓库是我的实验室：把产品方法、Agent 能力和个人 IP 系统沉淀成可复用资产。</p>
+            <h2 id="repos-title" data-i18n="repos.title">精选代码仓库</h2>
+            <p data-i18n="repos.description">公开仓库是我的实验室：把产品方法、Agent 能力和个人 IP 系统沉淀成可复用资产。</p>
           </div>
-          <a href="https://github.com/EthanSMC?tab=repositories" target="_blank" rel="noopener noreferrer">View all repos</a>
+          <a href="https://github.com/EthanSMC?tab=repositories" target="_blank" rel="noopener noreferrer" data-i18n="repos.viewAll">查看全部仓库</a>
         </div>
 
         <div class="repo-cards">
@@ -259,7 +271,7 @@
               <path d="m42 15 6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
             </svg>
             <h3>digital-me</h3>
-            <p>A reusable workflow for turning photos or descriptions into personal IP systems.</p>
+            <p data-i18n="repos.digitalMe">把照片或文字描述转化为个人 IP 系统的可复用工作流。</p>
             <div class="repo-meta"><span>Python</span><strong>1</strong></div>
           </a>
 
@@ -270,7 +282,7 @@
               <path d="M40 13v10h9M22 30h18M22 37h18M22 44h12" stroke="currentColor" stroke-width="2.4" />
             </svg>
             <h3>pm-skills</h3>
-            <p>PM 技能库与实战方法论沉淀，把需求分析、竞品学习和复盘做成结构化能力。</p>
+            <p data-i18n="repos.pmSkills">产品经理技能库与实战方法论，把需求分析、竞品研究和复盘沉淀为结构化能力。</p>
             <div class="repo-meta"><span>Python</span><strong>4</strong></div>
           </a>
 
@@ -282,7 +294,7 @@
               <path d="M47 17h9l-4 32" stroke="currentColor" stroke-width="2.4" />
             </svg>
             <h3>mcd-skill</h3>
-            <p>McDonald's 点餐助手，支持 OpenClaw、Claude Code 等 agent 框架的小型实用技能。</p>
+            <p data-i18n="repos.mcdSkill">麦当劳点餐助手，支持 OpenClaw、Claude Code 等 Agent 框架的实用技能。</p>
             <div class="repo-meta"><span>Python</span><strong>0</strong></div>
           </a>
 
@@ -293,7 +305,7 @@
               <path d="M23 18c1-5 5-8 9-8s8 3 9 8M24 29h16M24 36h16M24 43h9" stroke="currentColor" stroke-width="2.4" />
             </svg>
             <h3>learn-back</h3>
-            <p>后端学习路线与项目库，从基础到项目实践，记录系统学习的回路。</p>
+            <p data-i18n="repos.learnBack">从基础到项目实践的后端学习路线与项目库，记录系统学习的回路。</p>
             <div class="repo-meta"><span>Shell</span><strong>0</strong></div>
           </a>
         </div>
@@ -308,10 +320,10 @@
           <div class="contribution-heading">
             <div>
               <p class="contribution-kicker">GitHub · EthanSMC</p>
-              <h3 id="contributions-title">365 days of making</h3>
+              <h3 id="contributions-title" data-i18n="contributions.title">365 天持续创造</h3>
             </div>
             <p class="contribution-total" data-contribution-total aria-live="polite">
-              Loading contributions
+              <span data-i18n="contributions.loading">正在加载贡献记录</span>
             </p>
           </div>
           <div class="contribution-calendar-wrap">
@@ -319,54 +331,55 @@
               class="contribution-grid"
               data-contribution-grid
               role="grid"
-              aria-label="GitHub contribution calendar"
+              aria-label="GitHub 贡献日历"
+              data-i18n-aria-label="contributions.calendarAria"
               aria-busy="true"
             ></div>
             <div class="contribution-tooltip" data-contribution-tooltip role="tooltip" hidden></div>
           </div>
           <div class="contribution-footer">
             <p class="contribution-status" data-contribution-status aria-live="polite"></p>
-            <a href="https://github.com/EthanSMC" target="_blank" rel="noopener noreferrer">View GitHub profile <span aria-hidden="true">↗</span></a>
+            <a href="https://github.com/EthanSMC" target="_blank" rel="noopener noreferrer"><span data-i18n="contributions.viewProfile">查看 GitHub 主页</span> <span aria-hidden="true">↗</span></a>
           </div>
         </section>
       </section>
 
       <section class="now section-anchor" id="now" aria-labelledby="now-title">
         <div class="now-copy">
-          <h2 id="now-title">Now</h2>
-          <p>最近的重心是把“会做一次”的东西收敛成“可以复用很多次”的工作流。</p>
+          <h2 id="now-title" data-i18n="now.title">近况</h2>
+          <p data-i18n="now.description">最近的重心是把“会做一次”的东西收敛成“可以复用很多次”的工作流。</p>
           <ol class="timeline">
             <li>
               <span>1</span>
               <div>
-                <h3>Building AI asset-management workflows</h3>
-                <p>把投研、交易和风控中的业务规则、决策判断与协同流程，沉淀为 Agent 可执行、可复用的工作流。</p>
+                <h3 data-i18n="now.one.title">构建 AI 资产管理工作流</h3>
+                <p data-i18n="now.one.body">把投研、交易和风控中的业务规则、决策判断与协同流程，沉淀为 Agent 可执行、可复用的工作流。</p>
               </div>
-              <time datetime="2026-07-01">Jul 1</time>
+              <time datetime="2026-07-01" data-i18n="now.jul1">7 月 1 日</time>
             </li>
             <li>
               <span>2</span>
               <div>
-                <h3>Shipping personal IP systems</h3>
-                <p>Digital Ethan system and content knowledge base to scale personal IP and product storytelling.</p>
+                <h3 data-i18n="now.two.title">发布个人 IP 系统</h3>
+                <p data-i18n="now.two.body">构建 Digital Ethan 与内容知识库，让个人 IP 和产品叙事能够持续扩展。</p>
               </div>
-              <time datetime="2026-07-01">Jul 1</time>
+              <time datetime="2026-07-01" data-i18n="now.jul1">7 月 1 日</time>
             </li>
             <li>
               <span>3</span>
               <div>
-                <h3>Maintaining PM skills</h3>
-                <p>把需求分析、竞品研究、PRD 写作和 critique 做成可复用的 PM skill stack。</p>
+                <h3 data-i18n="now.three.title">维护产品经理技能库</h3>
+                <p data-i18n="now.three.body">把需求分析、竞品研究、PRD 写作和评审沉淀为可复用的产品经理技能栈。</p>
               </div>
-              <time datetime="2026-06-14">Jun 14</time>
+              <time datetime="2026-06-14" data-i18n="now.jun14">6 月 14 日</time>
             </li>
             <li>
               <span>4</span>
               <div>
-                <h3>Building with agents</h3>
-                <p>用 AI 编程工具完成 Novelty Studio 等产品原型，把产品设计和实现连接起来。</p>
+                <h3 data-i18n="now.four.title">与 Agent 一起构建</h3>
+                <p data-i18n="now.four.body">用 AI 编程工具完成 Novelty Studio 等产品原型，把产品设计和实现连接起来。</p>
               </div>
-              <time datetime="2026-06-14">Jun 14</time>
+              <time datetime="2026-06-14" data-i18n="now.jun14">6 月 14 日</time>
             </li>
           </ol>
         </div>
@@ -385,10 +398,10 @@
             decoding="async"
           />
           <div class="daily-note">
-            <h3>Daily</h3>
-            <p><span></span>Ship small</p>
-            <p><span></span>Document well</p>
-            <p><span></span>Help others</p>
+            <h3 data-i18n="daily.title">每日</h3>
+            <p><span></span><b data-i18n="daily.ship">小步发布</b></p>
+            <p><span></span><b data-i18n="daily.document">认真记录</b></p>
+            <p><span></span><b data-i18n="daily.help">帮助他人</b></p>
           </div>
         </div>
       </section>
@@ -396,8 +409,8 @@
       <section class="contact section-anchor" id="contact" aria-labelledby="contact-title">
         <div class="contact-postcard">
           <span class="pushpin"></span>
-          <h2 id="contact-title">Let’s build useful things together.</h2>
-          <p>I'm open to collaborating on fintech products, AI agent workflows, personal IP systems, and product tools that turn messy judgment into repeatable systems.</p>
+          <h2 id="contact-title" data-i18n="contact.title">一起把有用的东西做出来。</h2>
+          <p data-i18n="contact.body">欢迎与我合作金融科技产品、AI Agent 工作流、个人 IP 系统，以及把复杂判断转化为可复用系统的产品工具。</p>
           <a href="mailto:qq986399523@gmail.com">
             qq986399523@gmail.com
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -412,7 +425,7 @@
               <path d="M4 6h16v12H4Z" fill="none" stroke="currentColor" stroke-width="1.9" />
               <path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.9" />
             </svg>
-            <span>Email<small>qq986399523@gmail.com</small></span>
+            <span><b data-i18n="contact.email">邮箱</b><small>qq986399523@gmail.com</small></span>
           </a>
           <a href="https://github.com/EthanSMC" target="_blank" rel="noopener noreferrer">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -421,14 +434,14 @@
                 d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.02c-3.34.73-4.04-1.41-4.04-1.41-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.74.08-.74 1.21.09 1.85 1.25 1.85 1.25 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23A11.5 11.5 0 0 1 12 6.82c1.02 0 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.49 5.93.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 12 .5Z"
               />
             </svg>
-            <span>GitHub<small>github.com/EthanSMC</small></span>
+            <span><b data-i18n="contact.github">GitHub</b><small>github.com/EthanSMC</small></span>
           </a>
           <p>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 21s7-5.5 7-12A7 7 0 0 0 5 9c0 6.5 7 12 7 12Z" fill="none" stroke="currentColor" stroke-width="1.9" />
               <circle cx="12" cy="9" r="2.2" fill="none" stroke="currentColor" stroke-width="1.9" />
             </svg>
-            <span>Location<small>Shanghai, China</small></span>
+            <span><b data-i18n="contact.location">所在地</b><small data-i18n="contact.locationValue">中国上海</small></span>
           </p>
         </address>
       </section>
@@ -436,30 +449,34 @@
 
     <footer class="site-footer">
       <span>© 2026 EthanSMC</span>
-      <span class="design-credit">Interaction reference: <a href="https://david-hckh.com/" target="_blank" rel="noopener noreferrer">David Heckhoff</a></span>
-      <a href="#top">Back to top ↑</a>
+      <span class="design-credit"><span data-i18n="footer.designCredit">交互参考：</span><a href="https://david-hckh.com/" target="_blank" rel="noopener noreferrer">David Heckhoff</a></span>
+      <a href="#top" data-i18n="footer.backTop">返回顶部 ↑</a>
     </footer>
 
     <dialog class="wechat-dialog" id="wechat-dialog" aria-labelledby="wechat-dialog-title">
       <div class="wechat-dialog-paper">
-        <button class="dialog-close" type="button" aria-label="Close WeChat QR code" data-wechat-close>
+        <button class="dialog-close" type="button" aria-label="关闭微信二维码" data-i18n-aria-label="common.closeWechat" data-wechat-close>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" />
           </svg>
         </button>
-        <p class="dialog-kicker">// say hi</p>
-        <h2 id="wechat-dialog-title">WeChat · 微信</h2>
+        <p class="dialog-kicker" data-i18n="dialog.kicker">// 打个招呼</p>
+        <h2 id="wechat-dialog-title" data-i18n="dialog.title">微信</h2>
         <img
           src="assets/wechat-qr.jpg"
           alt="Ethan 的微信二维码"
+          data-i18n-alt="dialog.alt"
           width="888"
           height="1191"
+          loading="lazy"
+          decoding="async"
           data-wechat-qr
         />
-        <p class="wechat-dialog-note">扫码添加我，备注“个人网站”就好。</p>
+        <p class="wechat-dialog-note" data-i18n="dialog.note">扫码添加我，备注“个人网站”即可。</p>
       </div>
     </dialog>
 
+    <script type="module" src="/i18n.js"></script>
     <script type="module" src="script.js"></script>
   </body>
 </html>

@@ -12,11 +12,17 @@
   --blue: #275ba8;
   --blue-soft: #c8d8ee;
   --green: #66a56a;
+  --green-ink: #39743f;
   --red: #bd564c;
   --shadow: rgba(64, 49, 31, 0.16);
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   --hand: "Bradley Hand", "Segoe Print", "Comic Sans MS", "PingFang SC", cursive;
   --mono: "SFMono-Regular", "Cascadia Code", "Liberation Mono", Menlo, monospace;
+}
+
+html[lang="ja-JP"] {
+  --sans: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+  --hand: "Klee", "Hiragino Maru Gothic ProN", "Yu Gothic", "Bradley Hand", cursive;
 }
 
 * {
@@ -82,6 +88,7 @@ canvas {
   left: 16px;
   z-index: 100;
   padding: 10px 14px;
+  min-height: 44px;
   border: 2px solid var(--line);
   border-radius: 5px;
   background: var(--paper-card);
@@ -146,6 +153,8 @@ canvas {
   align-items: center;
   gap: 13px;
   width: fit-content;
+  min-width: 44px;
+  min-height: 44px;
   font-family: var(--hand);
   font-size: 1.8rem;
   font-weight: 800;
@@ -205,7 +214,7 @@ canvas {
   align-items: center;
   justify-content: center;
   min-width: 116px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 18px;
   border-radius: 999px;
   transition:
@@ -239,7 +248,60 @@ canvas {
   justify-self: end;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 12px;
+}
+
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1.5px solid rgba(58, 53, 45, 0.24);
+  border-radius: 999px 960px 999px 940px;
+  background: rgba(255, 250, 240, 0.78);
+  box-shadow: 3px 4px 0 rgba(64, 49, 31, 0.055);
+  transform: rotate(-0.4deg);
+}
+
+.language-switcher button {
+  display: inline-grid;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0 7px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px 920px 999px 940px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.language-switcher button:hover:not(:disabled) {
+  color: var(--blue);
+  background: rgba(200, 216, 238, 0.32);
+}
+
+.language-switcher button[aria-pressed="true"] {
+  background: var(--marker);
+  color: var(--ink);
+  box-shadow: 1px 2px 0 rgba(64, 49, 31, 0.13);
+}
+
+.language-switcher button:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.language-switcher--standalone {
+  position: fixed;
+  top: max(18px, env(safe-area-inset-top));
+  right: max(18px, env(safe-area-inset-right));
+  z-index: 10;
 }
 
 .icon-button {
@@ -270,6 +332,7 @@ canvas {
   display: inline-flex;
   align-items: center;
   gap: 9px;
+  min-width: 44px;
   min-height: 44px;
   padding: 0;
   border: 0;
@@ -543,9 +606,109 @@ canvas {
 }
 
 .intro-callout.identity {
-  left: 8vw;
-  top: 29%;
+  left: 7vw;
+  top: 9%;
   opacity: var(--intro-primary);
+}
+
+.intro-callout.education {
+  left: 6vw;
+  top: 42%;
+  width: min(360px, 29vw);
+  opacity: var(--intro-primary);
+}
+
+.intro-sticky:is([data-phase="intro"], [data-phase="domain"]) .intro-callout.education {
+  pointer-events: auto;
+}
+
+.intro-callout.education summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.intro-callout.education summary::-webkit-details-marker {
+  display: none;
+}
+
+.intro-callout.education summary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 6px;
+}
+
+.intro-callout.education summary:hover .education-toggle {
+  background: rgba(231, 185, 54, 0.34);
+}
+
+.intro-callout .education-label {
+  display: block;
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.intro-callout.education summary strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 0.94rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.education-toggle {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid rgba(58, 53, 45, 0.48);
+  border-radius: 50%;
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 1.3rem;
+  line-height: 1;
+  place-items: center;
+  transition: transform 180ms ease, background-color 180ms ease;
+}
+
+.intro-callout.education[open] {
+  z-index: 7;
+}
+
+.intro-callout.education[open] .education-toggle {
+  background: var(--marker);
+  transform: rotate(45deg);
+}
+
+.education-details {
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1.5px dashed rgba(58, 53, 45, 0.34);
+}
+
+.intro-callout .education-period {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--green-ink);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+}
+
+.intro-callout .education-coursework {
+  margin-top: 8px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  line-height: 1.45;
 }
 
 .intro-callout.role {
@@ -556,7 +719,7 @@ canvas {
 
 .intro-callout.domain {
   left: 7vw;
-  bottom: 18%;
+  bottom: 6%;
   opacity: var(--intro-secondary);
 }
 
@@ -576,6 +739,7 @@ canvas {
   }
 
   .intro-callout.identity::after,
+  .intro-callout.education::after,
   .intro-callout.domain::after {
     left: 100%;
     transform: rotate(4deg);
@@ -686,7 +850,7 @@ canvas {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 42px;
+  min-height: 44px;
   color: var(--blue);
   font-family: var(--hand);
   font-size: 1rem;
@@ -796,7 +960,28 @@ canvas {
   display: grid;
   grid-template-columns: 48px repeat(3, minmax(0, 1fr)) 48px;
   gap: 20px;
-  align-items: center;
+  align-items: stretch;
+}
+
+@media (min-width: 901px) {
+  .project-board {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .project-board .board-arrow {
+    position: absolute;
+    top: 50%;
+    z-index: 3;
+    transform: translateY(-50%);
+  }
+
+  .project-board [data-project-prev] {
+    left: -48px;
+  }
+
+  .project-board [data-project-next] {
+    right: -48px;
+  }
 }
 
 .board-arrow {
@@ -828,21 +1013,32 @@ canvas {
 .project-card {
   display: grid;
   grid-template-rows: auto auto 1fr auto auto;
+  height: 100%;
+  min-width: 0;
   min-height: 354px;
   padding: 20px;
-  transform: rotate(-1deg);
+  transform: none;
   transition:
     transform 180ms ease,
     box-shadow 180ms ease,
     border-color 180ms ease;
 }
 
+.project-card > * {
+  min-width: 0;
+}
+
+.project-card h3,
+.project-card p {
+  overflow-wrap: anywhere;
+}
+
 .project-card:nth-of-type(2) {
-  transform: rotate(1deg) translateY(8px);
+  transform: none;
 }
 
 .project-card:nth-of-type(3) {
-  transform: rotate(-0.5deg);
+  transform: none;
 }
 
 .project-card::before,
@@ -865,7 +1061,7 @@ canvas {
 }
 
 .project-card.active {
-  transform: rotate(0deg) translateY(-10px);
+  transform: none;
 }
 
 .project-card:not(:has(.project-link)) {
@@ -974,7 +1170,7 @@ canvas {
 }
 
 .bond-results [data-bond-row] strong {
-  color: var(--green);
+  color: var(--green-ink);
   font-size: 0.62rem;
   text-align: right;
 }
@@ -992,7 +1188,7 @@ canvas {
 
 .bond-prompt span {
   margin-right: 4px;
-  color: var(--green);
+  color: var(--green-ink);
   font-weight: 900;
 }
 
@@ -1221,6 +1417,13 @@ canvas {
   align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
+}
+
+.contribution-footer a,
+.site-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 
 .contribution-kicker,
@@ -1481,6 +1684,11 @@ canvas {
   border: 1.7px solid var(--line);
 }
 
+.daily-note b,
+.contact-list b {
+  font: inherit;
+}
+
 .contact {
   display: grid;
   grid-template-columns: minmax(360px, 0.8fr) minmax(300px, 1fr);
@@ -1660,9 +1868,15 @@ canvas {
     padding: 16px 17px;
   }
 
+  .intro-callout.education {
+    left: 30px;
+    top: 43%;
+    width: min(290px, 34vw);
+  }
+
   .intro-callout.identity {
     left: 30px;
-    top: 28%;
+    top: 9%;
   }
 
   .intro-callout.role {
@@ -1672,7 +1886,7 @@ canvas {
 
   .intro-callout.domain {
     left: 30px;
-    bottom: 15%;
+    bottom: 5%;
   }
 
   .intro-callout.builder {
@@ -1719,9 +1933,9 @@ canvas {
 
   .nav-links {
     position: fixed;
-    left: 30px;
-    right: 30px;
-    bottom: 18px;
+    left: max(30px, env(safe-area-inset-left));
+    right: max(30px, env(safe-area-inset-right));
+    bottom: max(18px, env(safe-area-inset-bottom));
     justify-content: center;
     gap: 4px;
     padding: 5px;
@@ -1748,6 +1962,10 @@ canvas {
 
   .project-board {
     grid-template-columns: 42px minmax(0, 1fr) 42px;
+  }
+
+  .project-board .board-arrow {
+    align-self: center;
   }
 
   .project-card {
@@ -1778,7 +1996,7 @@ canvas {
   }
 
   .site-footer {
-    padding-bottom: 104px;
+    padding-bottom: calc(104px + env(safe-area-inset-bottom));
   }
 }
 
@@ -1792,10 +2010,30 @@ canvas {
     font-size: 1.35rem;
   }
 
+  .brand span:last-child {
+    display: none;
+  }
+
   .brand-mark {
     width: 34px;
     height: 34px;
     font-size: 1.34rem;
+  }
+
+  .header-actions {
+    gap: 5px;
+  }
+
+  .language-switcher {
+    gap: 0;
+    padding: 2px;
+  }
+
+  .language-switcher button {
+    min-width: 44px;
+    min-height: 44px;
+    padding-inline: 5px;
+    font-size: 0.68rem;
   }
 
   .say-hi {
@@ -1808,16 +2046,23 @@ canvas {
   }
 
   .nav-links {
-    left: 12px;
-    right: 12px;
-    justify-content: center;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
     font-size: 0.94rem;
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none;
   }
 
   .nav-links a {
     min-width: 0;
-    flex: 1 1 0;
-    padding: 0 8px;
+    flex: 1 0 max-content;
+    padding: 0 12px;
   }
 
   .projects,
@@ -1838,7 +2083,7 @@ canvas {
   }
 
   .intro-sticky h1 {
-    font-size: 3.65rem;
+    font-size: min(3.65rem, 18vw);
     line-height: 0.9;
   }
 
@@ -1906,6 +2151,11 @@ canvas {
     transform: translateY(10px);
   }
 
+  .intro-callout.education {
+    grid-column: 1 / -1;
+    width: auto;
+  }
+
   .intro-callout::before {
     top: -7px;
     left: 20px;
@@ -1927,7 +2177,10 @@ canvas {
   .section-heading h2,
   .now h2,
   .contact h2 {
-    font-size: 2.25rem;
+    width: 100%;
+    max-width: 100%;
+    font-size: min(2.25rem, 14vw);
+    overflow-wrap: anywhere;
   }
 
   .section-heading {
@@ -1935,7 +2188,38 @@ canvas {
     gap: 10px;
   }
 
+  .section-heading > *,
+  .section-heading > * > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .section-heading a {
+    width: fit-content;
+    overflow-wrap: anywhere;
+  }
+
+  .project-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .project-board .board-arrow {
+    position: absolute;
+    top: 50%;
+    z-index: 3;
+    transform: translateY(-50%);
+  }
+
+  .project-board [data-project-prev] {
+    left: -18px;
+  }
+
+  .project-board [data-project-next] {
+    right: -18px;
+  }
+
   .project-card {
+    grid-column: 1;
     min-height: 338px;
     padding: 17px;
   }
@@ -1946,6 +2230,8 @@ canvas {
 
   .contribution-note { padding: 18px 14px; }
   .contribution-heading { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .contribution-footer { align-items: center; flex-wrap: wrap; gap: 10px 16px; }
+  .contribution-footer > * { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
   .contribution-grid { --contribution-gap: 1px; }
   .contribution-heading h3 { font-size: 1.3rem; }
 
@@ -1965,6 +2251,7 @@ canvas {
 
   .daily-scene {
     min-height: 360px;
+    overflow: clip;
   }
 
   .daily-scene img {
@@ -2011,11 +2298,22 @@ canvas {
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
-    padding-bottom: 104px;
+    padding-bottom: calc(104px + env(safe-area-inset-bottom));
   }
 
   .site-footer > :last-child {
     justify-self: center;
+  }
+}
+
+@media (pointer: coarse) {
+  .home-writing-link,
+  .post-back,
+  .blog-footer a,
+  .field-tags a,
+  .tag-filter a,
+  .contact a {
+    min-height: 44px;
   }
 }
 
@@ -2078,6 +2376,7 @@ canvas {
 
   .intro-callout,
   .intro-callout.identity,
+  .intro-callout.education,
   .intro-callout.role,
   .intro-callout.domain,
   .intro-callout.builder {
@@ -2086,6 +2385,10 @@ canvas {
     min-height: 0;
     opacity: 1 !important;
     transform: none;
+  }
+
+  .intro-callout.education {
+    pointer-events: auto;
   }
 }
 

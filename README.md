@@ -22,7 +22,7 @@ pnpm build
 
 ## Obsidian Writing
 
-Obsidian 只需打开仓库中的 `content/` 文件夹。文章不需要 YAML：使用时间戳文件名、正文第一个一级标题和任意 `#标签` 即可。完成后把 Markdown 从 `drafts/` 移到 `published/`，Obsidian Git 会自动提交并推送。
+Obsidian 只需打开仓库中的 `content/` 文件夹。文章不需要 YAML，也不需要手动使用时间戳文件名：正常命名、用正文第一个一级标题和任意 `#标签` 写作即可。完成后把 Markdown 从 `drafts/` 移到 `published/`，Obsidian Git 会自动分配内部时间戳、提交并推送。
 
 首次设置、发布规则和错误处理参见 [Obsidian 发布说明](docs/obsidian-publishing.md)。
 

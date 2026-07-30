@@ -10,25 +10,26 @@ permalink: "{{ post.outputPath }}"
 <article class="post-page post-page--{{ post.type | lower }}">
   <header class="post-heading">
     <div class="post-margin-meta">
-      <span>{{ post.type }}</span>
+      {% if post.type == "Essay" %}<span data-i18n="blog.essay">长文</span>{% else %}<span data-i18n="blog.note">随记</span>{% endif %}
       <time datetime="{{ post.iso }}">{{ post.display }}</time>
-      <span>{{ post.readingMinutes }} min read</span>
+      <span data-reading-minutes="{{ post.readingMinutes }}">{{ post.readingMinutes }} 分钟阅读</span>
       {% if post.tags.length %}
-        <ul aria-label="Tags">
-          {% for tag in post.tags %}<li><a href="/blog/tag/{{ tag.normalized | urlencode }}/">#{{ tag.label }}</a></li>{% endfor %}
+        <ul aria-label="标签" data-i18n-aria-label="blog.tagsAria">
+          {% for tag in post.tags %}<li><a href="/blog/tag/{{ tag.normalized | urlencode }}/">#<span data-i18n-authored="{{ tag.label | escape }}">{{ tag.label }}</span></a></li>{% endfor %}
         </ul>
       {% endif %}
     </div>
     <div>
-      <p class="post-ledger">WRITING / {{ post.id }}</p>
-      {% if post.showTitle %}<h1>{{ post.title }}</h1>{% endif %}
-      {% if post.type == "Essay" %}<p class="post-deck">{{ post.summary }}</p>{% endif %}
+      <p class="post-ledger"><span data-i18n="writing.title">写作</span> / {% if post.type == "Essay" %}<span data-i18n="blog.essay">长文</span>{% else %}<span data-i18n="blog.note">随记</span>{% endif %}</p>
+      {% if post.showTitle %}<h1 data-i18n-authored="{{ post.title | escape }}">{{ post.title }}</h1>{% endif %}
+      {% if post.type == "Essay" %}<p class="post-deck" data-i18n-authored="{{ post.summary | escape }}">{{ post.summary }}</p>{% endif %}
+      <p class="post-language-note" data-original-language-note data-i18n="blog.post.originalNotice" hidden>本文原文为中文。</p>
     </div>
   </header>
-  <div class="post-body prose">{{ post.bodyHtml | safe }}</div>
-  <nav class="post-navigation" aria-label="相邻文章">
-    {% if post.older %}<a href="{{ post.older.url }}"><small>上一篇</small>{{ post.older.title }}</a>{% else %}<span></span>{% endif %}
-    <a class="post-back" href="/blog/">返回 Writing</a>
-    {% if post.newer %}<a class="post-next" href="{{ post.newer.url }}"><small>下一篇</small>{{ post.newer.title }}</a>{% endif %}
+  <div class="post-body prose" lang="zh-CN">{{ post.bodyHtml | safe }}</div>
+  <nav class="post-navigation" aria-label="相邻文章" data-i18n-aria-label="blog.post.navigationAria">
+    {% if post.older %}<a href="{{ post.older.url }}"><small data-i18n="blog.post.previous">上一篇</small><span data-i18n-authored="{{ post.older.title | escape }}">{{ post.older.title }}</span></a>{% else %}<span></span>{% endif %}
+    <a class="post-back" href="/blog/" data-i18n="blog.post.back">返回写作</a>
+    {% if post.newer %}<a class="post-next" href="{{ post.newer.url }}"><small data-i18n="blog.post.next">下一篇</small><span data-i18n-authored="{{ post.newer.title | escape }}">{{ post.newer.title }}</span></a>{% endif %}
   </nav>
 </article>

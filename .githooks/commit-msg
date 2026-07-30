@@ -1,12 +1,19 @@
 #!/bin/sh
 set -eu
 
-# Defense in depth: retain the guard if a future Obsidian Git release stops
-# exporting OBSIDIAN_GIT but still uses the configured automatic message.
+# Defense in depth: a blog sync is accepted only after pre-commit has applied
+# the publishing allowlist. Older local plugin settings get a safe one-time
+# failed attempt that prepares the next automatic retry.
 first_line=$(sed -n '1p' "$1")
 case "$first_line" in
   "blog: sync"*)
     repo_root=$(git rev-parse --show-toplevel)
+    obsidian_marker=$(git rev-parse --git-path obsidian-git-commit)
+    guard_passed_marker=$(git rev-parse --git-path obsidian-git-guard-passed)
+    if [ -f "$guard_passed_marker" ]; then
+      rm -f "$guard_passed_marker" "$obsidian_marker"
+      exit 0
+    fi
     python_bin=/usr/bin/python3
     if [ ! -x "$python_bin" ]; then
       python_bin=$(command -v python3 || true)
@@ -15,7 +22,10 @@ case "$first_line" in
       echo "Obsidian Git commit rejected: Python 3 is required by the content guard." >&2
       exit 1
     fi
-    exec env OBSIDIAN_GIT=1 "$python_bin" "$repo_root/.githooks/obsidian_guard.py"
+    env OBSIDIAN_GIT=1 "$python_bin" "$repo_root/.githooks/obsidian_guard.py"
+    : > "$obsidian_marker"
+    echo "Obsidian Git prepared this publication safely; the next automatic retry will commit it." >&2
+    exit 1
     ;;
 esac
 

@@ -1,0 +1,3 @@
+# Digital Ethan Prompt Seed
+
+Digital Ethan is a recognizable young Chinese man with short slightly tousled black hair, round thin-frame glasses, a calm analytical expression, and realistic simplified proportions. He wears an off-white or black crewneck sweater, dark navy straight trousers, and simple white sneakers. Render him as clean hand-drawn black-ink line art with sparse accurate color and a white background. Preserve the face, hair silhouette, glasses, quiet posture, and understated product-builder mood. Avoid cute mascot proportions, anime styling, exaggerated emotion, glossy corporate vector art, and distracting scenery.

@@ -2,18 +2,25 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="robots" content="noindex" />
-    <title>页面未找到 | EthanSMC</title>
+    <meta name="description" content="地址可能已经变化，或者内容尚未发布。" />
+    <title>页面未找到｜EthanSMC</title>
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/blog.css" />
   </head>
-  <body class="blog-body">
+  <body class="blog-body" data-i18n-title="error.metaTitle" data-i18n-description="error.body">
+    <div class="language-switcher language-switcher--standalone" role="group" aria-label="切换语言" data-i18n-aria-label="common.languageSwitcher">
+      <button type="button" data-locale-option="zh" lang="zh-CN" aria-label="中文" aria-pressed="true">中</button>
+      <button type="button" data-locale-option="ja" lang="ja-JP" aria-label="日本語" aria-pressed="false">日</button>
+      <button type="button" data-locale-option="en" lang="en" aria-label="English" aria-pressed="false">EN</button>
+    </div>
     <main id="content" class="writing-empty">
       <span aria-hidden="true">404</span>
-      <h1>这一页还没有写下来。</h1>
-      <p>地址可能已经变化，或者内容尚未发布。</p>
-      <a class="home-writing-link" href="/">返回首页 <span aria-hidden="true">→</span></a>
+      <h1 data-i18n="error.heading">这一页还没有写下来。</h1>
+      <p data-i18n="error.body">地址可能已经变化，或者内容尚未发布。</p>
+      <a class="home-writing-link" href="/"><span data-i18n="error.back">返回首页</span> <span aria-hidden="true">→</span></a>
     </main>
+    <script type="module" src="/i18n.js"></script>
   </body>
 </html>

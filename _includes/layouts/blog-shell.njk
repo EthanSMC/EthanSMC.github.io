@@ -2,7 +2,7 @@
 <html lang="{{ site.language }}">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f0df" />
     {% if post %}
       {% set metaTitle = post.title + " | Writing by Ethan" %}
@@ -39,27 +39,71 @@
     </script>
     <script defer src="/_vercel/insights/script.js"></script>
   </head>
-  <body class="blog-body">
-    <a class="skip-link" href="#content">Skip to content</a>
-    <header class="blog-header">
-      <a class="blog-brand" href="/" aria-label="返回 Ethan 的个人主页">
+  <body class="blog-body" data-i18n-title="meta.blog.title" data-i18n-description="meta.blog.description">
+    <a class="skip-link" href="#content" data-i18n="common.skip">跳到主要内容</a>
+    <header class="site-header scrolled" data-header>
+      <a class="brand" href="/#top" aria-label="是 Ethan 不是埃森首页" data-i18n-aria-label="common.homeAria">
         <span class="brand-mark" aria-hidden="true">E</span>
         <span>EthanSMC</span>
       </a>
-      <nav class="blog-nav" aria-label="Writing navigation">
-        <a href="/">Home</a>
-        <a href="/blog/"{% if page.url and page.url.startsWith('/blog/') %} aria-current="page"{% endif %}>Writing</a>
-        <a href="/blog/feed.xml">RSS</a>
+
+      <nav class="nav-links" aria-label="主导航" data-i18n-aria-label="common.primaryNavigation">
+        <a href="/#about" data-i18n="nav.about">关于</a>
+        <a href="/#projects" data-i18n="nav.projects">项目</a>
+        <a class="active" href="/blog/" aria-current="page" data-i18n="nav.writing">写作</a>
+        <a href="/#contact" data-i18n="nav.contact">联系</a>
       </nav>
+
+      <div class="header-actions">
+        <div class="language-switcher" role="group" aria-label="切换语言" data-i18n-aria-label="common.languageSwitcher">
+          <button type="button" data-locale-option="zh" lang="zh-CN" aria-label="中文" aria-pressed="true">中</button>
+          <button type="button" data-locale-option="ja" lang="ja-JP" aria-label="日本語" aria-pressed="false">日</button>
+          <button type="button" data-locale-option="en" lang="en" aria-label="English" aria-pressed="false">EN</button>
+        </div>
+        <button class="icon-button sound-toggle" type="button" aria-label="开启界面音效" data-i18n-aria-label="common.enableSounds" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9v6h4l5 4V5L8 9H4Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" />
+            <path class="sound-wave" d="M16 9.5c1.1 1.4 1.1 3.6 0 5M18.5 7c2.4 2.8 2.4 7.2 0 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+          </svg>
+        </button>
+        <button
+          class="say-hi"
+          type="button"
+          aria-label="打开 Ethan 的微信二维码"
+          data-i18n-aria-label="common.openWechat"
+          aria-haspopup="dialog"
+          aria-controls="wechat-dialog"
+          data-wechat-open
+        >
+          <span data-i18n="common.sayHi">打个招呼</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12h13m-5-6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" />
+          </svg>
+        </button>
+      </div>
     </header>
     <main id="content" tabindex="-1">
       {{ content | safe }}
     </main>
     <footer class="blog-footer">
       <span>© 2026 EthanSMC</span>
-      <p>写下正在形成的判断，也保留暂时没有答案的问题。</p>
-      <a href="/">返回个人主页 ↑</a>
+      <p data-i18n="blog.footer.motto">写下正在形成的判断，也保留暂时没有答案的问题。</p>
+      <a href="/blog/feed.xml">RSS</a>
     </footer>
+    <dialog class="wechat-dialog" id="wechat-dialog" aria-labelledby="wechat-dialog-title">
+      <div class="wechat-dialog-paper">
+        <button class="dialog-close" type="button" aria-label="关闭微信二维码" data-i18n-aria-label="common.closeWechat" data-wechat-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" />
+          </svg>
+        </button>
+        <p class="dialog-kicker" data-i18n="dialog.kicker">// 打个招呼</p>
+        <h2 id="wechat-dialog-title" data-i18n="dialog.title">微信</h2>
+        <img src="/assets/wechat-qr.jpg" alt="Ethan 的微信二维码" data-i18n-alt="dialog.alt" width="888" height="1191" loading="lazy" decoding="async" data-wechat-qr />
+        <p class="wechat-dialog-note" data-i18n="dialog.note">扫码添加我，备注“个人网站”即可。</p>
+      </div>
+    </dialog>
+    <script type="module" src="/i18n.js"></script>
     <script type="module" src="/blog.js"></script>
   </body>
 </html>
