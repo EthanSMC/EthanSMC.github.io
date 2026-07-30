@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdtemp, mkdir, unlink, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, readdir, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -30,7 +30,13 @@ async function fixture() {
   run(directory, "git", ["config", "user.name", "Test"]);
   run(directory, "git", ["config", "user.email", "test@example.com"]);
   run(directory, "git", ["config", "core.hooksPath", ".githooks"]);
-  run(directory, "chmod", ["+x", ".githooks/pre-commit", ".githooks/commit-msg", ".githooks/obsidian_guard.py"]);
+  run(directory, "chmod", [
+    "+x",
+    ".githooks/pre-commit",
+    ".githooks/commit-msg",
+    ".githooks/obsidian_guard.py",
+    ".githooks/obsidian-commit-message.sh"
+  ]);
   run(directory, "git", ["add", "-A"]);
   const baseline = run(directory, "git", ["commit", "-m", "test: baseline"]);
   assert.equal(baseline.status, 0, baseline.stderr);
@@ -48,6 +54,48 @@ test("Obsidian allows content-only commits and ordinary Git allows code commits"
   run(directory, "git", ["add", "-A"]);
   const developerCommit = run(directory, "git", ["commit", "-m", "feat: developer change"]);
   assert.equal(developerCommit.status, 0, developerCommit.stderr);
+});
+
+test("Obsidian automatically assigns a timestamp filename on publish", async () => {
+  const directory = await fixture();
+  const naturalName = path.join(directory, "content", "published", "我的正常标题.md");
+  await writeFile(naturalName, "# 我的正常标题\n\n只管正常写作。\n");
+  run(directory, "git", ["add", "-A"]);
+
+  const message = run(directory, ".githooks/obsidian-commit-message.sh", []);
+  assert.equal(message.status, 0, message.stderr);
+  const commit = run(directory, "git", ["commit", "-m", message.stdout.trim()]);
+  assert.equal(commit.status, 0, commit.stderr);
+  assert.match(commit.stderr, /assigned 我的正常标题\.md -> \d{4}-\d{2}-\d{2}-\d{6}\.md/);
+
+  const publishedFiles = await readdir(path.join(directory, "content", "published"));
+  assert.equal(publishedFiles.includes("我的正常标题.md"), false);
+  assert.equal(
+    publishedFiles.filter(filename => /^\d{4}-\d{2}-\d{2}-\d{6}\.md$/.test(filename)).length,
+    2
+  );
+  const committedNames = run(directory, "git", ["show", "--format=", "--name-only", "HEAD"]).stdout;
+  assert.doesNotMatch(committedNames, /我的正常标题\.md/);
+  assert.match(committedNames, /content\/published\/\d{4}-\d{2}-\d{2}-\d{6}\.md/);
+});
+
+test("older Obsidian settings prepare a safe automatic retry", async () => {
+  const directory = await fixture();
+  await writeFile(
+    path.join(directory, "content", "published", "普通文章名.md"),
+    "# 普通文章名\n\n第一次提交会完成迁移。\n"
+  );
+  run(directory, "git", ["add", "-A"]);
+
+  const firstAttempt = run(directory, "git", ["commit", "-m", "blog: sync legacy settings"]);
+  assert.notEqual(firstAttempt.status, 0);
+  assert.match(firstAttempt.stderr, /next automatic retry/);
+
+  const secondAttempt = run(directory, "git", ["commit", "-m", "blog: sync legacy retry"]);
+  assert.equal(secondAttempt.status, 0, secondAttempt.stderr);
+  const committedNames = run(directory, "git", ["show", "--format=", "--name-only", "HEAD"]).stdout;
+  assert.doesNotMatch(committedNames, /普通文章名\.md/);
+  assert.match(committedNames, /content\/published\/\d{4}-\d{2}-\d{2}-\d{6}\.md/);
 });
 
 test("Obsidian rejects code-only commits and excludes code from mixed commits", async () => {

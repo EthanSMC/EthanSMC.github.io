@@ -10,4 +10,4 @@ git config core.hooksPath .githooks
 
 echo "Git content guard enabled at .githooks"
 echo "Open this folder as the Obsidian vault: $repo_root/content"
-echo "Unique note creator remains a one-time Obsidian UI setting; see docs/obsidian-publishing.md"
+echo "Write with normal filenames; moving a note to published/ assigns its timestamp automatically"

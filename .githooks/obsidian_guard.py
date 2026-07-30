@@ -3,6 +3,7 @@
 
 from pathlib import Path
 from urllib.parse import unquote
+from datetime import datetime, timedelta
 import re
 import subprocess
 import sys
@@ -41,6 +42,45 @@ published_root = (root / "content" / "published").resolve()
 assets_root = (root / "content" / "assets").resolve()
 referenced_assets: set[str] = set()
 errors: list[str] = []
+
+
+def normalize_published_filenames() -> None:
+    """Assign internal timestamp IDs when a normally named note is published."""
+    if not published_root.exists():
+        return
+
+    candidates = [
+        path
+        for path in sorted(published_root.glob("*.md"))
+        if not TIMESTAMP_NAME.fullmatch(path.name)
+    ]
+    if not candidates:
+        return
+
+    next_timestamp = datetime.now().astimezone().replace(microsecond=0)
+    renamed: list[tuple[Path, Path]] = []
+    for source in candidates:
+        while True:
+            destination = published_root / f"{next_timestamp:%Y-%m-%d-%H%M%S}.md"
+            next_timestamp += timedelta(seconds=1)
+            if not destination.exists():
+                break
+        source.rename(destination)
+        renamed.append((source, destination))
+
+    subprocess.run(
+        ["git", "add", "-A", "--", "content/published"],
+        cwd=root,
+        check=True,
+    )
+    for source, destination in renamed:
+        print(
+            f"Obsidian Git assigned {source.name} -> {destination.name}",
+            file=sys.stderr,
+        )
+
+
+normalize_published_filenames()
 
 for markdown_path in sorted(published_root.glob("*.md")) if published_root.exists() else []:
     if not TIMESTAMP_NAME.fullmatch(markdown_path.name):

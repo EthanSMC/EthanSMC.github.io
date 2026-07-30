@@ -5,29 +5,28 @@
 >
   <span class="field-node" aria-hidden="true"></span>
   <div class="field-entry-meta">
-    <span>{{ entry.type }}</span>
+    {% if entry.type == "Essay" %}<span data-i18n="blog.essay">长文</span>{% else %}<span data-i18n="blog.note">随记</span>{% endif %}
     <time datetime="{{ entry.iso }}">{{ entry.display }}</time>
-    {% if entry.type == "Essay" %}<span>{{ entry.readingMinutes }} min read</span>{% endif %}
+    {% if entry.type == "Essay" %}<span data-reading-minutes="{{ entry.readingMinutes }}">{{ entry.readingMinutes }} 分钟阅读</span>{% endif %}
   </div>
   <div class="field-entry-content">
     {% if entry.showTitle %}
-      <h2><a href="{{ entry.url }}">{{ entry.title }}</a></h2>
+      <h2><a href="{{ entry.url }}" data-i18n-authored="{{ entry.title | escape }}">{{ entry.title }}</a></h2>
     {% endif %}
     {% if entry.type == "Essay" %}
-      <p class="field-summary">{{ entry.summary }}</p>
+      <p class="field-summary" data-i18n-authored="{{ entry.summary | escape }}">{{ entry.summary }}</p>
     {% else %}
       <div class="field-note-body prose">{{ entry.bodyHtml | safe }}</div>
     {% endif %}
     {% if entry.tags.length %}
-      <ul class="field-tags" aria-label="Tags">
+      <ul class="field-tags" aria-label="标签" data-i18n-aria-label="blog.tagsAria">
         {% for tag in entry.tags %}
-          <li><a href="/blog/tag/{{ tag.normalized | urlencode }}/">#{{ tag.label }}</a></li>
+          <li><a href="/blog/tag/{{ tag.normalized | urlencode }}/">#<span data-i18n-authored="{{ tag.label | escape }}">{{ tag.label }}</span></a></li>
         {% endfor %}
       </ul>
     {% endif %}
-    <a class="field-permalink" href="{{ entry.url }}">
-      {% if entry.type == "Essay" %}阅读全文{% else %}永久链接{% endif %}
-      <span aria-hidden="true">→</span>
-    </a>
+    {% if entry.type == "Essay" %}
+      <a class="field-permalink" href="{{ entry.url }}"><span data-i18n="writing.readMore">阅读全文</span> <span aria-hidden="true">→</span></a>
+    {% endif %}
   </div>
 </article>

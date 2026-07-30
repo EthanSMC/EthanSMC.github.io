@@ -7,13 +7,13 @@ pagination:
 permalink: "{{ tagPage.outputPath }}"
 ---
 <section class="tag-archive-heading">
-  <p class="writing-kicker">FIELD INDEX</p>
-  <a href="/blog/">← 全部 Writing</a>
-  <h1>#{{ tagPage.tag.label }}</h1>
-  <p>{{ tagPage.tag.count }} 篇记录，按时间倒序排列。</p>
+  <p class="writing-kicker" data-i18n="blog.tag.kicker">主题索引</p>
+  <a href="/blog/" data-i18n="blog.tag.back">← 全部文章</a>
+  <h1>#<span data-i18n-authored="{{ tagPage.tag.label | escape }}">{{ tagPage.tag.label }}</span></h1>
+  <p data-tag-count="{{ tagPage.tag.count }}">共 {{ tagPage.tag.count }} 篇记录，按时间倒序排列。</p>
 </section>
 
-<section class="field-log" aria-label="#{{ tagPage.tag.label }} timeline">
+<section class="field-log" aria-label="#{{ tagPage.tag.label }} 写作时间线" data-i18n-aria-label="blog.timelineAria">
   {% for postItem in tagPage.posts %}
     {% set entry = postItem %}
     {% include "partials/blog-entry.njk" %}
@@ -21,9 +21,9 @@ permalink: "{{ tagPage.outputPath }}"
 </section>
 
 {% if tagPage.totalPages > 1 %}
-  <nav class="blog-pagination" aria-label="Tag pages">
-    {% if tagPage.previousUrl %}<a href="{{ tagPage.previousUrl }}">← 更新的记录</a>{% else %}<span></span>{% endif %}
+  <nav class="blog-pagination" aria-label="标签分页" data-i18n-aria-label="blog.pagesAria">
+    {% if tagPage.previousUrl %}<a href="{{ tagPage.previousUrl }}" data-i18n="blog.newer">← 更新的记录</a>{% else %}<span></span>{% endif %}
     <span>{{ tagPage.pageNumber | plus(1) }} / {{ tagPage.totalPages }}</span>
-    {% if tagPage.nextUrl %}<a href="{{ tagPage.nextUrl }}">更早的记录 →</a>{% endif %}
+    {% if tagPage.nextUrl %}<a href="{{ tagPage.nextUrl }}" data-i18n="blog.older">更早的记录 →</a>{% endif %}
   </nav>
 {% endif %}

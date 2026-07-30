@@ -5,11 +5,34 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import configureEleventy from "../eleventy.config.mjs";
 
 const require = createRequire(import.meta.url);
 const { cleanSourceAndExtractTags, loadBlog, parsePost, parseTimestamp } = require("../scripts/prepare-content.cjs");
 const { injectHomeWriting } = require("../scripts/render-home-writing.cjs");
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+test("keeps internal Markdown outside Eleventy's public build graph", () => {
+  const ignores = [];
+  const passthrough = [];
+  const config = {
+    ignores: { add: (value) => ignores.push(value) },
+    addPassthroughCopy: (value) => passthrough.push(value),
+    addWatchTarget: () => {},
+    addFilter: () => {},
+    addTransform: () => {},
+    on: () => {},
+  };
+
+  const result = configureEleventy(config);
+
+  assert.deepEqual(result.templateFormats, ["html", "njk"]);
+  assert.ok(ignores.includes("PRODUCT.md"));
+  assert.ok(ignores.includes(".impeccable/**"));
+  assert.ok(ignores.includes("assets/**/*.md"));
+  assert.ok(passthrough.includes("assets/digital-ethan/*.png"));
+  assert.ok(!passthrough.includes("assets/digital-ethan"));
+});
 
 test("derives title, stable URL, tags, type and summary without YAML", () => {
   const post = parsePost({

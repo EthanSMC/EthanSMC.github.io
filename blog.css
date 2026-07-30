@@ -1,5 +1,4 @@
 .writing,
-.blog-header,
 .writing-hero,
 .tag-filter,
 .field-log,
@@ -14,6 +13,7 @@
 
 /* Homepage writing: one spread, not a second homepage. */
 .writing {
+  width: min(100%, 1480px);
   padding-top: 48px;
   padding-bottom: 74px;
   border-top: 2px solid rgba(58, 53, 45, 0.12);
@@ -96,6 +96,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-height: 44px;
   margin-top: 28px;
   color: var(--blue);
   font-family: var(--hand);
@@ -153,44 +154,8 @@
   overflow-x: clip;
 }
 
-.blog-header {
-  position: relative;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 92px;
-  border-bottom: 1.5px solid rgba(58, 53, 45, 0.2);
-}
-
-.blog-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  font-family: var(--hand);
-  font-size: 1.55rem;
-  font-weight: 900;
-}
-
-.blog-nav {
-  display: flex;
-  align-items: center;
-  gap: 26px;
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.blog-nav a {
-  padding: 8px 2px;
-  border-bottom: 2px solid transparent;
-}
-
-.blog-nav a:hover,
-.blog-nav a[aria-current="page"] {
-  border-bottom-color: var(--blue);
-  color: var(--blue);
+.blog-body > main {
+  padding-top: 78px;
 }
 
 .writing-hero {
@@ -207,10 +172,11 @@
   margin: 8px 0 12px;
   color: var(--ink);
   font-family: var(--hand);
-  font-size: clamp(4.6rem, 10vw, 8.6rem);
+  font-size: clamp(4.4rem, 9vw, 6rem);
   font-weight: 950;
   line-height: 0.82;
-  letter-spacing: -0.045em;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
 }
 
 .writing-hero > div > p:last-child,
@@ -236,6 +202,11 @@
 }
 
 .writing-index-note span { display: flex; align-items: center; gap: 10px; }
+
+.writing-index-note b,
+.tag-filter b {
+  font: inherit;
+}
 
 .legend-dot,
 .field-node {
@@ -318,7 +289,7 @@
 .field-node {
   position: absolute;
   top: 38px;
-  left: 214px;
+  left: 165px;
   z-index: 2;
   width: 14px;
   height: 14px;
@@ -358,6 +329,27 @@
   border-radius: 4px;
   background: rgba(255, 250, 240, 0.62);
   box-shadow: 7px 9px 0 rgba(64, 49, 31, 0.05);
+}
+
+.field-entry--note .field-entry-content {
+  position: relative;
+  width: min(100%, 760px);
+  padding: 27px 32px 30px;
+  border: 1.5px solid rgba(58, 53, 45, 0.34);
+  border-radius: 4px;
+  background: rgba(255, 250, 240, 0.56);
+  box-shadow: 6px 8px 0 rgba(64, 49, 31, 0.045);
+}
+
+.field-entry--note .field-entry-content::before {
+  position: absolute;
+  top: -8px;
+  left: 32px;
+  width: 58px;
+  height: 13px;
+  background: rgba(102, 165, 106, 0.25);
+  transform: rotate(-1deg);
+  content: "";
 }
 
 .field-entry--essay .field-entry-content::before {
@@ -502,6 +494,19 @@
   color: var(--ink-soft);
   font-size: 1.08rem;
   line-height: 1.75;
+}
+
+.post-language-note {
+  width: fit-content;
+  max-width: 680px;
+  margin: 18px 0 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--marker);
+  background: rgba(231, 185, 54, 0.12);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  line-height: 1.6;
 }
 
 .post-margin-meta {
@@ -654,7 +659,15 @@
 
 .post-navigation small { margin-bottom: 7px; color: var(--muted); font-family: var(--mono); font-size: 0.66rem; }
 .post-navigation .post-next { justify-self: end; text-align: right; }
-.post-back { color: var(--blue); font-family: var(--mono); font-size: 0.72rem; font-weight: 850; }
+.post-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
 
 .blog-footer {
   display: grid;
@@ -670,11 +683,18 @@
 }
 
 .blog-footer p { margin: 0; text-align: center; }
-.blog-footer a { justify-self: end; color: var(--blue); font-weight: 850; }
+.blog-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  justify-self: end;
+  color: var(--blue);
+  font-weight: 850;
+}
 
 @media (max-width: 980px) {
   .writing,
-  .blog-header,
   .writing-hero,
   .tag-filter,
   .field-log,
@@ -698,7 +718,6 @@
 
 @media (max-width: 640px) {
   .writing,
-  .blog-header,
   .writing-hero,
   .tag-filter,
   .field-log,
@@ -711,11 +730,9 @@
   .home-essay { min-height: 0; padding: 28px 24px 30px 34px; }
   .home-essay::before { left: 18px; }
   .home-notes { grid-template-columns: 1fr; }
-  .blog-header { min-height: 76px; }
-  .blog-brand { font-size: 0; }
-  .blog-nav { gap: 15px; font-size: 0.7rem; }
+  .blog-body > main { padding-top: 72px; }
   .writing-hero { gap: 30px; padding-top: 58px; padding-bottom: 38px; }
-  .writing-hero h1 { font-size: clamp(4rem, 23vw, 6rem); }
+  .writing-hero h1 { font-size: min(5rem, 20vw); }
   .writing-index-note { min-width: 0; width: 100%; }
   .tag-filter { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 22px; scrollbar-width: none; }
   .tag-filter::-webkit-scrollbar { display: none; }
@@ -725,6 +742,7 @@
   .field-node { top: 35px; left: 1px; }
   .field-entry-meta { display: flex; flex-wrap: wrap; justify-items: start; gap: 7px 12px; padding: 0; text-align: left; }
   .field-entry--essay .field-entry-content { padding: 24px 20px; }
+  .field-entry--note .field-entry-content { padding: 24px 20px; }
   .field-entry h2 { font-size: 1.8rem; }
   .writing-empty,
   .filter-empty { margin-left: 28px; padding: 36px 24px; }

@@ -1,11 +1,15 @@
 #!/bin/sh
 set -eu
 
-# Only Obsidian Git is restricted to the publishing allowlist. Normal developer
-# commits keep the repository's regular Git behavior.
-if [ "${OBSIDIAN_GIT:-}" != "1" ]; then
+# Obsidian Git's configured message script creates a one-shot marker before it
+# starts git commit. This lets the hook distinguish plugin syncs from ordinary
+# developer commits without relying on undocumented process environment.
+obsidian_marker=$(git rev-parse --git-path obsidian-git-commit)
+guard_passed_marker=$(git rev-parse --git-path obsidian-git-guard-passed)
+if [ "${OBSIDIAN_GIT:-}" != "1" ] && [ ! -f "$obsidian_marker" ]; then
   exit 0
 fi
+rm -f "$obsidian_marker" "$guard_passed_marker"
 
 repo_root=$(git rev-parse --show-toplevel)
 python_bin=/usr/bin/python3
@@ -17,4 +21,5 @@ if [ -z "$python_bin" ]; then
   exit 1
 fi
 
-exec "$python_bin" "$repo_root/.githooks/obsidian_guard.py"
+"$python_bin" "$repo_root/.githooks/obsidian_guard.py"
+: > "$guard_passed_marker"

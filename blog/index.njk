@@ -11,26 +11,26 @@ permalink: "blog/{% if pagination.pageNumber > 0 %}page/{{ pagination.pageNumber
 ---
 <section class="writing-hero" aria-labelledby="writing-title">
   <div>
-    <p class="writing-kicker">FIELD NOTES · ETHAN SMC</p>
-    <h1 id="writing-title">Writing</h1>
-    <p>记录产品现场、AI 实践，以及那些暂时没有结论的想法。</p>
+    <p class="writing-kicker" data-i18n="blog.hero.kicker">现场笔记 · ETHAN SMC</p>
+    <h1 id="writing-title" data-i18n="writing.title">写作</h1>
+    <p data-i18n="writing.description">记录产品现场、AI 实践，以及那些暂时没有结论的想法。</p>
   </div>
-  <aside class="writing-index-note" aria-label="Writing legend">
-    <span><i class="legend-dot legend-dot--essay"></i>Essay · 展开的判断</span>
-    <span><i class="legend-dot legend-dot--note"></i>Note · 当下的片段</span>
+  <aside class="writing-index-note" aria-label="写作类型说明" data-i18n-aria-label="blog.legendAria">
+    <span><i class="legend-dot legend-dot--essay"></i><b data-i18n="blog.essayLegend">长文 · 展开的判断</b></span>
+    <span><i class="legend-dot legend-dot--note"></i><b data-i18n="blog.noteLegend">随记 · 当下的片段</b></span>
   </aside>
 </section>
 
 {% if blog.tags.length %}
-  <nav class="tag-filter" aria-label="按标签筛选文章" data-tag-filter-nav>
-    <a class="active" href="/blog/" data-tag-filter="all" aria-current="page">全部 <span>{{ blog.posts.length }}</span></a>
+  <nav class="tag-filter" aria-label="按标签筛选文章" data-i18n-aria-label="blog.filterAria" data-tag-filter-nav>
+    <a class="active" href="/blog/" data-tag-filter="all" aria-current="page"><b data-i18n="blog.all">全部</b> <span>{{ blog.posts.length }}</span></a>
     {% for tag in blog.tags %}
-      <a href="{{ tag.url }}" data-tag-filter="{{ tag.normalized }}">#{{ tag.label }} <span>{{ tag.count }}</span></a>
+      <a href="{{ tag.url }}" data-tag-filter="{{ tag.normalized }}">#<b data-i18n-authored="{{ tag.label | escape }}">{{ tag.label }}</b> <span>{{ tag.count }}</span></a>
     {% endfor %}
   </nav>
 {% endif %}
 
-<section class="field-log" aria-label="Writing timeline" data-field-log>
+<section class="field-log" aria-label="写作时间线" data-i18n-aria-label="blog.timelineAria" data-field-log>
   {% if pagePosts.length %}
     {% for postItem in pagePosts %}
       {% set entry = postItem %}
@@ -39,16 +39,16 @@ permalink: "blog/{% if pagination.pageNumber > 0 %}page/{{ pagination.pageNumber
   {% else %}
     <div class="writing-empty">
       <span aria-hidden="true">✎</span>
-      <h2>第一篇还在纸上。</h2>
-      <p>文章发布后，会自动出现在这条时间线上。</p>
+      <h2 data-i18n="blog.emptyTitle">第一篇还在纸上。</h2>
+      <p data-i18n="blog.emptyBody">文章发布后，会自动出现在这条时间线上。</p>
     </div>
   {% endif %}
 </section>
 
 {% if pagination.pages.length > 1 %}
-  <nav class="blog-pagination" aria-label="Writing pages">
-    {% if pagination.href.previous %}<a href="{{ pagination.href.previous }}">← 更新的记录</a>{% else %}<span></span>{% endif %}
+  <nav class="blog-pagination" aria-label="文章分页" data-i18n-aria-label="blog.pagesAria">
+    {% if pagination.href.previous %}<a href="{{ pagination.href.previous }}" data-i18n="blog.newer">← 更新的记录</a>{% else %}<span></span>{% endif %}
     <span>{{ pagination.pageNumber | plus(1) }} / {{ pagination.pages.length }}</span>
-    {% if pagination.href.next %}<a href="{{ pagination.href.next }}">更早的记录 →</a>{% endif %}
+    {% if pagination.href.next %}<a href="{{ pagination.href.next }}" data-i18n="blog.older">更早的记录 →</a>{% endif %}
   </nav>
 {% endif %}

@@ -8,9 +8,12 @@ const { injectHomeWriting } = require("./scripts/render-home-writing.cjs");
 
 export default function (eleventyConfig) {
   eleventyConfig.ignores.add("README.md");
+  eleventyConfig.ignores.add("PRODUCT.md");
+  eleventyConfig.ignores.add(".impeccable/**");
   eleventyConfig.ignores.add("docs/**");
   eleventyConfig.ignores.add("content/**");
-  eleventyConfig.addPassthroughCopy("assets/digital-ethan");
+  eleventyConfig.ignores.add("assets/**/*.md");
+  eleventyConfig.addPassthroughCopy("assets/digital-ethan/*.png");
   eleventyConfig.addPassthroughCopy("assets/favicon.svg");
   eleventyConfig.addPassthroughCopy("assets/vendor");
   eleventyConfig.addPassthroughCopy("assets/wechat-qr.jpg");
@@ -18,6 +21,7 @@ export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy("blog.css");
   eleventyConfig.addPassthroughCopy("script.js");
   eleventyConfig.addPassthroughCopy("blog.js");
+  eleventyConfig.addPassthroughCopy("i18n.js");
   eleventyConfig.addWatchTarget("content/published");
   eleventyConfig.addWatchTarget("content/assets");
 
@@ -61,6 +65,6 @@ export default function (eleventyConfig) {
     },
     htmlTemplateEngine: "njk",
     markdownTemplateEngine: "njk",
-    templateFormats: ["html", "njk", "md"]
+    templateFormats: ["html", "njk"]
   };
 }

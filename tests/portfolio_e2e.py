@@ -904,11 +904,63 @@ class PortfolioE2E(unittest.TestCase):
             self.assertEqual(intro.count(), 1)
         with self.subTest(contract="one intro stage"):
             self.assertEqual(stage.count(), 1)
-        with self.subTest(contract="four intro callouts"):
-            self.assertEqual(callouts.count(), 4)
+        with self.subTest(contract="five intro callouts"):
+            self.assertEqual(callouts.count(), 5)
+        identity = intro.locator(".intro-callout.identity")
+        with self.subTest(contract="identity keeps name and location"):
+            self.assertEqual(identity.count(), 1)
+            self.assertIn("申名翀 Ethan", identity.inner_text())
+            self.assertIn("Shanghai, China", identity.inner_text())
+        education = intro.locator("details.intro-callout.education")
+        with self.subTest(contract="education is a collapsed personal card"):
+            self.assertEqual(education.count(), 1)
+            self.assertIsNone(education.get_attribute("open"))
+            self.assertIn("Washington University in St. Louis", education.inner_text())
+        with self.subTest(contract="education is not a work experience card"):
+            self.assertEqual(
+                page.locator("#experience .experience-card", has_text="Washington University").count(),
+                0,
+            )
         if stage.count() == 1:
             with self.subTest(contract="initial hero phase"):
                 self.assertEqual(stage.get_attribute("data-phase"), "hero")
+
+    def test_education_card_expands_and_collapses(self):
+        page = self.open_page()
+        self.scroll_intro_to(page, 0.82)
+        education = page.locator("details.intro-callout.education")
+        summary = education.locator("summary")
+        details = education.locator(".education-details")
+
+        self.assertFalse(education.evaluate("element => element.open"))
+        self.assertFalse(details.is_visible())
+        summary.click()
+        self.assertTrue(education.evaluate("element => element.open"))
+        self.assertTrue(details.is_visible())
+        self.assertIn("GPA 3.95 / 4.0", details.inner_text())
+        overlaps = page.locator("[data-intro-callout]").evaluate_all(
+            """elements => {
+              const boxes = elements.map(element => ({
+                name: element.className,
+                bounds: element.getBoundingClientRect(),
+              }));
+              const collisions = [];
+              for (let index = 0; index < boxes.length; index += 1) {
+                for (let other = index + 1; other < boxes.length; other += 1) {
+                  const a = boxes[index];
+                  const b = boxes[other];
+                  if (
+                    Math.min(a.bounds.right, b.bounds.right) > Math.max(a.bounds.left, b.bounds.left) &&
+                    Math.min(a.bounds.bottom, b.bounds.bottom) > Math.max(a.bounds.top, b.bounds.top)
+                  ) collisions.push([a.name, b.name]);
+                }
+              }
+              return collisions;
+            }"""
+        )
+        self.assertEqual(overlaps, [])
+        summary.click()
+        self.assertFalse(education.evaluate("element => element.open"))
 
     def test_first_viewport_is_quiet(self):
         page = self.open_page()
@@ -944,7 +996,7 @@ class PortfolioE2E(unittest.TestCase):
             "els => els.filter(el => Number(getComputedStyle(el).opacity) > 0.8).length"
         )
         with self.subTest(contract="all callouts visible"):
-            self.assertEqual(visible, 4)
+            self.assertEqual(visible, 5)
 
     def test_contact_navigation_aligns_heading(self):
         page = self.open_page(width=1024, height=900)
@@ -983,7 +1035,7 @@ class PortfolioE2E(unittest.TestCase):
                 self.assertAlmostEqual(state["progress"], 0.82, delta=0.03)
                 self.assertEqual(state["phase"], "domain")
                 self.assertEqual(state["active"], "#about")
-                self.assertEqual(state["visibleCallouts"], 4)
+                self.assertEqual(state["visibleCallouts"], 5)
 
     def test_about_navigation_reduced_motion_aligns_first_callout(self):
         page = self.open_page(width=390, height=844, reduced_motion=True)
@@ -1005,7 +1057,7 @@ class PortfolioE2E(unittest.TestCase):
         page = self.open_page(width=390, height=844, reduced_motion=True)
         callouts = page.locator("[data-intro-callout]")
         callout_count = callouts.count()
-        self.assertEqual(callout_count, 4)
+        self.assertEqual(callout_count, 5)
 
         for index in range(callout_count):
             callout = callouts.nth(index)
@@ -1028,8 +1080,8 @@ class PortfolioE2E(unittest.TestCase):
             self.assertEqual(disabled_contexts, {"webgl": True, "webgl2": True})
 
         callouts = page.locator("[data-intro-callout]")
-        with self.subTest(contract="four fallback callouts"):
-            self.assertEqual(callouts.count(), 4)
+        with self.subTest(contract="five fallback callouts"):
+            self.assertEqual(callouts.count(), 5)
 
         intro = page.locator("[data-intro]")
         with self.subTest(contract="fallback intro remains available"):
@@ -1074,7 +1126,14 @@ class PortfolioE2E(unittest.TestCase):
 
         page.goto(f"{BASE_URL.rstrip('/')}/blog/", wait_until="networkidle")
         self.assertEqual(page.locator("h1#writing-title").inner_text(), "Writing")
-        self.assertEqual(page.locator(".blog-nav a[href='/blog/']").get_attribute("aria-current"), "page")
+        self.assertEqual(page.locator(".nav-links a[href='/blog/']").get_attribute("aria-current"), "page")
+        self.assertEqual(
+            page.locator(".nav-links a").all_inner_texts(),
+            ["About", "Projects", "Writing", "Contact"],
+        )
+        self.assertIn("scrolled", page.locator(".site-header").get_attribute("class"))
+        self.assertEqual(page.locator(".site-header .header-actions").count(), 1)
+        self.assertEqual(page.get_by_text("永久链接", exact=True).count(), 0)
         self.assertTrue(
             page.locator("[data-blog-entry]").count() > 0
             or page.locator(".writing-empty").count() == 1
@@ -1090,8 +1149,137 @@ class PortfolioE2E(unittest.TestCase):
                 )
                 self.assertLessEqual(dimensions["scroll"], dimensions["inner"] + 1)
 
+    def test_writing_timeline_nodes_align_with_the_rail(self):
+        for width, height in [(1440, 1000), (820, 900), (390, 844)]:
+            with self.subTest(width=width):
+                page = self.open_page(width=width, height=height)
+                page.goto(f"{BASE_URL.rstrip('/')}/blog/", wait_until="networkidle")
+                if page.locator("[data-blog-entry]").count() == 0:
+                    continue
+                alignment = page.evaluate(
+                    """() => {
+                      const log = document.querySelector('.field-log');
+                      const node = document.querySelector('.field-node');
+                      const logBounds = log.getBoundingClientRect();
+                      const nodeBounds = node.getBoundingClientRect();
+                      return {
+                        railX: logBounds.left + parseFloat(getComputedStyle(log, '::before').left),
+                        nodeX: nodeBounds.left + nodeBounds.width / 2,
+                      };
+                    }"""
+                )
+                self.assertLessEqual(abs(alignment["railX"] - alignment["nodeX"]), 2)
+
+    def test_home_sections_and_project_cards_share_alignment(self):
+        page = self.open_page(width=1440, height=1000)
+        alignment = page.evaluate(
+            """() => {
+              const projectsHeading = document.querySelector('#projects-title').getBoundingClientRect();
+              const writingHeading = document.querySelector('#writing-home-title').getBoundingClientRect();
+              const cards = [...document.querySelectorAll('[data-project-card]')]
+                .map(card => card.getBoundingClientRect());
+              return {
+                projectsLeft: projectsHeading.left,
+                writingLeft: writingHeading.left,
+                cardLeft: cards[0].left,
+                cardTops: cards.map(card => card.top),
+                cardBottoms: cards.map(card => card.bottom),
+              };
+            }"""
+        )
+        self.assertLessEqual(abs(alignment["projectsLeft"] - alignment["writingLeft"]), 2)
+        self.assertLessEqual(abs(alignment["projectsLeft"] - alignment["cardLeft"]), 2)
+        self.assertLessEqual(max(alignment["cardTops"]) - min(alignment["cardTops"]), 2)
+        self.assertLessEqual(max(alignment["cardBottoms"]) - min(alignment["cardBottoms"]), 2)
+
+    def test_two_hundred_percent_text_size_stays_usable(self):
+        page = self.open_page(width=320, height=720)
+        page.add_style_tag(content="html { font-size: 200% !important; }")
+        page.wait_for_timeout(200)
+        state = page.evaluate(
+            """() => {
+              const nav = document.querySelector('.nav-links');
+              const heading = document.querySelector('#projects-title').getBoundingClientRect();
+              const links = [...nav.querySelectorAll('a')].map(link => link.getBoundingClientRect());
+              return {
+                viewportWidth: innerWidth,
+                documentWidth: document.documentElement.scrollWidth,
+                headingLeft: heading.left,
+                headingRight: heading.right,
+                navScrollable: nav.scrollWidth >= nav.clientWidth,
+                linksOverlap: links.some((link, index) => index > 0 && link.left < links[index - 1].right),
+              };
+            }"""
+        )
+        self.assertLessEqual(state["documentWidth"], state["viewportWidth"] + 1)
+        self.assertGreaterEqual(state["headingLeft"], -1)
+        self.assertLessEqual(state["headingRight"], state["viewportWidth"] + 1)
+        self.assertTrue(state["navScrollable"])
+        self.assertFalse(state["linksOverlap"])
+
+    def test_mobile_interactive_targets_are_at_least_44_pixels(self):
+        page = self.open_page(width=390, height=844, has_touch=True)
+        undersized = page.evaluate(
+            """() => [...document.querySelectorAll('a, button, summary')]
+              .map(element => {
+                const bounds = element.getBoundingClientRect();
+                const style = getComputedStyle(element);
+                return {
+                  label: (element.getAttribute('aria-label') || element.textContent || '').trim(),
+                  className: String(element.className),
+                  width: bounds.width,
+                  height: bounds.height,
+                  visible: style.display !== 'none'
+                    && style.visibility !== 'hidden'
+                    && bounds.width > 0
+                    && bounds.height > 0,
+                };
+              })
+              .filter(target => target.visible
+                && !target.className.includes('contribution-day')
+                && (target.width < 44 || target.height < 44))"""
+        )
+        self.assertEqual(undersized, [])
+
+    def test_intro_rendering_reuses_the_image_and_pauses_offscreen(self):
+        context = self.browser.new_context(viewport={"width": 390, "height": 844})
+        self.addCleanup(context.close)
+        context.add_init_script(
+            """
+            (() => {
+              const nativeRequestAnimationFrame = window.requestAnimationFrame.bind(window);
+              window.__portfolioRafCount = 0;
+              window.requestAnimationFrame = callback => nativeRequestAnimationFrame(time => {
+                window.__portfolioRafCount += 1;
+                callback(time);
+              });
+            })();
+            """
+        )
+        page = context.new_page()
+        image_requests = []
+        page.on(
+            "request",
+            lambda request: image_requests.append(request.url)
+            if request.url.endswith("/assets/digital-ethan/digital-ethan-main-cutout.png")
+            else None,
+        )
+        page.goto(BASE_URL, wait_until="networkidle")
+        page.evaluate(
+            """() => {
+              document.documentElement.style.scrollBehavior = 'auto';
+              scrollTo(0, document.documentElement.scrollHeight);
+            }"""
+        )
+        page.wait_for_timeout(1600)
+        page.evaluate("window.__portfolioRafCount = 0")
+        page.wait_for_timeout(500)
+
+        self.assertEqual(len(image_requests), 1)
+        self.assertLessEqual(page.evaluate("window.__portfolioRafCount"), 1)
+
     def test_no_horizontal_overflow(self):
-        for width, height in [(1440, 1000), (1024, 900), (820, 900), (390, 844)]:
+        for width, height in [(1440, 1000), (1024, 900), (820, 900), (390, 844), (320, 720)]:
             with self.subTest(width=width):
                 page = self.open_page(width=width, height=height)
                 dimensions = page.evaluate(
