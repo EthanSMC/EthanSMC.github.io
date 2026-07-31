@@ -9,6 +9,9 @@ permalink: "{{ post.outputPath }}"
 ---
 <article class="post-page post-page--{{ post.type | lower }}">
   <header class="post-heading">
+    <p class="post-ledger"><span data-i18n="writing.title">写作</span> / {% if post.type == "Essay" %}<span data-i18n="blog.essay">长文</span>{% else %}<span data-i18n="blog.note">随记</span>{% endif %}</p>
+    {% if post.showTitle %}<h1 data-i18n-authored="{{ post.title | escape }}">{{ post.title }}</h1>{% endif %}
+    {% if post.type == "Essay" %}<p class="post-deck" data-i18n-authored="{{ post.summary | escape }}">{{ post.summary }}</p>{% endif %}
     <div class="post-margin-meta">
       {% if post.type == "Essay" %}<span data-i18n="blog.essay">长文</span>{% else %}<span data-i18n="blog.note">随记</span>{% endif %}
       <time datetime="{{ post.iso }}">{{ post.display }}</time>
@@ -19,12 +22,7 @@ permalink: "{{ post.outputPath }}"
         </ul>
       {% endif %}
     </div>
-    <div>
-      <p class="post-ledger"><span data-i18n="writing.title">写作</span> / {% if post.type == "Essay" %}<span data-i18n="blog.essay">长文</span>{% else %}<span data-i18n="blog.note">随记</span>{% endif %}</p>
-      {% if post.showTitle %}<h1 data-i18n-authored="{{ post.title | escape }}">{{ post.title }}</h1>{% endif %}
-      {% if post.type == "Essay" %}<p class="post-deck" data-i18n-authored="{{ post.summary | escape }}">{{ post.summary }}</p>{% endif %}
-      <p class="post-language-note" data-original-language-note data-i18n="blog.post.originalNotice" hidden>本文原文为中文。</p>
-    </div>
+    <p class="post-language-note" data-original-language-note data-i18n="blog.post.originalNotice" hidden>本文原文为中文。</p>
   </header>
   <div class="post-body prose" lang="zh-CN">{{ post.bodyHtml | safe }}</div>
   <nav class="post-navigation" aria-label="相邻文章" data-i18n-aria-label="blog.post.navigationAria">

@@ -620,7 +620,7 @@ class PortfolioE2E(unittest.TestCase):
               ).backgroundColor,
             })"""
         )
-        self.assertEqual(colors["zero"], "rgb(255, 250, 240)")
+        self.assertEqual(colors["zero"], "rgb(251, 250, 246)")
         self.assertNotEqual(colors["zero"], colors["placeholder"])
 
     def test_contribution_heatmap_is_responsive_and_stable(self):
@@ -925,6 +925,59 @@ class PortfolioE2E(unittest.TestCase):
             with self.subTest(contract="initial hero phase"):
                 self.assertEqual(stage.get_attribute("data-phase"), "hero")
 
+    def test_hero_title_uses_compact_two_line_framing(self):
+        page = self.open_page(width=1440, height=675)
+        metrics = page.evaluate(
+            """() => {
+              const title = document.querySelector('#intro-title');
+              const lines = [...title.querySelectorAll(':scope > span')]
+                .map(line => line.getBoundingClientRect());
+              return {
+                lineCount: lines.length,
+                lineGap: lines[1].top - lines[0].bottom,
+                left: title.getBoundingClientRect().left,
+                fontSize: parseFloat(getComputedStyle(title).fontSize),
+              };
+            }"""
+        )
+        self.assertEqual(metrics["lineCount"], 2)
+        self.assertLessEqual(abs(metrics["lineGap"]), 1)
+        self.assertGreaterEqual(metrics["left"], 72)
+        self.assertLessEqual(metrics["fontSize"], 96)
+
+    def test_about_cards_stay_in_frame_and_clear_the_scroll_cue(self):
+        for width, height in [(1446, 865), (980, 700), (820, 900)]:
+            with self.subTest(width=width, height=height):
+                page = self.open_page(width=width, height=height)
+                self.scroll_intro_to(page, 0.82)
+                state = page.evaluate(
+                    """() => {
+                      const cue = document.querySelector('.scroll-cue').getBoundingClientRect();
+                      const cards = [...document.querySelectorAll('[data-intro-callout]')]
+                        .map(card => {
+                          const bounds = card.getBoundingClientRect();
+                          return { name: card.className, bounds };
+                        });
+                      const overlaps = (a, b) => a.left < b.right
+                        && a.right > b.left
+                        && a.top < b.bottom
+                        && a.bottom > b.top;
+                      return {
+                        outside: cards
+                          .filter(({ bounds }) => bounds.left < 0
+                            || bounds.right > innerWidth
+                            || bounds.top < 0
+                            || bounds.bottom > innerHeight)
+                          .map(({ name }) => name),
+                        cueOverlaps: cards
+                          .filter(({ bounds }) => overlaps(bounds, cue))
+                          .map(({ name }) => name),
+                      };
+                    }"""
+                )
+                self.assertEqual(state["outside"], [])
+                self.assertEqual(state["cueOverlaps"], [])
+
     def test_education_card_expands_and_collapses(self):
         page = self.open_page()
         self.scroll_intro_to(page, 0.82)
@@ -1169,6 +1222,79 @@ class PortfolioE2E(unittest.TestCase):
                     }"""
                 )
                 self.assertLessEqual(abs(alignment["railX"] - alignment["nodeX"]), 2)
+
+    def test_post_title_keeps_a_readable_content_scale(self):
+        limits = [(1440, 1000, 61), (980, 700, 43), (390, 844, 48)]
+        for width, height, maximum_size in limits:
+            with self.subTest(width=width):
+                page = self.open_page(width=width, height=height)
+                page.goto(f"{BASE_URL.rstrip('/')}/blog/", wait_until="networkidle")
+                post_link = page.locator("[data-blog-entry] h2 a").first
+                self.assertEqual(post_link.count(), 1)
+                page.goto(
+                    f"{BASE_URL.rstrip('/')}{post_link.get_attribute('href')}",
+                    wait_until="networkidle",
+                )
+                metrics = page.locator(".post-heading h1").evaluate(
+                    """title => {
+                      const bounds = title.getBoundingClientRect();
+                      const style = getComputedStyle(title);
+                      return {
+                        fontSize: parseFloat(style.fontSize),
+                        lineHeight: parseFloat(style.lineHeight),
+                        left: bounds.left,
+                        right: bounds.right,
+                        bodyLeft: document.querySelector('.post-body').getBoundingClientRect().left,
+                        deckBottom: document.querySelector('.post-deck').getBoundingClientRect().bottom,
+                        metaTop: document.querySelector('.post-margin-meta').getBoundingClientRect().top,
+                        viewport: innerWidth,
+                      };
+                    }"""
+                )
+                self.assertLessEqual(metrics["fontSize"], maximum_size)
+                self.assertGreaterEqual(metrics["lineHeight"], metrics["fontSize"] * 1.09)
+                self.assertGreaterEqual(metrics["left"], 0)
+                self.assertLessEqual(metrics["right"], metrics["viewport"])
+                self.assertLessEqual(abs(metrics["left"] - metrics["bodyLeft"]), 1)
+                self.assertGreater(metrics["metaTop"], metrics["deckBottom"])
+
+    def test_home_article_entry_stays_compact(self):
+        page = self.open_page(width=1440, height=900)
+        metrics = page.locator(".home-essay--only").evaluate(
+            """card => {
+              const bounds = card.getBoundingClientRect();
+              const section = card.closest('.writing').getBoundingClientRect();
+              return {
+                width: bounds.width,
+                height: bounds.height,
+                sectionContentWidth: section.width - 96,
+              };
+            }"""
+        )
+        self.assertLessEqual(metrics["width"], 1060)
+        self.assertLess(metrics["width"], metrics["sectionContentWidth"] * 0.8)
+        self.assertLessEqual(metrics["height"], 350)
+
+    def test_blog_paper_background_has_no_vertical_color_wash(self):
+        page = self.open_page(width=1440, height=1000)
+        page.goto(f"{BASE_URL.rstrip('/')}/blog/", wait_until="networkidle")
+        post_link = page.locator("[data-blog-entry] h2 a").first
+        self.assertEqual(post_link.count(), 1)
+        page.goto(
+            f"{BASE_URL.rstrip('/')}{post_link.get_attribute('href')}",
+            wait_until="networkidle",
+        )
+        background = page.evaluate(
+            """() => {
+              const bodyStyle = getComputedStyle(document.body);
+              return {
+                paper: bodyStyle.getPropertyValue('--paper').trim(),
+                image: bodyStyle.backgroundImage,
+              };
+            }"""
+        )
+        self.assertEqual(background["paper"], "#f4f2ec")
+        self.assertNotIn("radial-gradient", background["image"])
 
     def test_home_sections_and_project_cards_share_alignment(self):
         page = self.open_page(width=1440, height=1000)

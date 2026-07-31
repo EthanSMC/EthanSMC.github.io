@@ -885,7 +885,7 @@ const initThreeScene = (stage, controller) => {
         const heroX = window.innerWidth <= 640 ? 0.72 : window.innerWidth <= 980 ? 0.82 : 1.48;
         const heroScale = window.innerWidth <= 640 ? 0.78 : window.innerWidth <= 980 ? 0.88 : 0.92;
         const characterX = mix(heroX, 0, centerProgress);
-        const characterScale = mix(heroScale, 1.08, centerProgress);
+        const characterScale = mix(heroScale, 1.02, centerProgress);
         const idle = staticRender ? 0 : Math.sin(t * 0.9);
 
         if (!staticRender) {
@@ -894,16 +894,17 @@ const initThreeScene = (stage, controller) => {
         }
 
         character.position.x = characterX + pointer.x * -0.08;
-        character.position.y = -0.62 + idle * 0.018;
+        character.position.y = mix(-0.62, -0.38, centerProgress) + idle * 0.018;
         character.rotation.y = -0.1 + pointer.x * -0.06 + (staticRender ? 0 : Math.sin(t * 0.72) * 0.008);
         character.scale.setScalar(characterScale);
 
         shadow.position.x = characterX;
+        shadow.position.y = mix(-2.64, -2.44, centerProgress);
         shadow.scale.setScalar(characterScale * (1 + idle * 0.03));
 
         camera.position.x = pointer.x * 0.18;
         camera.position.y = mix(0.72, 0.58, centerProgress) + pointer.y * 0.1;
-        camera.position.z = mix(7.9, 7.25, centerProgress);
+        camera.position.z = mix(7.9, 7.5, centerProgress);
         camera.lookAt(0, -0.18, 0.2);
 
         renderer.render(scene, camera);
