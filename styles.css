@@ -175,8 +175,8 @@ canvas {
   display: flex;
   align-items: center;
   gap: 4px;
-  height: 56px;
-  padding: 5px;
+  height: 52px;
+  padding: 2px;
   border: 1.5px solid rgba(58, 53, 45, 0.18);
   border-radius: 999px;
   background: rgba(var(--paper-card-rgb), 0.72);
@@ -244,8 +244,8 @@ canvas {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  height: 56px;
-  padding: 5px;
+  height: 52px;
+  padding: 2px;
   border: 1.5px solid rgba(58, 53, 45, 0.24);
   border-radius: 999px 960px 999px 940px;
   background: rgba(var(--paper-card-rgb), 0.72);
