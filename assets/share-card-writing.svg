@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <pattern id="ruled" width="1200" height="44" patternUnits="userSpaceOnUse">
+      <path d="M0 43.5H1200" stroke="#275ba8" stroke-opacity=".09"/>
+    </pattern>
+    <filter id="paper" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="23" result="noise"/>
+      <feColorMatrix in="noise" type="saturate" values="0" result="gray"/>
+      <feComponentTransfer in="gray" result="faded"><feFuncA type="table" tableValues="0 .05"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="faded" mode="multiply"/>
+    </filter>
+    <clipPath id="frame"><rect width="1200" height="630"/></clipPath>
+  </defs>
+  <g clip-path="url(#frame)" filter="url(#paper)">
+    <rect width="1200" height="630" fill="#fbfaf6"/>
+    <rect width="1200" height="630" fill="url(#ruled)"/>
+    <path d="M92 0v630" stroke="#bd564c" stroke-opacity=".28" stroke-width="3"/>
+    <rect x="73" y="52" width="190" height="48" rx="4" fill="#275ba8" transform="rotate(-2 168 76)"/>
+    <text x="96" y="85" fill="#fbfaf6" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22" font-weight="800" letter-spacing="3">现场笔记</text>
+
+    <text x="132" y="247" fill="#1b1b18" font-family="Bradley Hand, Segoe Print, PingFang SC, sans-serif" font-size="104" font-weight="800" transform="rotate(-1 132 247)">写作</text>
+    <text x="137" y="354" fill="#1b1b18" font-family="Bradley Hand, Segoe Print, PingFang SC, sans-serif" font-size="94" font-weight="800" transform="rotate(-1 137 354)">现场</text>
+    <path d="M137 374c123-10 251-8 382 2M143 383c116-4 240 1 370 7" fill="none" stroke="#e7b936" stroke-width="10" stroke-linecap="round"/>
+    <text x="138" y="442" fill="#504b43" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="25">产品现场 · AI 实验 · 还没答案的问题</text>
+
+    <g transform="translate(136 487) rotate(1)">
+      <path d="M0 0h252l-7 69H8Z" fill="#e7b936" fill-opacity=".84"/>
+      <text x="23" y="44" fill="#1b1b18" font-family="Bradley Hand, Segoe Print, PingFang SC, sans-serif" font-size="29" font-weight="800">趁热，先写下来 →</text>
+    </g>
+
+    <path d="M821 72c98-26 231-6 302 63M837 539c90 31 206 23 284-25" fill="none" stroke="#3a352d" stroke-opacity=".24" stroke-width="3" stroke-dasharray="7 12" stroke-linecap="round"/>
+    <circle cx="979" cy="315" r="238" fill="#e9e5dc"/>
+    <image href="digital-ethan/digital-ethan-working-cutout.png" x="817" y="38" width="332" height="552" preserveAspectRatio="xMidYMid meet"/>
+    <path d="M707 178c44-31 87-47 132-52" fill="none" stroke="#bd564c" stroke-width="4" stroke-linecap="round"/>
+    <text x="665" y="166" fill="#bd564c" font-family="Bradley Hand, Segoe Print, PingFang SC, sans-serif" font-size="28" font-weight="700" transform="rotate(-7 665 166)">还在想……</text>
+    <text x="946" y="600" fill="#275ba8" font-family="SFMono-Regular, Menlo, monospace" font-size="18" font-weight="700" letter-spacing="2">ETHANSMC</text>
+  </g>
+</svg>

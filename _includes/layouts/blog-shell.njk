@@ -5,18 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f0df" />
     {% if post %}
-      {% set metaTitle = post.title + " | Writing by Ethan" %}
+      {% set metaTitle = post.title + "｜Ethan 的写作" %}
       {% set metaDescription = post.summary %}
       {% set canonicalPath = post.url %}
       {% set metaType = "article" %}
     {% elif tagPage %}
-      {% set metaTitle = "#" + tagPage.tag.label + " | Writing by Ethan" %}
+      {% set metaTitle = "#" + tagPage.tag.label + "｜Ethan 的写作" %}
       {% set metaDescription = tagPage.tag.count + " 篇关于 #" + tagPage.tag.label + " 的记录。" %}
       {% set canonicalPath = tagPage.url %}
       {% set metaType = "website" %}
     {% else %}
-      {% set metaTitle = pageTitle or "Writing | 申名翀 Ethan" %}
-      {% set metaDescription = pageDescription or "记录产品现场、AI 实践，以及那些暂时没有结论的想法。" %}
+      {% set metaTitle = pageTitle or "写作｜申名翀 Ethan" %}
+      {% set metaDescription = pageDescription or "产品现场、AI 实验和一些暂时没有答案的问题——趁它们还热，先写下来。" %}
       {% set canonicalPath = canonicalPath or page.url %}
       {% set metaType = "website" %}
     {% endif %}
@@ -28,8 +28,49 @@
     <meta property="og:description" content="{{ metaDescription }}" />
     <meta property="og:url" content="{{ canonicalPath | absoluteUrl(site.url) }}" />
     <meta property="og:site_name" content="{{ site.name }}" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale:alternate" content="ja_JP" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:image" content="{{ '/assets/share-card-writing.png' | absoluteUrl(site.url) }}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Ethan 的手绘现场笔记分享卡" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="{{ metaTitle }}" />
+    <meta name="twitter:description" content="{{ metaDescription }}" />
+    <meta name="twitter:image" content="{{ '/assets/share-card-writing.png' | absoluteUrl(site.url) }}" />
+    <meta name="twitter:image:alt" content="Ethan 的手绘现场笔记分享卡" />
     {% if post %}<meta property="article:published_time" content="{{ post.iso }}" />{% endif %}
+    <script type="application/ld+json">
+      {% if post %}
+      {
+        "@context": "https://schema.org",
+        "@type": "BlogPosting",
+        "headline": {{ post.title | json | safe }},
+        "description": {{ post.summary | json | safe }},
+        "url": {{ canonicalPath | absoluteUrl(site.url) | json | safe }},
+        "mainEntityOfPage": { "@type": "WebPage", "@id": {{ canonicalPath | absoluteUrl(site.url) | json | safe }} },
+        "datePublished": {{ post.iso | json | safe }},
+        "dateModified": {{ post.iso | json | safe }},
+        "inLanguage": "zh-CN",
+        "image": {{ '/assets/share-card-writing.png' | absoluteUrl(site.url) | json | safe }},
+        "author": { "@type": "Person", "name": {{ site.author | json | safe }}, "url": {{ site.url | json | safe }} },
+        "publisher": { "@type": "Person", "name": {{ site.author | json | safe }}, "url": {{ site.url | json | safe }} }
+      }
+      {% else %}
+      {
+        "@context": "https://schema.org",
+        "@type": "Blog",
+        "name": "Ethan 的写作",
+        "description": {{ metaDescription | json | safe }},
+        "url": {{ canonicalPath | absoluteUrl(site.url) | json | safe }},
+        "inLanguage": "zh-CN",
+        "image": {{ '/assets/share-card-writing.png' | absoluteUrl(site.url) | json | safe }},
+        "author": { "@type": "Person", "name": {{ site.author | json | safe }}, "url": {{ site.url | json | safe }} }
+      }
+      {% endif %}
+    </script>
     <link rel="icon" href="/assets/favicon.svg" />
     <link rel="alternate" type="application/rss+xml" title="Ethan 的 Writing" href="/blog/feed.xml" />
     <link rel="stylesheet" href="/styles.css" />

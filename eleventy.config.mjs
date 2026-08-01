@@ -15,6 +15,8 @@ export default function (eleventyConfig) {
   eleventyConfig.ignores.add("assets/**/*.md");
   eleventyConfig.addPassthroughCopy("assets/digital-ethan/*.png");
   eleventyConfig.addPassthroughCopy("assets/favicon.svg");
+  eleventyConfig.addPassthroughCopy("assets/share-card-home.png");
+  eleventyConfig.addPassthroughCopy("assets/share-card-writing.png");
   eleventyConfig.addPassthroughCopy("assets/vendor");
   eleventyConfig.addPassthroughCopy("assets/wechat-qr.jpg");
   eleventyConfig.addPassthroughCopy("styles.css");

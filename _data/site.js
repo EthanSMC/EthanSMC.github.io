@@ -3,7 +3,7 @@ module.exports = function () {
   return {
     name: "申名翀 Ethan",
     title: "申名翀 Ethan | Personal Site",
-    description: "申名翀 Ethan 的手绘交互式个人网站：金融科技产品、AI Agent 工作流与持续写作。",
+    description: "这里住着 Ethan 的手绘分身：白天做金融科技产品，晚上折腾 AI Agent，顺手记下那些还没有答案的问题。",
     language: "zh-CN",
     url,
     author: "申名翀 Ethan",

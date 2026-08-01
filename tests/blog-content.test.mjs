@@ -122,6 +122,19 @@ test("keeps the source homepage readable without exposing build templates", () =
   assert.doesNotMatch(source, /location\.replace|ethansmc\.github\.io/);
 });
 
+test("publishes complete homepage and blog sharing metadata", () => {
+  const homepage = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  const blogLayout = fs.readFileSync(path.join(ROOT, "_includes/layouts/blog-shell.njk"), "utf8");
+
+  assert.match(homepage, /rel="canonical" href="https:\/\/ethansmc-personal-page\.vercel\.app\/"/);
+  assert.match(homepage, /property="og:image" content="https:\/\/ethansmc-personal-page\.vercel\.app\/assets\/share-card-home\.png"/);
+  assert.match(homepage, /name="twitter:card" content="summary_large_image"/);
+  assert.match(homepage, /type="application\/ld\+json"/);
+  assert.match(blogLayout, /assets\/share-card-writing\.png/);
+  assert.match(blogLayout, /name="twitter:card" content="summary_large_image"/);
+  assert.match(blogLayout, /"@type": "BlogPosting"/);
+});
+
 test("injects Writing content and web links during the site build", () => {
   const source = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
   const post = parsePost({

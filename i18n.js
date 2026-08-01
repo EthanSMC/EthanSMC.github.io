@@ -6,9 +6,9 @@ const IP_LOCALE_KEY = "ethansmc.ip-locale";
 const messages = {
   zh: {
     "meta.home.title": "是 Ethan 不是埃森｜个人网站",
-    "meta.home.description": "是 Ethan 不是埃森的手绘交互式个人网站：金融科技产品、AI Agent 工作流与持续写作。",
+    "meta.home.description": "这里住着 Ethan 的手绘分身：白天做金融科技产品，晚上折腾 AI Agent，顺手记下那些还没有答案的问题。",
     "meta.blog.title": "写作｜申名翀 Ethan",
-    "meta.blog.description": "记录产品现场、AI 实践，以及那些暂时没有结论的想法。",
+    "meta.blog.description": "产品现场、AI 实验和一些暂时没有答案的问题——趁它们还热，先写下来。",
     "meta.writingBy": "Ethan 的写作",
     "common.skip": "跳到主要内容",
     "common.primaryNavigation": "主导航",
@@ -73,7 +73,7 @@ const messages = {
     "projects.openSite": "打开网站",
     "projects.openSiteAria": "在新标签页打开 Novelty Studio",
     "writing.title": "写作",
-    "writing.description": "记录产品现场、AI 实践，以及那些暂时没有结论的想法。",
+    "writing.description": "产品现场、AI 实验和一些暂时没有答案的问题——趁它们还热，先写下来。",
     "writing.viewAll": "查看全部文章",
     "writing.latestEssay": "最新文章",
     "writing.readMore": "阅读全文",
@@ -158,9 +158,9 @@ const messages = {
   },
   ja: {
     "meta.home.title": "Ethanです、エッセンではありません｜ポートフォリオ",
-    "meta.home.description": "Ethanの手描きインタラクティブサイト。フィンテック製品、AIエージェントのワークフロー、継続的な執筆を紹介します。",
+    "meta.home.description": "ここはEthanの手描きの分身が住む場所。昼はフィンテック製品をつくり、夜はAIエージェントを試しながら、まだ答えのない問いを書き留めています。",
     "meta.blog.title": "文章｜申名翀 Ethan",
-    "meta.blog.description": "プロダクトの現場、AIの実践、そしてまだ答えのない考えを記録します。",
+    "meta.blog.description": "プロダクトの現場、AIの実験、まだ答えのない問い。熱が冷めないうちに書き留めます。",
     "meta.writingBy": "Ethan の文章",
     "common.skip": "メインコンテンツへ移動",
     "common.primaryNavigation": "メインナビゲーション",
@@ -225,7 +225,7 @@ const messages = {
     "projects.openSite": "サイトを開く",
     "projects.openSiteAria": "Novelty Studioを新しいタブで開く",
     "writing.title": "文章",
-    "writing.description": "プロダクトの現場、AIの実践、そしてまだ答えのない考えを記録します。",
+    "writing.description": "プロダクトの現場、AIの実験、まだ答えのない問い。熱が冷めないうちに書き留めます。",
     "writing.viewAll": "すべての記事を見る",
     "writing.latestEssay": "最新の記事",
     "writing.readMore": "全文を読む",
@@ -310,9 +310,9 @@ const messages = {
   },
   en: {
     "meta.home.title": "It’s Ethan, Not Eason | Personal site",
-    "meta.home.description": "Ethan Shen’s hand-drawn interactive site: fintech products, AI agent workflows, and ongoing writing.",
+    "meta.home.description": "Meet Ethan’s hand-drawn alter ego: building fintech products by day, tinkering with AI agents after hours, and writing down questions that still have no neat answers.",
     "meta.blog.title": "Writing | Ethan Shen",
-    "meta.blog.description": "Notes from product work, hands-on AI practice, and ideas that are still taking shape.",
+    "meta.blog.description": "Field notes from product work, AI experiments, and questions without neat answers—written down while they’re still warm.",
     "meta.writingBy": "Writing by Ethan",
     "common.skip": "Skip to main content",
     "common.primaryNavigation": "Primary navigation",
@@ -377,7 +377,7 @@ const messages = {
     "projects.openSite": "Open site",
     "projects.openSiteAria": "Open Novelty Studio in a new tab",
     "writing.title": "Writing",
-    "writing.description": "Notes from product work, hands-on AI practice, and ideas that are still taking shape.",
+    "writing.description": "Field notes from product work, AI experiments, and questions without neat answers—written down while they’re still warm.",
     "writing.viewAll": "View all writing",
     "writing.latestEssay": "Latest essay",
     "writing.readMore": "Read the essay",
@@ -540,16 +540,27 @@ const updateMetadata = () => {
   if (description) {
     document.querySelector('meta[name="description"]')?.setAttribute("content", description);
     document.querySelector('meta[property="og:description"]')?.setAttribute("content", description);
+    document.querySelector('meta[name="twitter:description"]')?.setAttribute("content", description);
   }
+
+  document.querySelector('meta[property="og:title"]')?.setAttribute("content", document.title);
+  document.querySelector('meta[name="twitter:title"]')?.setAttribute("content", document.title);
+  document.querySelector('meta[property="og:locale"]')?.setAttribute(
+    "content",
+    { zh: "zh_CN", ja: "ja_JP", en: "en_US" }[currentLocale],
+  );
 
   const postTitle = document.querySelector(".post-heading h1");
   if (postTitle) {
-    document.title = `${postTitle.textContent.trim()} | ${t("meta.writingBy")}`;
+    const titleSeparator = currentLocale === "en" ? " | " : "｜";
+    document.title = `${postTitle.textContent.trim()}${titleSeparator}${t("meta.writingBy")}`;
     document.querySelector('meta[property="og:title"]')?.setAttribute("content", document.title);
+    document.querySelector('meta[name="twitter:title"]')?.setAttribute("content", document.title);
     const deck = document.querySelector(".post-deck");
     if (deck) {
       document.querySelector('meta[name="description"]')?.setAttribute("content", deck.textContent.trim());
       document.querySelector('meta[property="og:description"]')?.setAttribute("content", deck.textContent.trim());
+      document.querySelector('meta[name="twitter:description"]')?.setAttribute("content", deck.textContent.trim());
     }
   }
 };
