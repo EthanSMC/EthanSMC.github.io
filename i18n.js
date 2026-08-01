@@ -1,7 +1,7 @@
 const SUPPORTED_LOCALES = Object.freeze(["zh", "ja", "en"]);
 const HTML_LANGS = Object.freeze({ zh: "zh-CN", ja: "ja-JP", en: "en" });
 const EXPLICIT_LOCALE_KEY = "ethansmc.locale";
-const SESSION_LOCALE_KEY = "ethansmc.auto-locale";
+const IP_LOCALE_KEY = "ethansmc.ip-locale";
 
 const messages = {
   zh: {
@@ -510,10 +510,13 @@ const safeStorageSet = (storage, key, value) => {
 const params = new URLSearchParams(window.location.search);
 const queryLocale = normalizeLocale(params.get("lang"));
 const savedLocale = normalizeLocale(safeStorageGet(window.localStorage, EXPLICIT_LOCALE_KEY));
-const sessionLocale = normalizeLocale(safeStorageGet(window.sessionStorage, SESSION_LOCALE_KEY));
-const browserLocale = normalizeLocale(navigator.languages?.[0] || navigator.language) || "en";
+const browserLocale = [...(navigator.languages || []), navigator.language]
+  .map(normalizeLocale)
+  .find(Boolean) || null;
+const cachedIpLocale = normalizeLocale(safeStorageGet(window.sessionStorage, IP_LOCALE_KEY));
 const hasExplicitPreference = Boolean(queryLocale || savedLocale);
-let currentLocale = queryLocale || savedLocale || sessionLocale || browserLocale;
+// Priority: explicit choice → browser language → cached IP inference → English.
+let currentLocale = queryLocale || savedLocale || browserLocale || cachedIpLocale || "en";
 const listeners = new Set();
 
 const interpolate = (template, values = {}) => String(template).replace(
@@ -606,7 +609,9 @@ const setLocale = (locale, { persist = false, updateUrl = false, source = "runti
   if (persist) {
     safeStorageSet(window.localStorage, EXPLICIT_LOCALE_KEY, normalized);
   }
-  safeStorageSet(window.sessionStorage, SESSION_LOCALE_KEY, normalized);
+  if (source === "ip") {
+    safeStorageSet(window.sessionStorage, IP_LOCALE_KEY, normalized);
+  }
 
   if (updateUrl) {
     const url = new URL(window.location.href);
@@ -653,7 +658,7 @@ if (queryLocale) {
   safeStorageSet(window.localStorage, EXPLICIT_LOCALE_KEY, queryLocale);
 }
 
-if (!hasExplicitPreference && !sessionLocale) {
+if (!hasExplicitPreference && !browserLocale && !cachedIpLocale) {
   fetch(localeApiEndpoint, { headers: { Accept: "application/json" } })
     .then((response) => {
       if (!response.ok) throw new Error("Locale request failed");
@@ -664,6 +669,6 @@ if (!hasExplicitPreference && !sessionLocale) {
       if (locale) setLocale(locale, { source: "ip" });
     })
     .catch(() => {
-      // Browser-language fallback is already active.
+      // English fallback is already active.
     });
 }
