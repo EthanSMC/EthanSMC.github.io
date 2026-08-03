@@ -127,6 +127,8 @@ test("publishes complete homepage and blog sharing metadata", () => {
   const blogLayout = fs.readFileSync(path.join(ROOT, "_includes/layouts/blog-shell.njk"), "utf8");
 
   assert.match(homepage, /rel="canonical" href="https:\/\/ethansmc-personal-page\.vercel\.app\/"/);
+  assert.match(homepage, /<title>是 Ethan，不是埃森｜碎碎念版<\/title>/);
+  assert.match(homepage, /content="这里没有标准答案。让思考发生，让讨论继续。"/);
   assert.match(homepage, /property="og:image" content="https:\/\/ethansmc-personal-page\.vercel\.app\/assets\/share-card-home\.png"/);
   assert.match(homepage, /name="twitter:card" content="summary_large_image"/);
   assert.match(homepage, /type="application\/ld\+json"/);

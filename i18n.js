@@ -5,8 +5,8 @@ const IP_LOCALE_KEY = "ethansmc.ip-locale";
 
 const messages = {
   zh: {
-    "meta.home.title": "是 Ethan 不是埃森｜个人网站",
-    "meta.home.description": "这里住着 Ethan 的手绘分身：白天做金融科技产品，晚上折腾 AI Agent，顺手记下那些还没有答案的问题。",
+    "meta.home.title": "是 Ethan，不是埃森｜碎碎念版",
+    "meta.home.description": "这里没有标准答案。让思考发生，让讨论继续。",
     "meta.blog.title": "写作｜申名翀 Ethan",
     "meta.blog.description": "产品现场、AI 实验和一些暂时没有答案的问题——趁它们还热，先写下来。",
     "meta.writingBy": "Ethan 的写作",
@@ -157,8 +157,8 @@ const messages = {
     "error.back": "返回首页",
   },
   ja: {
-    "meta.home.title": "Ethanです、エッセンではありません｜ポートフォリオ",
-    "meta.home.description": "ここはEthanの手描きの分身が住む場所。昼はフィンテック製品をつくり、夜はAIエージェントを試しながら、まだ答えのない問いを書き留めています。",
+    "meta.home.title": "Ethanです、エッセンではありません｜ひとりごと編",
+    "meta.home.description": "ここに正解はありません。考えるきっかけをつくり、対話を続けよう。",
     "meta.blog.title": "文章｜申名翀 Ethan",
     "meta.blog.description": "プロダクトの現場、AIの実験、まだ答えのない問い。熱が冷めないうちに書き留めます。",
     "meta.writingBy": "Ethan の文章",
@@ -309,8 +309,8 @@ const messages = {
     "error.back": "ホームへ戻る",
   },
   en: {
-    "meta.home.title": "It’s Ethan, Not Eason | Personal site",
-    "meta.home.description": "Meet Ethan’s hand-drawn alter ego: building fintech products by day, tinkering with AI agents after hours, and writing down questions that still have no neat answers.",
+    "meta.home.title": "It’s Ethan, Not Eason | Ramblings Edition",
+    "meta.home.description": "There are no standard answers here. Let ideas take shape, and keep the conversation going.",
     "meta.blog.title": "Writing | Ethan Shen",
     "meta.blog.description": "Field notes from product work, AI experiments, and questions without neat answers—written down while they’re still warm.",
     "meta.writingBy": "Writing by Ethan",

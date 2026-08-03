@@ -18,7 +18,7 @@
     <circle cx="986" cy="304" r="244" fill="#c8d8ee" fill-opacity=".58"/>
     <path d="M770 111c79-50 223-76 338-31M803 526c91 38 244 33 332-27" fill="none" stroke="#275ba8" stroke-opacity=".42" stroke-width="3" stroke-dasharray="8 13" stroke-linecap="round"/>
 
-    <text x="68" y="82" fill="#275ba8" font-family="SFMono-Regular, Menlo, monospace" font-size="22" font-weight="700" letter-spacing="3">ETHANSMC / SHANGHAI</text>
+    <text x="68" y="82" fill="#275ba8" font-family="SFMono-Regular, Menlo, PingFang SC, sans-serif" font-size="22" font-weight="700" letter-spacing="3">ETHANSMC / 碎碎念版</text>
     <g transform="rotate(-1 358 292)">
       <text x="64" y="250" fill="#1b1b18" font-family="Bradley Hand, Segoe Print, PingFang SC, sans-serif" font-size="112" font-weight="800">是 Ethan</text>
       <text x="64" y="374" fill="#1b1b18" font-family="Bradley Hand, Segoe Print, PingFang SC, sans-serif" font-size="102" font-weight="800">不是埃森</text>
@@ -29,7 +29,7 @@
       <path d="M0 5 541 0l8 65L7 70Z" fill="#e7b936" fill-opacity=".9"/>
       <text x="20" y="46" fill="#1b1b18" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="26" font-weight="700">金融科技产品经理 × AI Agent 构建者</text>
     </g>
-    <text x="70" y="563" fill="#504b43" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="23">做产品，也把还没有答案的问题写下来。</text>
+    <text x="70" y="563" fill="#504b43" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="23">这里没有标准答案。让思考发生，让讨论继续。</text>
 
     <image href="digital-ethan/digital-ethan-main-cutout.png" x="882" y="20" width="228" height="590" preserveAspectRatio="xMidYMid meet"/>
     <path d="M839 194c31-27 64-46 96-57" fill="none" stroke="#bd564c" stroke-width="4" stroke-linecap="round"/>
