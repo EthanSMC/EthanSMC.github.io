@@ -656,7 +656,7 @@ canvas {
 .intro-callout.education .education-degree {
   display: block;
   margin-top: 4px;
-  color: var(--ink);
+  color: var(--ink-soft);
   font-family: var(--sans);
   font-size: 0.94rem;
   font-weight: 400;
