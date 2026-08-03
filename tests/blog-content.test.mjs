@@ -122,6 +122,18 @@ test("keeps the source homepage readable without exposing build templates", () =
   assert.doesNotMatch(source, /location\.replace|ethansmc\.github\.io/);
 });
 
+test("places writing before experience and projects on the homepage", () => {
+  const source = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  const writingIndex = source.indexOf('id="writing"');
+  const experienceIndex = source.indexOf('id="experience"');
+  const projectsIndex = source.indexOf('id="projects"');
+
+  assert.ok(writingIndex > 0);
+  assert.ok(writingIndex < experienceIndex);
+  assert.ok(experienceIndex < projectsIndex);
+  assert.match(source, /class="scroll-cue" href="#writing"/);
+});
+
 test("publishes complete homepage and blog sharing metadata", () => {
   const homepage = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
   const blogLayout = fs.readFileSync(path.join(ROOT, "_includes/layouts/blog-shell.njk"), "utf8");
