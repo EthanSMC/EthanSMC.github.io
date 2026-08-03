@@ -273,7 +273,7 @@ canvas {
   background: transparent;
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: 0.9rem;
   font-weight: 850;
   line-height: 1;
   cursor: pointer;
@@ -2032,7 +2032,7 @@ canvas {
     min-width: 44px;
     min-height: 44px;
     padding-inline: 5px;
-    font-size: 0.68rem;
+    font-size: 0.82rem;
   }
 
   .say-hi {
