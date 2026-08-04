@@ -73,6 +73,14 @@ cd /Users/ethancc/Documents/Personal_Page
 自动分配时间戳 → Obsidian Git 提交 → 拉取 → 推送 → Vercel 构建 → Writing 更新
 ```
 
+配置 Mac 后台 Agent 后，同一次 GitHub Push 还会进入：
+
+```text
+GitHub main → Mac Agent 定期检查 → 独立副本拉取 → 转换公众号格式 → 新增或更新公众号草稿
+```
+
+从任何设备写作都遵循同一流程。Mac 在线时通常在 5 分钟内同步；离线时 GitHub 保留最新内容，Mac 下次上线后自动补同步。公众号当前只自动进入草稿箱，仍需在微信后台人工检查和发布；从网站撤稿也不会自动删除已发布的微信文章。详细设置参见 [微信公众号草稿自动同步](wechat-draft-sync.md)。
+
 类型会自动判断：包含二级标题或正文超过 600 个可见字符的是 Essay，否则是 Note。需要覆盖判断时，可添加 `#essay` 或 `#note`；它们不会显示成公开 Tag。
 
 ## 5. Git 保护的实际边界

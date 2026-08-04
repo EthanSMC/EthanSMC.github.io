@@ -26,6 +26,23 @@ Obsidian 只需打开仓库中的 `content/` 文件夹。文章不需要 YAML，
 
 首次设置、发布规则和错误处理参见 [Obsidian 发布说明](docs/obsidian-publishing.md)。
 
+### 微信公众号草稿同步
+
+Mac 后台 Agent 每 5 分钟检查一次 GitHub `main`，使用独立仓库副本将同一份 Markdown 自动转换并同步到微信公众号草稿箱。从其他设备 Push 也会被发现；Mac 离线期间的更新会在下次上线后补同步。发布和已发布文章删除仍由人工确认。安装、密钥、IP 白名单、状态和重试方式参见 [微信公众号草稿自动同步](docs/wechat-draft-sync.md)。
+
+先执行无副作用检查：
+
+```bash
+pnpm wechat:sync -- --dry-run
+```
+
+安装并检查后台 Agent：
+
+```bash
+pnpm wechat:agent:install
+pnpm wechat:agent:status
+```
+
 ## GitHub contribution calendar
 
 The portfolio reads contribution data through the Vercel function at

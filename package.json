@@ -7,7 +7,12 @@
     "build": "eleventy",
     "dev": "eleventy --serve --port=4173",
     "test": "node --test tests/*.test.cjs tests/*.test.mjs",
-    "test:e2e": "python3 tests/portfolio_e2e.py"
+    "test:e2e": "python3 tests/portfolio_e2e.py",
+    "wechat:sync": "bun scripts/wechat-sync.cjs",
+    "wechat:agent:install": "bun scripts/wechat-mac-agent.cjs install",
+    "wechat:agent:status": "bun scripts/wechat-mac-agent.cjs status",
+    "wechat:agent:run": "bun scripts/wechat-mac-agent.cjs run",
+    "wechat:agent:uninstall": "bun scripts/wechat-mac-agent.cjs uninstall"
   },
   "engines": {
     "node": ">=20"
