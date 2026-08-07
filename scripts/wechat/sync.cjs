@@ -10,6 +10,8 @@ const {
   hashBuffer,
   publicationFingerprint,
 } = require("./content.cjs");
+const { desiredLocation, loadWithdrawalMarkers } = require("./lifecycle-intent.cjs");
+const { publicationForNewPost } = require("./lifecycle-state.cjs");
 const { loadState, saveState } = require("./state.cjs");
 
 const MISSING_DRAFT_ERROR_CODES = new Set([40007]);
@@ -125,6 +127,20 @@ function isMissingDraft(error) {
 
 async function syncOnePost({ client, config, dryRun, force, logger, post, prepared, state, stateFile }) {
   const previous = state.posts[post.id];
+  if (previous?.publication?.everPublished) {
+    let changed = false;
+    if (previous.fingerprint !== prepared.fingerprint) {
+      previous.fingerprint = prepared.fingerprint;
+      changed = true;
+    }
+    if (previous.sourceDeletedAt) {
+      delete previous.sourceDeletedAt;
+      changed = true;
+    }
+    if (changed && !dryRun) saveState(stateFile, state);
+    logger(`公众号已发布一次，本次修改仅更新网站：${post.title}`);
+    return { action: "website-only", post, mediaId: previous.mediaId };
+  }
   if (!force && previous?.fingerprint === prepared.fingerprint) {
     if (previous.sourceDeletedAt) {
       delete previous.sourceDeletedAt;
@@ -163,13 +179,21 @@ async function syncOnePost({ client, config, dryRun, force, logger, post, prepar
   }
   if (!mediaId) mediaId = await client.addDraft(article);
 
-  state.posts[post.id] = {
+  const publication = publicationForNewPost(state, post.id, new Date().toISOString());
+  if (publication.status === "pending") {
+    publication.draftFingerprint = prepared.fingerprint;
+  }
+  const record = {
+    ...(previous || {}),
     fingerprint: prepared.fingerprint,
     mediaId,
     title: article.title,
     sourceUrl: article.content_source_url,
     syncedAt: new Date().toISOString(),
+    publication,
   };
+  delete record.sourceDeletedAt;
+  state.posts[post.id] = record;
   saveState(stateFile, state);
   logger(`${action === "add" ? "已新增" : "已更新"}公众号草稿：${article.title}`);
   return { action, post, mediaId };
@@ -185,8 +209,31 @@ async function syncWechatDrafts({
   logger = console.log,
 }) {
   const blog = loadBlog({ publishedDir: path.join(root, "content", "published") });
+  const publishedIds = new Set(blog.posts.map((post) => post.id));
+  const markers = loadWithdrawalMarkers(root);
   const stateFile = config.stateFile || path.join(root, ".wechat-sync", "state.json");
   const state = loadState(stateFile);
+  let stateChanged = false;
+  for (const [postId, record] of Object.entries(state.posts)) {
+    const location = desiredLocation(postId, publishedIds, markers);
+    if (!location) continue;
+    if (record.publication.desiredLocation !== location) {
+      record.publication.desiredLocation = location;
+      stateChanged = true;
+    }
+    if (
+      location === "drafts"
+      && (
+        record.publication.status === "pending"
+        || record.publication.blockedOperation === "publish"
+      )
+      && record.publication.status !== "draft_only"
+    ) {
+      record.publication.status = "draft_only";
+      stateChanged = true;
+    }
+  }
+  if (stateChanged && !dryRun) saveState(stateFile, state);
   let selection;
   try {
     selection = changedPostSelection(root, blog.posts, range);
@@ -198,15 +245,15 @@ async function syncWechatDrafts({
   for (const filename of selection.deleted) {
     logger(`文章已从网站撤下，公众号仍需人工处理：${filename}`);
   }
-  const currentPostIds = new Set(blog.posts.map((post) => post.id));
-  let stateChanged = false;
+  const currentPostIds = publishedIds;
+  stateChanged = false;
   for (const [postId, record] of Object.entries(state.posts)) {
     if (currentPostIds.has(postId) || record.sourceDeletedAt) continue;
     record.sourceDeletedAt = new Date().toISOString();
     stateChanged = true;
     logger(`文章已从网站撤下，公众号仍需人工处理：${record.title || postId}`);
   }
-  if (stateChanged) saveState(stateFile, state);
+  if (stateChanged && !dryRun) saveState(stateFile, state);
   if (selection.posts.length === 0) {
     logger("本次提交没有需要同步的公众号文章。");
     return { results: [], deleted: selection.deleted };
@@ -214,7 +261,8 @@ async function syncWechatDrafts({
 
   const preparedPosts = selection.posts.map((post) => ({ post, prepared: preparePost(root, post, config) }));
   const needsNetwork = preparedPosts.some(({ post, prepared }) => (
-    force || state.posts[post.id]?.fingerprint !== prepared.fingerprint
+    !state.posts[post.id]?.publication?.everPublished
+    && (force || state.posts[post.id]?.fingerprint !== prepared.fingerprint)
   ));
   const apiClient = client || (
     needsNetwork && !dryRun
