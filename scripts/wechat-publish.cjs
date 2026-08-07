@@ -4,7 +4,10 @@ const path = require("node:path");
 
 const { loadEnvFile } = require("./wechat/env.cjs");
 const { launchWechatContext } = require("./wechat/browser-session.cjs");
-const { WechatBrowserAdapter } = require("./wechat/browser-publisher.cjs");
+const {
+  BROWSER_ERROR_CODES,
+  WechatBrowserAdapter,
+} = require("./wechat/browser-publisher.cjs");
 const { loadState, saveState } = require("./wechat/state.cjs");
 const {
   POST_ID_PATTERN,
@@ -12,12 +15,23 @@ const {
   resolveRecord,
   runLifecycle,
   statusSummary,
+  validatedPublishedUrl,
 } = require("./wechat/publisher.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
+const CLI_FALLBACK_MESSAGE = "微信公众号发布器执行失败，未执行不确定操作。";
+const BROWSER_ERROR_CODE_SET = new Set(Object.values(BROWSER_ERROR_CODES));
+
+function cliUsage(message = "公众号发布命令参数无效。") {
+  const error = new Error(message);
+  error.code = "WECHAT_CLI_USAGE";
+  return error;
+}
 
 function requirePostId(value) {
-  if (!POST_ID_PATTERN.test(value || "")) throw new Error("需要有效的时间戳文章 ID。");
+  if (!POST_ID_PATTERN.test(value || "")) {
+    throw cliUsage("公众号发布命令参数无效：需要有效的文章 ID。");
+  }
   return value;
 }
 
@@ -25,7 +39,7 @@ function parseArguments(argv) {
   const values = argv.filter((value) => value !== "--");
   const command = values[0];
   if (["login", "arm", "status"].includes(command)) {
-    if (values.length !== 1) throw new Error(`${command} 命令包含不支持的参数。`);
+    if (values.length !== 1) throw cliUsage();
     return { command };
   }
   if (command === "run") {
@@ -37,7 +51,7 @@ function parseArguments(argv) {
       else if (value === "--retry") {
         options.retry = requirePostId(values[index + 1]);
         index += 1;
-      } else throw new Error(`run 命令包含不支持的参数：${value}`);
+      } else throw cliUsage();
     }
     return options;
   }
@@ -45,12 +59,12 @@ function parseArguments(argv) {
     const postId = requirePostId(values[1]);
     const flag = values[2];
     if (flag === "--published") {
-      if (!values[3]) throw new Error("--published 需要 URL。");
-      if (values.length !== 4) throw new Error("resolve 命令包含多余参数。");
+      if (!values[3]) throw cliUsage("公众号发布命令参数无效：--published 需要 URL。");
+      if (values.length !== 4) throw cliUsage();
       try {
-        new URL(values[3]);
+        validatedPublishedUrl(values[3]);
       } catch {
-        throw new Error("--published 需要有效 URL。");
+        throw cliUsage("公众号发布命令参数无效：--published 需要有效 URL。");
       }
       return { command, postId, resolution: "published", url: values[3] };
     }
@@ -59,12 +73,12 @@ function parseArguments(argv) {
       "--withdrawn": "withdrawn",
       "--still-published": "still-published",
     };
-    if (!resolutions[flag]) throw new Error("resolve 命令需要明确的解决方式。");
-    if (values.length !== 3) throw new Error("resolve 命令包含多余参数。");
+    if (!resolutions[flag]) throw cliUsage();
+    if (values.length !== 3) throw cliUsage();
     return { command, postId, resolution: resolutions[flag] };
   }
   if (command === "--help" || command === "-h" || !command) return { command: "help" };
-  throw new Error(`未知的公众号发布命令：${command}`);
+  throw cliUsage();
 }
 
 function usage() {
@@ -135,7 +149,7 @@ async function waitForLogin(adapter, options = {}) {
   throw new Error("微信浏览器登录等待超时，请重新运行 login。");
 }
 
-async function main(dependencies = {}) {
+async function executeMain(dependencies = {}) {
   const root = dependencies.root || ROOT;
   const argv = dependencies.argv || process.argv.slice(2);
   const output = dependencies.output || ((line) => process.stdout.write(`${line}\n`));
@@ -212,17 +226,67 @@ async function main(dependencies = {}) {
   return result;
 }
 
+function publicCliFailure(error) {
+  if (error?.code === "WECHAT_CLI_USAGE") {
+    return { errorCode: "WECHAT_CLI_USAGE", message: "公众号发布命令参数无效。" };
+  }
+  if (error?.code === "WECHAT_PUBLISHER_ARMING_INVALID") {
+    return {
+      errorCode: error.code,
+      message: "公众号自动发布基线状态无效，已停止所有自动操作。",
+    };
+  }
+  if (error?.code === "WECHAT_PUBLISHED_URL_INVALID") {
+    return {
+      errorCode: error.code,
+      message: "已发表文章 URL 无效，仅接受微信公众平台公开文章链接。",
+    };
+  }
+  if (
+    BROWSER_ERROR_CODE_SET.has(error?.code)
+    || [
+      "WECHAT_BROWSER_PROFILE_LOCKED",
+      "WECHAT_BROWSER_LAUNCH_FAILED",
+      "WECHAT_BROWSER_PROFILE_IO_FAILED",
+    ].includes(error?.code)
+  ) {
+    return {
+      errorCode: "WECHAT_BROWSER_UNSAFE",
+      message: "微信浏览器页面、登录或专用配置状态不符合安全要求，已停止操作。",
+    };
+  }
+  return { errorCode: "WECHAT_CLI_UNEXPECTED", message: CLI_FALLBACK_MESSAGE };
+}
+
+async function main(dependencies = {}) {
+  const errorOutput = dependencies.errorOutput
+    || ((line) => process.stderr.write(`${line}\n`));
+  try {
+    return await executeMain(dependencies);
+  } catch (error) {
+    const failure = publicCliFailure(error);
+    errorOutput(failure.message);
+    return { ok: false, errorCode: failure.errorCode };
+  }
+}
+
 if (require.main === module) {
-  main().catch((error) => {
-    console.error(error.message);
-    process.exitCode = 1;
-  });
+  main()
+    .then((result) => {
+      if (result?.ok === false) process.exitCode = 1;
+    })
+    .catch(() => {
+      process.stderr.write(`${CLI_FALLBACK_MESSAGE}\n`);
+      process.exitCode = 1;
+    });
 }
 
 module.exports = {
   configuration,
+  executeMain,
   main,
   parseArguments,
+  publicCliFailure,
   usage,
   waitForLogin,
 };

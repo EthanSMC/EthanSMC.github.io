@@ -261,11 +261,19 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
       await page.goto(`${fixtureServer.baseUrl}/drafts.html`);
       await assert.rejects(
         () => adapter.findDraftCandidate({ title: "不存在", sourceUrl: "https://example.com/missing" }),
-        /未找到同名草稿/,
+        (error) => {
+          assert.equal(error.code, "WECHAT_DRAFT_CANDIDATE_NOT_FOUND");
+          assert.match(error.message, /未找到同名草稿/);
+          return true;
+        },
       );
       await assert.rejects(
         () => adapter.findDraftCandidate({ title: "重复草稿", sourceUrl: "https://ethansmc.com/posts/duplicate/" }),
-        /找到多个同名草稿/,
+        (error) => {
+          assert.equal(error.code, "WECHAT_DRAFT_CANDIDATE_MULTIPLE");
+          assert.match(error.message, /找到多个同名草稿/);
+          return true;
+        },
       );
       await assert.rejects(
         () => adapter.findDraftCandidate({
@@ -273,7 +281,22 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
           sourceUrl: "https://ethansmc.com/posts/expected/",
           platformArticleId: "wx-expected",
         }),
-        /草稿元数据与目标文章冲突/,
+        (error) => {
+          assert.equal(error.code, "WECHAT_CANDIDATE_IDENTITY_CONFLICT");
+          assert.match(error.message, /草稿元数据与目标文章冲突/);
+          return true;
+        },
+      );
+    });
+
+    await t.test("classifies unrecognized page shape as a global adapter error", async () => {
+      await page.setContent("<main>unexpected page</main>");
+      await assert.rejects(
+        () => adapter.checkSession(),
+        (error) => {
+          assert.equal(error.code, "WECHAT_PAGE_UNRECOGNIZED");
+          return true;
+        },
       );
     });
 
@@ -318,7 +341,11 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
       });
       await assert.rejects(
         () => adapter.publishCurrentDraft(draftPost),
-        /发布确认内容与预期不符/,
+        (error) => {
+          assert.equal(error.code, "WECHAT_CONFIRMATION_CHANGED");
+          assert.match(error.message, /发布确认内容与预期不符/);
+          return true;
+        },
       );
       assert.equal(await page.locator("[data-click-count=publish]").textContent(), "1");
       assert.equal(await page.locator("[data-click-count=confirm-publish]").textContent(), "0");
@@ -372,6 +399,20 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
       assert.equal(await page.locator("[data-click-count=confirm-withdraw]").textContent(), "1");
       assert.equal(await page.locator("[data-click-count=decoy-withdraw]").textContent(), "0");
       assert.deepEqual(await adapter.verifyWithdrawn(publishedPost), { withdrawn: true });
+    });
+
+    await t.test("classifies a missing published candidate as trustworthy absence", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/published.html`);
+      await assert.rejects(
+        () => adapter.findPublishedCandidate({
+          title: "不存在的发表记录",
+          sourceUrl: "https://ethansmc.com/posts/missing/",
+        }),
+        (error) => {
+          assert.equal(error.code, "WECHAT_PUBLISHED_CANDIDATE_NOT_FOUND");
+          return true;
+        },
+      );
     });
 
     await t.test("rejects changed and ambiguous withdrawal controls without clicking", async () => {

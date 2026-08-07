@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { arm, resolveRecord, runLifecycle, statusSummary } = require("../scripts/wechat/publisher.cjs");
-const { main, parseArguments } = require("../scripts/wechat-publish.cjs");
+const { main, parseArguments, publicCliFailure } = require("../scripts/wechat-publish.cjs");
 const { emptyPublication } = require("../scripts/wechat/lifecycle-state.cjs");
 const { emptyState, loadState, saveState } = require("../scripts/wechat/state.cjs");
 
@@ -15,6 +15,12 @@ const POST_ID = "2026-08-07-120000";
 const SECOND_ID = "2026-08-07-120001";
 const NOW = "2026-08-07T04:00:00.000Z";
 const ABSENT_ERROR = "未找到同名已发表文章。";
+
+function codedError(code, message = "opaque browser failure") {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-publisher-"));
@@ -70,18 +76,19 @@ function fakeAdapter(options = {}) {
     withdrawClicks: 0,
     async checkSession() {
       adapter.calls.push(["checkSession"]);
-      return { authenticated: true };
+      return options.session || { authenticated: true };
     },
     async findPublishedCandidate(record) {
       adapter.calls.push(["findPublishedCandidate", record.title]);
       if (options.onBrowserCall) options.onBrowserCall("findPublishedCandidate");
       if (options.findPublished) return options.findPublished(record);
-      throw new Error(ABSENT_ERROR);
+      throw codedError("WECHAT_PUBLISHED_CANDIDATE_NOT_FOUND", ABSENT_ERROR);
     },
     async findDraftCandidate(record) {
       adapter.calls.push(["findDraftCandidate", record.title]);
       if (options.onBrowserCall) options.onBrowserCall("findDraftCandidate");
       if (options.findDraftError) throw options.findDraftError;
+      if (options.findDraft) return options.findDraft(record);
       return { kind: "exact", title: record.title, href: "https://mp.weixin.qq.com/draft/1" };
     },
     async openDraft(candidate) {
@@ -165,7 +172,7 @@ test("a failure while opening the verified draft remains pending before the clic
   const data = seed();
   const adapter = fakeAdapter({ openDraftError: new Error("navigation failed") });
 
-  await run(data, adapter);
+  await assert.rejects(() => run(data, adapter), /navigation failed/);
 
   assert.equal(adapter.publishClicks, 0);
   assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "pending");
@@ -177,7 +184,7 @@ test("stored diagnostics redact secrets and private paths", async () => {
     openDraftError: new Error("secret=super-secret at /Users/operator/private/browser-profile"),
   });
 
-  await run(data, adapter);
+  await assert.rejects(() => run(data, adapter));
 
   const diagnostic = loadState(data.stateFile).posts[POST_ID].publication.lastError;
   assert.match(diagnostic, /secret=\[redacted\]/);
@@ -186,7 +193,9 @@ test("stored diagnostics redact secrets and private paths", async () => {
 
 test("a deterministic draft identity failure blocks publication until explicit retry", async () => {
   const data = seed();
-  const adapter = fakeAdapter({ findDraftError: new Error("未找到同名草稿。") });
+  const adapter = fakeAdapter({
+    findDraftError: codedError("WECHAT_DRAFT_CANDIDATE_NOT_FOUND"),
+  });
 
   await run(data, adapter);
 
@@ -211,7 +220,7 @@ test("a deterministic draft identity failure blocks publication until explicit r
 test("ambiguous published preflight enters reconciliation instead of a safely cancellable block", async () => {
   const data = seed();
   const adapter = fakeAdapter({
-    findPublished: () => { throw new Error("找到多个同名已发表文章，已停止操作。"); },
+    findPublished: () => { throw codedError("WECHAT_PUBLISHED_CANDIDATE_MULTIPLE"); },
   });
 
   await run(data, adapter);
@@ -225,7 +234,7 @@ test("ambiguous published preflight enters reconciliation instead of a safely ca
 test("a failure after publish invocation reconciles and never clicks again", async () => {
   const data = seed();
   const first = fakeAdapter({ publishError: new Error("response lost") });
-  await run(data, first);
+  await assert.rejects(() => run(data, first), /response lost/);
   assert.equal(first.publishClicks, 1);
   assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "publish_reconcile");
 
@@ -247,6 +256,72 @@ test("loaded publishing is durably recovered before browser reconciliation and n
   assert.equal(adapter.publishClicks, 0);
   assert.deepEqual(observed, ["publish_reconcile"]);
   assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "publish_reconcile");
+});
+
+test("malformed arming fails closed in run, status, and arm", async () => {
+  const data = seed();
+  const state = loadState(data.stateFile);
+  state.publisher.armedAt = "not-a-timestamp";
+  saveState(data.stateFile, state);
+  let browserOpens = 0;
+
+  await assert.rejects(
+    () => runLifecycle({
+      ...data,
+      openAdapter: async () => {
+        browserOpens += 1;
+        return { adapter: fakeAdapter(), close: async () => {} };
+      },
+      autoPublish: true,
+      autoWithdraw: true,
+      now: () => NOW,
+    }),
+    (error) => {
+      assert.equal(error.code, "WECHAT_PUBLISHER_ARMING_INVALID");
+      return true;
+    },
+  );
+  assert.equal(browserOpens, 0);
+  assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "pending");
+  assert.deepEqual(
+    { armed: statusSummary(state).armed, armedAt: statusSummary(state).armedAt },
+    { armed: false, armedAt: null },
+  );
+  assert.throws(
+    () => arm({ ...data, now: () => NOW }),
+    (error) => {
+      assert.equal(error.code, "WECHAT_PUBLISHER_ARMING_INVALID");
+      return true;
+    },
+  );
+});
+
+test("dry-run recovery and retry preview clone injected state without mutating it", async () => {
+  const data = fixture();
+  const shared = emptyState();
+  shared.publisher.armedAt = NOW;
+  shared.posts[POST_ID] = post("publishing");
+  shared.posts[SECOND_ID] = post("blocked", {
+    title: "第二篇文章",
+    publication: { blockedOperation: "publish" },
+  });
+  const original = structuredClone(shared);
+
+  const result = await runLifecycle({
+    ...data,
+    loadState: () => shared,
+    saveState: () => assert.fail("dry-run must not save"),
+    retry: SECOND_ID,
+    autoPublish: true,
+    autoWithdraw: true,
+    dryRun: true,
+    now: () => NOW,
+  });
+
+  assert.deepEqual(shared, original);
+  assert.notEqual(result.state, shared);
+  assert.equal(result.state.posts[POST_ID].publication.status, "publish_reconcile");
+  assert.equal(result.state.posts[SECOND_ID].publication.status, "pending");
 });
 
 test("pending withdrawal intent cancels without opening a browser even when withdrawal is disabled", async () => {
@@ -292,11 +367,24 @@ test("manual withdrawal intent branches on trustworthy published evidence", asyn
   assert.equal(loadState(absentData.stateFile).posts[POST_ID].publication.status, "draft_only");
 });
 
+test("trustworthy absence withdraws a known published record without clicking", async () => {
+  const data = seed({ status: "published", publication: { everPublished: true } });
+  marker(data.root);
+  const adapter = fakeAdapter();
+
+  await run(data, adapter);
+
+  const publication = loadState(data.stateFile).posts[POST_ID].publication;
+  assert.equal(adapter.withdrawClicks, 0);
+  assert.equal(publication.status, "withdrawn");
+  assert.equal(publication.withdrawnAt, NOW);
+});
+
 test("ambiguous withdrawal identity blocks before any withdrawal click", async () => {
   const data = seed({ status: "manual" });
   marker(data.root);
   const adapter = fakeAdapter({
-    findPublished: () => { throw new Error("找到多个同名已发表文章，已停止操作。"); },
+    findPublished: () => { throw codedError("WECHAT_PUBLISHED_CANDIDATE_MULTIPLE"); },
   });
 
   await run(data, adapter);
@@ -334,7 +422,7 @@ test("loaded withdrawing becomes withdraw_reconcile before inspection and never 
   const observed = [];
   const adapter = fakeAdapter({
     onBrowserCall: () => observed.push(loadState(data.stateFile).posts[POST_ID].publication.status),
-    verifyWithdrawnError: new Error("still present"),
+    verifyWithdrawnError: codedError("WECHAT_WITHDRAWAL_STILL_PRESENT"),
   });
 
   await run(data, adapter);
@@ -351,11 +439,13 @@ test("uncertain withdrawal outcome never causes an unattended second click", asy
     findPublished: () => exact(),
     withdrawError: new Error("response lost"),
   });
-  await run(data, first);
+  await assert.rejects(() => run(data, first), /response lost/);
   assert.equal(first.withdrawClicks, 1);
   assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "withdraw_reconcile");
 
-  const retry = fakeAdapter({ verifyWithdrawnError: new Error("still present") });
+  const retry = fakeAdapter({
+    verifyWithdrawnError: codedError("WECHAT_WITHDRAWAL_STILL_PRESENT"),
+  });
   await run(data, retry);
   assert.equal(retry.withdrawClicks, 0);
   assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "withdraw_reconcile");
@@ -390,7 +480,9 @@ test("withdrawal queue finishes before the publication queue starts", async () =
   marker(data.root);
   const order = [];
   const adapter = fakeAdapter({
-    findPublished: (record) => record.title === "可验证文章" ? exact() : (() => { throw new Error(ABSENT_ERROR); })(),
+    findPublished: (record) => record.title === "可验证文章"
+      ? exact()
+      : (() => { throw codedError("WECHAT_PUBLISHED_CANDIDATE_NOT_FOUND", ABSENT_ERROR); })(),
     onWithdraw: () => order.push("withdraw"),
     onPublish: () => order.push("publish"),
     verifyPublished: () => ({ published: true, candidate: exact(SECOND_ID) }),
@@ -399,6 +491,84 @@ test("withdrawal queue finishes before the publication queue starts", async () =
   await run(data, adapter);
 
   assert.deepEqual(order, ["withdraw", "publish"]);
+});
+
+test("enumerated candidate errors block one record and allow the next safe record", async () => {
+  const data = seed({
+    posts: { [SECOND_ID]: post("pending", { title: "第二篇文章" }) },
+  });
+  const adapter = fakeAdapter({
+    findDraft: (record) => {
+      if (record.title === "可验证文章") {
+        throw codedError("WECHAT_DRAFT_CANDIDATE_NOT_FOUND");
+      }
+      return { kind: "exact", title: record.title, href: "https://mp.weixin.qq.com/draft/2" };
+    },
+    verifyPublished: (record) => ({
+      published: true,
+      candidate: exact(record.title === "第二篇文章" ? SECOND_ID : POST_ID),
+    }),
+  });
+
+  await run(data, adapter);
+
+  assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "blocked");
+  assert.equal(loadState(data.stateFile).posts[SECOND_ID].publication.status, "published");
+  assert.equal(adapter.publishClicks, 1);
+});
+
+test("unclassified page drift aborts the queue before a later record can click", async () => {
+  const data = seed({
+    posts: { [SECOND_ID]: post("pending", { title: "第二篇文章" }) },
+  });
+  const adapter = fakeAdapter({
+    findPublished: (record) => {
+      if (record.title === "可验证文章") throw new Error("changed page shape");
+      throw codedError("WECHAT_PUBLISHED_CANDIDATE_NOT_FOUND", ABSENT_ERROR);
+    },
+  });
+
+  await assert.rejects(() => run(data, adapter), /changed page shape/);
+
+  assert.equal(adapter.publishClicks, 0);
+  assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "pending");
+  assert.equal(loadState(data.stateFile).posts[SECOND_ID].publication.status, "pending");
+  assert.equal(
+    adapter.calls.some(([name, title]) => name === "findPublishedCandidate" && title === "第二篇文章"),
+    false,
+  );
+});
+
+test("failed session health uses the adapter's shared global blocker code", async () => {
+  const data = seed();
+  const adapter = fakeAdapter({
+    session: { authenticated: false, blocker: "captcha" },
+  });
+
+  await assert.rejects(
+    () => run(data, adapter),
+    (error) => {
+      assert.equal(error.code, "WECHAT_SESSION_CAPTCHA_REQUIRED");
+      return true;
+    },
+  );
+  assert.equal(adapter.publishClicks, 0);
+  assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "pending");
+});
+
+test("an unstructured absence result aborts instead of authorizing a click", async () => {
+  const data = seed();
+  const adapter = fakeAdapter({ findPublished: () => null });
+
+  await assert.rejects(
+    () => run(data, adapter),
+    (error) => {
+      assert.equal(error.code, "WECHAT_ADAPTER_RESULT_INVALID");
+      return true;
+    },
+  );
+  assert.equal(adapter.publishClicks, 0);
+  assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "pending");
 });
 
 test("dry-run performs no writes and never opens a browser", async () => {
@@ -491,6 +661,48 @@ test("explicit resolution is the only way to re-arm uncertain lifecycle outcomes
   assert.equal(publication.blockedOperation, null);
 });
 
+test("published resolution accepts only public HTTPS WeChat article URLs", () => {
+  const invalidUrls = [
+    "http://mp.weixin.qq.com/s/article",
+    "https://example.com/s/article",
+    "https://mp.weixin.qq.com.evil.test/s/article",
+    "https://mp.weixin.qq.com/cgi-bin/appmsg",
+    "https://mp.weixin.qq.com/sneaky/article",
+    "file:///private/browser-profile",
+    "javascript:alert(1)",
+  ];
+  for (const url of invalidUrls) {
+    const data = seed({ status: "publish_reconcile" });
+    assert.throws(
+      () => resolveRecord({
+        ...data,
+        postId: POST_ID,
+        resolution: "published",
+        url,
+        now: () => NOW,
+      }),
+      (error) => {
+        assert.equal(error.code, "WECHAT_PUBLISHED_URL_INVALID");
+        return true;
+      },
+      url,
+    );
+    assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "publish_reconcile");
+  }
+
+  for (const url of ["https://mp.weixin.qq.com/s", "https://mp.weixin.qq.com/s/article?scene=1"]) {
+    const data = seed({ status: "publish_reconcile" });
+    assert.doesNotThrow(() => resolveRecord({
+      ...data,
+      postId: POST_ID,
+      resolution: "published",
+      url,
+      now: () => NOW,
+    }));
+    assert.equal(loadState(data.stateFile).posts[POST_ID].publication.publishedUrl, url);
+  }
+});
+
 test("not-published resolution cannot make a baseline article eligible", () => {
   const data = seed({ status: "publish_reconcile" });
   const state = loadState(data.stateFile);
@@ -548,6 +760,70 @@ test("CLI parser accepts only documented commands and resolution shapes", () => 
   assert.throws(() => parseArguments(["run", "--retry", "bad-id"]), /文章 ID/);
   assert.throws(() => parseArguments(["resolve", POST_ID, "--published"]), /URL/);
   assert.throws(() => parseArguments(["resolve", POST_ID, "--withdrawn", "extra"]), /参数/);
+});
+
+test("CLI parser rejects non-public WeChat resolution URLs without echoing input", () => {
+  const invalidUrls = [
+    "http://mp.weixin.qq.com/s/article",
+    "https://unrelated.test/s/article",
+    "https://mp.weixin.qq.com/cgi-bin/appmsg",
+    "file:///Users/operator/private-profile",
+    "javascript:cookie=secret-value",
+  ];
+  for (const url of invalidUrls) {
+    assert.throws(
+      () => parseArguments(["resolve", POST_ID, "--published", url]),
+      (error) => {
+        assert.equal(error.code, "WECHAT_CLI_USAGE");
+        assert.doesNotMatch(error.message, /operator|secret-value|unrelated\.test|javascript|file:/);
+        return true;
+      },
+      url,
+    );
+  }
+});
+
+test("CLI argument errors and unexpected failures use bounded private output", async () => {
+  const rawArgument = "--cookie=<html>/Users/operator/private-profile";
+  assert.throws(
+    () => parseArguments(["run", rawArgument]),
+    (error) => {
+      assert.equal(error.code, "WECHAT_CLI_USAGE");
+      assert.equal(error.message, "公众号发布命令参数无效。");
+      assert.equal(error.message.includes(rawArgument), false);
+      return true;
+    },
+  );
+
+  const errors = [];
+  const result = await main({
+    root: fixture().root,
+    argv: ["status"],
+    loadEnvFile: () => {
+      throw new Error("cookie=secret-value /Users/operator/private-profile <html>");
+    },
+    output: () => assert.fail("failed status must not write normal output"),
+    errorOutput: (line) => errors.push(line),
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    errorCode: "WECHAT_CLI_UNEXPECTED",
+  });
+  assert.deepEqual(errors, ["微信公众号发布器执行失败，未执行不确定操作。"]);
+  assert.doesNotMatch(errors.join("\n"), /secret-value|operator|html|cookie/);
+});
+
+test("CLI maps the known published URL code without trusting its message", () => {
+  const error = codedError(
+    "WECHAT_PUBLISHED_URL_INVALID",
+    "cookie=secret-value /Users/operator/private-profile <html>",
+  );
+
+  assert.deepEqual(publicCliFailure(error), {
+    errorCode: "WECHAT_PUBLISHED_URL_INVALID",
+    message: "已发表文章 URL 无效，仅接受微信公众平台公开文章链接。",
+  });
 });
 
 test("login uses one injected timestamp and closes the dedicated browser", async () => {

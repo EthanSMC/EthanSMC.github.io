@@ -1,6 +1,10 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const {
+  BROWSER_ERROR_CODES,
+  RECORD_LOCAL_BROWSER_ERROR_CODES,
+} = require("./browser-publisher.cjs");
 const { loadWithdrawalMarkers } = require("./lifecycle-intent.cjs");
 const {
   armPublisher,
@@ -10,12 +14,13 @@ const {
 const { loadState, saveState } = require("./state.cjs");
 
 const POST_ID_PATTERN = /^\d{4}-\d{2}-\d{2}-\d{6}$/;
-const TRUSTWORTHY_ABSENCE_MESSAGE = "未找到同名已发表文章。";
-const GLOBAL_ERROR_CODES = new Set([
-  "WECHAT_BROWSER_PROFILE_LOCKED",
-  "WECHAT_BROWSER_LAUNCH_FAILED",
-  "WECHAT_BROWSER_PROFILE_IO_FAILED",
-]);
+const RECORD_LOCAL_ERROR_CODES = new Set(RECORD_LOCAL_BROWSER_ERROR_CODES);
+
+function codedError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
 
 function timestamp(now = () => new Date()) {
   const value = now();
@@ -55,20 +60,55 @@ function sanitizedError(error, fallback) {
   return (message || fallback).slice(0, 240);
 }
 
-function isGlobalError(error) {
-  if (GLOBAL_ERROR_CODES.has(error?.code)) return true;
-  const message = error instanceof Error ? error.message : String(error || "");
-  return /登录已失效|扫描二维码登录|验证码|账号验证|帐号验证|身份验证|无法识别微信公众平台页面/.test(message);
+function armingStatus(state) {
+  const value = state.publisher?.armedAt;
+  if (value === null || value === undefined) return { armed: false, invalid: false, armedAt: null };
+  if (typeof value === "string" && Number.isFinite(Date.parse(value))) {
+    return { armed: true, invalid: false, armedAt: value };
+  }
+  return { armed: false, invalid: true, armedAt: null };
 }
 
-function isTrustworthyAbsence(error) {
-  return error?.code === "WECHAT_PUBLISHED_NOT_FOUND"
-    || error?.message === TRUSTWORTHY_ABSENCE_MESSAGE;
+function assertValidArming(state) {
+  const status = armingStatus(state);
+  if (status.invalid) {
+    throw codedError(
+      "WECHAT_PUBLISHER_ARMING_INVALID",
+      "公众号自动发布基线时间无效，已停止所有自动操作。",
+    );
+  }
+  return status;
 }
 
-function isDeterministicRecordError(error) {
-  const message = error instanceof Error ? error.message : String(error || "");
-  return /未找到同名草稿|找到多个同名|元数据.*冲突|无法唯一定位|候选项无法精确验证|查找结果不明确/.test(message);
+function browserErrorKind(error) {
+  if (error?.code === BROWSER_ERROR_CODES.PUBLISHED_CANDIDATE_NOT_FOUND) return "absence";
+  if (RECORD_LOCAL_ERROR_CODES.has(error?.code)) return "record";
+  return "global";
+}
+
+function validatedPublishedUrl(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw codedError(
+      "WECHAT_PUBLISHED_URL_INVALID",
+      "已发表文章 URL 必须是微信公众平台公开文章链接。",
+    );
+  }
+  if (
+    url.protocol !== "https:"
+    || url.host !== "mp.weixin.qq.com"
+    || url.username
+    || url.password
+    || !/^\/s(?:\/.*)?$/.test(url.pathname)
+  ) {
+    throw codedError(
+      "WECHAT_PUBLISHED_URL_INVALID",
+      "已发表文章 URL 必须是微信公众平台公开文章链接。",
+    );
+  }
+  return url;
 }
 
 function exactCandidate(value) {
@@ -79,10 +119,9 @@ async function findPublished(adapter, record) {
   try {
     const candidate = await adapter.findPublishedCandidate(record);
     if (exactCandidate(candidate)) return { kind: "exact", candidate };
-    if (candidate == null || candidate?.kind === "absent") return { kind: "absent" };
-    return { kind: "ambiguous", error: new Error("已发表文章查找结果不明确。") };
+    throw codedError("WECHAT_ADAPTER_RESULT_INVALID", "已发表文章查找结果不明确。");
   } catch (error) {
-    if (isTrustworthyAbsence(error)) return { kind: "absent" };
+    if (browserErrorKind(error) === "absence") return { kind: "absent" };
     throw error;
   }
 }
@@ -118,6 +157,7 @@ function verifiedWithdrawal(result) {
 
 function statusSummary(state) {
   const entries = Object.entries(state.posts || {});
+  const arming = armingStatus(state);
   const counts = {
     pending: 0,
     publishReconcile: 0,
@@ -142,8 +182,8 @@ function statusSummary(state) {
   }
 
   return {
-    armed: Number.isFinite(Date.parse(state.publisher?.armedAt || "")),
-    armedAt: state.publisher?.armedAt || null,
+    armed: arming.armed,
+    armedAt: arming.armedAt,
     baselineCount: Array.isArray(state.publisher?.baselinePostIds)
       ? state.publisher.baselinePostIds.length
       : 0,
@@ -163,7 +203,8 @@ function arm(options) {
   }
 
   const state = load(stateFile);
-  const alreadyArmed = Boolean(state.publisher?.armedAt);
+  const arming = assertValidArming(state);
+  const alreadyArmed = arming.armed;
   const postIds = alreadyArmed ? state.publisher.baselinePostIds : publishedPostIds(options.root);
   const baselineCount = postIds.length;
   if (typeof options.announce === "function") options.announce(baselineCount);
@@ -203,7 +244,9 @@ async function runLifecycle(options) {
   const load = options.loadState || loadState;
   const save = options.saveState || saveState;
   const dryRun = Boolean(options.dryRun);
-  const state = load(options.stateFile);
+  const loadedState = load(options.stateFile);
+  const arming = assertValidArming(loadedState);
+  const state = dryRun ? structuredClone(loadedState) : loadedState;
   const beforeRecovery = Object.fromEntries(
     Object.entries(state.posts).map(([postId, record]) => [postId, record.publication?.status]),
   );
@@ -239,7 +282,15 @@ async function runLifecycle(options) {
     if (!sessionChecked && typeof adapter.checkSession === "function") {
       const session = await adapter.checkSession();
       if (!session?.authenticated) {
-        throw new Error("微信登录已失效，请运行公众号浏览器登录命令。");
+        const blockerCodes = {
+          login: BROWSER_ERROR_CODES.SESSION_LOGIN_REQUIRED,
+          captcha: BROWSER_ERROR_CODES.SESSION_CAPTCHA_REQUIRED,
+          verification: BROWSER_ERROR_CODES.SESSION_VERIFICATION_REQUIRED,
+        };
+        throw codedError(
+          blockerCodes[session?.blocker] || BROWSER_ERROR_CODES.PAGE_UNRECOGNIZED,
+          "微信浏览器登录或页面状态无效，已停止所有操作。",
+        );
       }
       sessionChecked = true;
       state.publisher.browserSessionCheckedAt = timestamp(options.now);
@@ -249,12 +300,12 @@ async function runLifecycle(options) {
   }
 
   function saveRecordError(postId, operation, error, blockDeterministic = false) {
-    if (isGlobalError(error)) throw error;
     const record = state.posts[postId];
     const patch = {
       lastError: sanitizedError(error, `公众号${operation}操作失败。`),
     };
-    if (blockDeterministic && isDeterministicRecordError(error)) {
+    const kind = browserErrorKind(error);
+    if (blockDeterministic && kind === "record") {
       transitionPublication(state, postId, "blocked", {
         ...patch,
         blockedOperation: operation,
@@ -263,6 +314,7 @@ async function runLifecycle(options) {
       Object.assign(record.publication, patch);
     }
     persist();
+    if (kind === "global") throw error;
   }
 
   function markDraftOnly(postId, markerValue) {
@@ -307,7 +359,7 @@ async function runLifecycle(options) {
       persist();
       return;
     }
-    if (!options.autoWithdraw || !state.publisher?.armedAt) {
+    if (!options.autoWithdraw || !arming.armed) {
       persist();
       return;
     }
@@ -344,6 +396,16 @@ async function runLifecycle(options) {
     }
     if (lookup.kind === "absent") {
       if (publication.status === "manual") markDraftOnly(postId, markerValue);
+      else if (publication.status === "published") {
+        transitionPublication(state, postId, "withdrawn", {
+          desiredLocation: "drafts",
+          withdrawRequestedAt: markerValue.requestedAt,
+          withdrawnAt: timestamp(options.now),
+          blockedOperation: null,
+          lastError: null,
+        });
+        persist();
+      }
       else {
         publication.lastError = sanitizedError(
           new Error("无法证明已开始发布的文章从未发表，保留人工核对状态。"),
@@ -383,7 +445,7 @@ async function runLifecycle(options) {
         lastError: sanitizedError(error, "公众号撤回结果需要人工核对。"),
       });
       persist();
-      if (isGlobalError(error)) throw error;
+      if (browserErrorKind(error) === "global") throw error;
       return;
     }
 
@@ -402,7 +464,7 @@ async function runLifecycle(options) {
         lastError: sanitizedError(error, "公众号撤回结果需要人工核对。"),
       });
       persist();
-      if (isGlobalError(error)) throw error;
+      if (browserErrorKind(error) === "global") throw error;
     }
   }
 
@@ -414,7 +476,7 @@ async function runLifecycle(options) {
     try {
       lookup = await findPublished(browser, record);
     } catch (error) {
-      if (isDeterministicRecordError(error)) {
+      if (browserErrorKind(error) === "record") {
         transitionPublication(state, postId, "publish_reconcile", {
           blockedOperation: null,
           lastError: sanitizedError(error, "公众号发表状态需要人工核对。"),
@@ -473,7 +535,7 @@ async function runLifecycle(options) {
         lastError: sanitizedError(error, "公众号发表结果需要人工核对。"),
       });
       persist();
-      if (isGlobalError(error)) throw error;
+      if (browserErrorKind(error) === "global") throw error;
       return;
     }
 
@@ -487,7 +549,7 @@ async function runLifecycle(options) {
         lastError: sanitizedError(error, "公众号发表结果需要人工核对。"),
       });
       persist();
-      if (isGlobalError(error)) throw error;
+      if (browserErrorKind(error) === "global") throw error;
     }
   }
 
@@ -496,7 +558,7 @@ async function runLifecycle(options) {
       await withdrawRecord(postId, markerValue);
     }
 
-    if (options.autoPublish && state.publisher?.armedAt) {
+    if (options.autoPublish && arming.armed) {
       const publishIds = Object.keys(state.posts)
         .filter((postId) => {
           const publication = state.posts[postId].publication;
@@ -527,12 +589,7 @@ function resolveRecord(options) {
     if (publication.status !== "publish_reconcile") {
       throw new Error("--published 只能解决待核对的发表结果。");
     }
-    let url;
-    try {
-      url = new URL(options.url);
-    } catch {
-      throw new Error("--published 需要有效的已发表文章 URL。");
-    }
+    const url = validatedPublishedUrl(options.url);
     transitionPublication(state, options.postId, "published", {
       ...candidatePatch({ href: url.href }),
       publicationOrigin: publication.publishStartedAt ? "automatic" : "manual-detected",
@@ -586,4 +643,5 @@ module.exports = {
   resolveRecord,
   runLifecycle,
   statusSummary,
+  validatedPublishedUrl,
 };

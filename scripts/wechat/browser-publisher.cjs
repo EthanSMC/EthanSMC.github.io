@@ -7,6 +7,46 @@ const LABELS = Object.freeze({
   confirmWithdraw: ["确认撤回", "确认删除"],
 });
 
+const BROWSER_ERROR_CODES = Object.freeze({
+  SESSION_LOGIN_REQUIRED: "WECHAT_SESSION_LOGIN_REQUIRED",
+  SESSION_CAPTCHA_REQUIRED: "WECHAT_SESSION_CAPTCHA_REQUIRED",
+  SESSION_VERIFICATION_REQUIRED: "WECHAT_SESSION_VERIFICATION_REQUIRED",
+  PAGE_UNRECOGNIZED: "WECHAT_PAGE_UNRECOGNIZED",
+  NAVIGATION_ENTRY_CHANGED: "WECHAT_NAVIGATION_ENTRY_CHANGED",
+  DRAFT_CANDIDATE_NOT_FOUND: "WECHAT_DRAFT_CANDIDATE_NOT_FOUND",
+  DRAFT_CANDIDATE_MULTIPLE: "WECHAT_DRAFT_CANDIDATE_MULTIPLE",
+  PUBLISHED_CANDIDATE_NOT_FOUND: "WECHAT_PUBLISHED_CANDIDATE_NOT_FOUND",
+  PUBLISHED_CANDIDATE_MULTIPLE: "WECHAT_PUBLISHED_CANDIDATE_MULTIPLE",
+  CANDIDATE_LINK_MISSING: "WECHAT_CANDIDATE_LINK_MISSING",
+  CANDIDATE_IDENTITY_CONFLICT: "WECHAT_CANDIDATE_IDENTITY_CONFLICT",
+  CANDIDATE_INPUT_INVALID: "WECHAT_CANDIDATE_INPUT_INVALID",
+  CANDIDATE_OPEN_MISMATCH: "WECHAT_CANDIDATE_OPEN_MISMATCH",
+  CURRENT_CONTAINER_MISMATCH: "WECHAT_CURRENT_CONTAINER_MISMATCH",
+  PUBLISH_CONTROL_CHANGED: "WECHAT_PUBLISH_CONTROL_CHANGED",
+  WITHDRAW_CONTROL_CHANGED: "WECHAT_WITHDRAW_CONTROL_CHANGED",
+  CONFIRMATION_CHANGED: "WECHAT_CONFIRMATION_CHANGED",
+  WITHDRAWAL_STILL_PRESENT: "WECHAT_WITHDRAWAL_STILL_PRESENT",
+  WITHDRAWAL_AMBIGUOUS: "WECHAT_WITHDRAWAL_AMBIGUOUS",
+});
+
+const RECORD_LOCAL_BROWSER_ERROR_CODES = Object.freeze([
+  BROWSER_ERROR_CODES.DRAFT_CANDIDATE_NOT_FOUND,
+  BROWSER_ERROR_CODES.DRAFT_CANDIDATE_MULTIPLE,
+  BROWSER_ERROR_CODES.PUBLISHED_CANDIDATE_MULTIPLE,
+  BROWSER_ERROR_CODES.CANDIDATE_LINK_MISSING,
+  BROWSER_ERROR_CODES.CANDIDATE_IDENTITY_CONFLICT,
+  BROWSER_ERROR_CODES.CANDIDATE_OPEN_MISMATCH,
+  BROWSER_ERROR_CODES.CURRENT_CONTAINER_MISMATCH,
+  BROWSER_ERROR_CODES.WITHDRAWAL_STILL_PRESENT,
+  BROWSER_ERROR_CODES.WITHDRAWAL_AMBIGUOUS,
+]);
+
+function browserError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
 const BLOCKER_LABELS = Object.freeze({
   login: ["请使用微信扫描二维码登录", "请扫描二维码登录", "扫码登录"],
   captcha: ["请完成验证码", "请输入验证码", "安全验证"],
@@ -70,7 +110,14 @@ async function detectGlobalBlocker(page) {
 
 async function assertNoGlobalBlocker(page) {
   const blocker = await detectGlobalBlocker(page);
-  if (blocker) throw new Error(BLOCKER_ERRORS[blocker.kind]);
+  if (blocker) {
+    const codes = {
+      login: BROWSER_ERROR_CODES.SESSION_LOGIN_REQUIRED,
+      captcha: BROWSER_ERROR_CODES.SESSION_CAPTCHA_REQUIRED,
+      verification: BROWSER_ERROR_CODES.SESSION_VERIFICATION_REQUIRED,
+    };
+    throw browserError(codes[blocker.kind], BLOCKER_ERRORS[blocker.kind]);
+  }
 }
 
 function normalizedUrl(value) {
@@ -118,8 +165,8 @@ function metadataConflicts(post, href) {
 
 async function oneVisible(locator, messages) {
   const visible = await visibleLocators(locator);
-  if (visible.length === 0) throw new Error(messages.zero);
-  if (visible.length > 1) throw new Error(messages.multiple);
+  if (visible.length === 0) throw browserError(messages.code, messages.zero);
+  if (visible.length > 1) throw browserError(messages.code, messages.multiple);
   return visible[0];
 }
 
@@ -141,7 +188,10 @@ class WechatBrowserAdapter {
     if (draftLinks.length === 1 && publishedLinks.length === 1) {
       return { authenticated: true };
     }
-    throw new Error("无法识别微信公众平台页面，已停止所有操作。");
+    throw browserError(
+      BROWSER_ERROR_CODES.PAGE_UNRECOGNIZED,
+      "无法识别微信公众平台页面，已停止所有操作。",
+    );
   }
 
   async navigateTo(label) {
@@ -149,6 +199,7 @@ class WechatBrowserAdapter {
     const link = await oneVisible(
       this.page.getByRole("link", { name: label, exact: true }),
       {
+        code: BROWSER_ERROR_CODES.NAVIGATION_ENTRY_CHANGED,
         zero: "未找到预期的微信内容管理入口。",
         multiple: "找到多个微信内容管理入口，已停止操作。",
       },
@@ -166,21 +217,37 @@ class WechatBrowserAdapter {
       this.page.getByRole("link", { name: post.title, exact: true }),
     );
     if (links.length === 0) {
-      throw new Error(isDraft ? "未找到同名草稿。" : "未找到同名已发表文章。");
+      throw browserError(
+        isDraft
+          ? BROWSER_ERROR_CODES.DRAFT_CANDIDATE_NOT_FOUND
+          : BROWSER_ERROR_CODES.PUBLISHED_CANDIDATE_NOT_FOUND,
+        isDraft ? "未找到同名草稿。" : "未找到同名已发表文章。",
+      );
     }
     if (links.length > 1) {
-      throw new Error(isDraft ? "找到多个同名草稿，已停止操作。" : "找到多个同名已发表文章，已停止操作。");
+      throw browserError(
+        isDraft
+          ? BROWSER_ERROR_CODES.DRAFT_CANDIDATE_MULTIPLE
+          : BROWSER_ERROR_CODES.PUBLISHED_CANDIDATE_MULTIPLE,
+        isDraft ? "找到多个同名草稿，已停止操作。" : "找到多个同名已发表文章，已停止操作。",
+      );
     }
 
     const rawHref = await links[0].getAttribute("href");
     if (!rawHref) {
-      throw new Error(isDraft ? "同名草稿缺少可验证链接。" : "同名已发表文章缺少可验证链接。");
+      throw browserError(
+        BROWSER_ERROR_CODES.CANDIDATE_LINK_MISSING,
+        isDraft ? "同名草稿缺少可验证链接。" : "同名已发表文章缺少可验证链接。",
+      );
     }
     const href = new URL(rawHref, this.page.url()).href;
     if (metadataConflicts(post, href)) {
-      throw new Error(isDraft
-        ? "草稿元数据与目标文章冲突，已停止操作。"
-        : "已发表文章元数据与目标文章冲突，已停止操作。");
+      throw browserError(
+        BROWSER_ERROR_CODES.CANDIDATE_IDENTITY_CONFLICT,
+        isDraft
+          ? "草稿元数据与目标文章冲突，已停止操作。"
+          : "已发表文章元数据与目标文章冲突，已停止操作。",
+      );
     }
     return { kind: "exact", title: post.title, href };
   }
@@ -196,7 +263,10 @@ class WechatBrowserAdapter {
   async openCandidate(candidate, type) {
     await assertNoGlobalBlocker(this.page);
     if (!candidate || candidate.kind !== "exact" || !candidate.title || !candidate.href) {
-      throw new Error("拒绝打开未经精确验证的微信文章候选项。");
+      throw browserError(
+        BROWSER_ERROR_CODES.CANDIDATE_INPUT_INVALID,
+        "拒绝打开未经精确验证的微信文章候选项。",
+      );
     }
     const titleLinks = await visibleLocators(
       this.page.getByRole("link", { name: candidate.title, exact: true }),
@@ -207,9 +277,12 @@ class WechatBrowserAdapter {
       if (rawHref && new URL(rawHref, this.page.url()).href === candidate.href) matching.push(link);
     }
     if (matching.length !== 1) {
-      throw new Error(type === "draft"
-        ? "无法唯一定位已验证草稿，未打开。"
-        : "无法唯一定位已验证发表记录，未打开。");
+      throw browserError(
+        BROWSER_ERROR_CODES.CANDIDATE_OPEN_MISMATCH,
+        type === "draft"
+          ? "无法唯一定位已验证草稿，未打开。"
+          : "无法唯一定位已验证发表记录，未打开。",
+      );
     }
     await assertNoGlobalBlocker(this.page);
     await matching[0].click();
@@ -254,9 +327,12 @@ class WechatBrowserAdapter {
       if (await this.containerMatchesPost(container, post)) matching.push(container);
     }
     if (matching.length !== 1) {
-      throw new Error(type === "draft"
-        ? "无法唯一验证当前草稿的标题与身份，未发表。"
-        : "无法唯一验证当前发表记录的标题与身份，未撤回。");
+      throw browserError(
+        BROWSER_ERROR_CODES.CURRENT_CONTAINER_MISMATCH,
+        type === "draft"
+          ? "无法唯一验证当前草稿的标题与身份，未发表。"
+          : "无法唯一验证当前发表记录的标题与身份，未撤回。",
+      );
     }
     return matching[0];
   }
@@ -284,7 +360,7 @@ class WechatBrowserAdapter {
     const actualText = (await dialog.innerText()).replace(/\s+/g, " ").trim();
     const expectedText = `${prompt} ${expected} 取消`;
     if (!exactButtons || unexpectedControls.length > 0 || actualText !== expectedText) {
-      throw new Error(errorMessage);
+      throw browserError(BROWSER_ERROR_CODES.CONFIRMATION_CHANGED, errorMessage);
     }
 
     await assertNoGlobalBlocker(this.page);
@@ -297,6 +373,7 @@ class WechatBrowserAdapter {
     const publish = await oneVisible(
       container.getByRole("button", { name: LABELS.publish, exact: true }),
       {
+        code: BROWSER_ERROR_CODES.PUBLISH_CONTROL_CHANGED,
         zero: "未找到唯一的发表按钮，未发表。",
         multiple: "找到多个发表按钮，未发表。",
       },
@@ -306,6 +383,7 @@ class WechatBrowserAdapter {
     await assertNoGlobalBlocker(this.page);
 
     const dialog = await oneVisible(this.page.getByRole("dialog"), {
+      code: BROWSER_ERROR_CODES.CONFIRMATION_CHANGED,
       zero: "未出现预期的发布确认对话框，未确认发表。",
       multiple: "出现多个发布确认对话框，未确认发表。",
     });
@@ -333,13 +411,24 @@ class WechatBrowserAdapter {
         actions.push({ label, locator });
       }
     }
-    if (actions.length === 0) throw new Error("未找到唯一的撤回控件，未撤回。");
-    if (actions.length > 1) throw new Error("找到多个撤回控件，未撤回。");
+    if (actions.length === 0) {
+      throw browserError(
+        BROWSER_ERROR_CODES.WITHDRAW_CONTROL_CHANGED,
+        "未找到唯一的撤回控件，未撤回。",
+      );
+    }
+    if (actions.length > 1) {
+      throw browserError(
+        BROWSER_ERROR_CODES.WITHDRAW_CONTROL_CHANGED,
+        "找到多个撤回控件，未撤回。",
+      );
+    }
 
     await assertNoGlobalBlocker(this.page);
     await actions[0].locator.click();
     await assertNoGlobalBlocker(this.page);
     const dialog = await oneVisible(this.page.getByRole("dialog"), {
+      code: BROWSER_ERROR_CODES.CONFIRMATION_CHANGED,
       zero: "未出现预期的撤回确认对话框，未确认撤回。",
       multiple: "出现多个撤回确认对话框，未确认撤回。",
     });
@@ -359,16 +448,24 @@ class WechatBrowserAdapter {
       this.page.getByRole("link", { name: post.title, exact: true }),
     );
     if (matches.length > 0) {
-      throw new Error(matches.length === 1
-        ? "同名文章仍在发表记录中，撤回尚未验证。"
-        : "发表记录中存在多个同名文章，撤回状态不明确。");
+      throw browserError(
+        matches.length === 1
+          ? BROWSER_ERROR_CODES.WITHDRAWAL_STILL_PRESENT
+          : BROWSER_ERROR_CODES.WITHDRAWAL_AMBIGUOUS,
+        matches.length === 1
+          ? "同名文章仍在发表记录中，撤回尚未验证。"
+          : "发表记录中存在多个同名文章，撤回状态不明确。",
+      );
     }
     return { withdrawn: true };
   }
 }
 
 module.exports = {
+  BROWSER_ERROR_CODES,
   LABELS,
+  RECORD_LOCAL_BROWSER_ERROR_CODES,
   WechatBrowserAdapter,
+  browserError,
   detectGlobalBlocker,
 };
