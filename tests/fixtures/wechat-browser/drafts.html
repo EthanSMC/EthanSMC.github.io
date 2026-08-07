@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>草稿箱</title></head>
+<body>
+  <nav aria-label="内容管理">
+    <a href="/drafts.html" aria-current="page">草稿箱</a>
+    <a href="/published.html">发表记录</a>
+  </nav>
+  <main>
+    <h1>草稿箱</h1>
+    <section aria-label="草稿列表">
+      <article><a href="/drafts.html?content_source_url=https%3A%2F%2Fethansmc.com%2Fposts%2Fdraft%2F&amp;appmsgid=wx-draft-1#editor">唯一草稿</a></article>
+      <article><a href="/drafts.html?content_source_url=https%3A%2F%2Fethansmc.com%2Fposts%2Fduplicate%2F&amp;appmsgid=wx-duplicate-1">重复草稿</a></article>
+      <article><a href="/drafts.html?content_source_url=https%3A%2F%2Fethansmc.com%2Fposts%2Fduplicate%2F&amp;appmsgid=wx-duplicate-2">重复草稿</a></article>
+      <article><a href="/drafts.html?content_source_url=https%3A%2F%2Fother.example%2Fwrong&amp;appmsgid=wx-wrong">来源冲突草稿</a></article>
+      <article><a href="/drafts.html?content_source_url=https%3A%2F%2Fethansmc.com%2Fposts%2Fsource-alias%2F&amp;content_source_url=https%3A%2F%2Fevil.example%2Fwrong&amp;source_url=https%3A%2F%2Fethansmc.com%2Fposts%2Fsource-alias%2F&amp;appmsgid=wx-source-alias">来源别名冲突草稿</a></article>
+      <article><a href="/drafts.html?content_source_url=https%3A%2F%2Fethansmc.com%2Fposts%2Fplatform-alias%2F&amp;appmsgid=wx-platform-alias&amp;appmsgid=wx-evil&amp;article_id=wx-platform-alias">平台别名冲突草稿</a></article>
+    </section>
+    <section aria-label="草稿编辑器" data-decoy-container="draft">
+      <h2>唯一草稿</h2>
+      <label>原文链接 <input value="https://evil.example/wrong"></label>
+      <label>平台文章 ID <input value="wx-evil"></label>
+      <button type="button" data-action="decoy-publish">发表</button>
+      <output data-click-count="decoy-publish">0</output>
+    </section>
+    <section id="editor" aria-label="草稿编辑器" data-verified-container="draft">
+      <h2>唯一草稿</h2>
+      <label>原文链接 <input value="https://ethansmc.com/posts/draft/"></label>
+      <label>平台文章 ID <input value="wx-draft-1"></label>
+      <button type="button" data-action="publish">发表</button>
+      <output data-click-count="publish">0</output>
+      <output data-click-count="confirm-publish">0</output>
+      <output data-click-count="secondary-publish">0</output>
+    </section>
+    <p data-verification-message hidden>请完成账号验证</p>
+    <dialog data-dialog="publish">
+      <p data-confirmation-prompt="publish">确认发表这篇文章吗？</p>
+      <button type="button" data-confirm="publish">发表</button>
+      <button type="button" data-cancel="publish">取消</button>
+      <div data-extra-confirmation hidden>
+        <label><input type="checkbox"> 同时群发</label>
+        <label><input type="radio" name="audience"> 仅部分用户</label>
+        <label>备注 <input type="text"></label>
+        <label>分组 <select><option>全部</option></select></label>
+        <a href="https://example.com/details">了解详情</a>
+        <button type="button" data-secondary="publish">稍后处理</button>
+      </div>
+    </dialog>
+    <section role="dialog" aria-label="其他确认" data-dialog="unrelated" hidden>
+      <p>确认其他操作吗？</p>
+      <button type="button">发表</button>
+      <button type="button">取消</button>
+      <output data-click-count="unrelated-confirm">0</output>
+    </section>
+  </main>
+  <script>
+    const publishCount = document.querySelector('[data-click-count="publish"]');
+    const confirmCount = document.querySelector('[data-click-count="confirm-publish"]');
+    const dialog = document.querySelector('[data-dialog="publish"]');
+    const query = new URLSearchParams(location.search);
+    document.querySelector('[data-action="publish"]').addEventListener('click', () => {
+      publishCount.textContent = String(Number(publishCount.textContent) + 1);
+      if (query.get('extra') === '1') document.querySelector('[data-extra-confirmation]').hidden = false;
+      if (query.get('unrelated') === '1') document.querySelector('[data-dialog="unrelated"]').hidden = false;
+      dialog.showModal();
+    });
+    document.querySelector('[data-confirm="publish"]').addEventListener('click', () => {
+      confirmCount.textContent = String(Number(confirmCount.textContent) + 1);
+      dialog.close();
+    });
+    document.querySelector('[data-action="decoy-publish"]').addEventListener('click', () => {
+      const output = document.querySelector('[data-click-count="decoy-publish"]');
+      output.textContent = String(Number(output.textContent) + 1);
+    });
+    document.querySelector('[data-secondary="publish"]').addEventListener('click', () => {
+      const output = document.querySelector('[data-click-count="secondary-publish"]');
+      output.textContent = String(Number(output.textContent) + 1);
+    });
+    document.querySelector('[data-cancel="publish"]').addEventListener('click', () => dialog.close());
+  </script>
+</body>
+</html>
