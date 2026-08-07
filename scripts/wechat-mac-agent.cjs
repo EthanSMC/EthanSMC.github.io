@@ -4,12 +4,18 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { loadEnvFile } = require("./wechat/env.cjs");
+const { loadEnvFile, parseEnv } = require("./wechat/env.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const LABEL = "com.ethansmc.wechat-draft-sync";
 const DEFAULT_INTERVAL_SECONDS = 300;
 const LOCK_INITIALIZATION_GRACE_MS = 5_000;
+const PRIVATE_ENVIRONMENT_DEFAULTS = Object.freeze([
+  "WECHAT_AUTO_PUBLISH=0",
+  "WECHAT_AUTO_WITHDRAW=0",
+  "WECHAT_BROWSER_CHANNEL=chrome",
+  "WECHAT_BROWSER_HEADLESS=0",
+]);
 
 function parseArguments(argv) {
   const options = {
@@ -61,6 +67,8 @@ function agentPaths(env = process.env, home = os.homedir()) {
     checkout: path.resolve(env.WECHAT_AGENT_CHECKOUT || path.join(agentHome, "repo")),
     envFile: path.resolve(env.WECHAT_ENV_FILE || path.join(agentHome, "wechat.env")),
     stateFile: path.resolve(env.WECHAT_SYNC_STATE_FILE || path.join(agentHome, "state.json")),
+    browserProfile: path.join(agentHome, "browser-profile"),
+    diagnosticsDir: path.join(agentHome, "diagnostics"),
     lastRunFile: path.join(agentHome, "last-run.json"),
     lockDir: path.join(agentHome, "run.lock"),
     logDir: path.join(home, "Library", "Logs", "EthanSMC"),
@@ -110,7 +118,15 @@ function repositoryUrl(options) {
 }
 
 function environmentTemplate({ repoUrl, branch, stateFile }) {
-  return `# 微信公众号 API 凭据；只保存在这台 Mac，不提交到 Git。\nWECHAT_APP_ID=\nWECHAT_APP_SECRET=\n\n# 后台同步来源。\nWECHAT_REPO_URL=${repoUrl}\nWECHAT_SYNC_BRANCH=${branch}\nWECHAT_SYNC_REMOTE=origin\nWECHAT_SYNC_STATE_FILE=${stateFile}\n\nSITE_URL=https://ethansmc-personal-page.vercel.app\nWECHAT_AUTHOR=申名翀 Ethan\n\n# 默认取文章第一张本地图片作为封面；需要固定封面时取消下一行注释。\n# WECHAT_DEFAULT_COVER=assets/share-card-writing.png\n`;
+  return `# 微信公众号 API 凭据；只保存在这台 Mac，不提交到 Git。\nWECHAT_APP_ID=\nWECHAT_APP_SECRET=\n\n# 后台同步来源。\nWECHAT_REPO_URL=${repoUrl}\nWECHAT_SYNC_BRANCH=${branch}\nWECHAT_SYNC_REMOTE=origin\nWECHAT_SYNC_STATE_FILE=${stateFile}\n\nSITE_URL=https://ethansmc-personal-page.vercel.app\nWECHAT_AUTHOR=申名翀 Ethan\n\n# 浏览器生命周期默认关闭；完成单独验收后再逐项改为 1。\n${PRIVATE_ENVIRONMENT_DEFAULTS.join("\n")}\n\n# 默认取文章第一张本地图片作为封面；需要固定封面时取消下一行注释。\n# WECHAT_DEFAULT_COVER=assets/share-card-writing.png\n`;
+}
+
+function missingEnvironmentLines(source) {
+  const configured = parseEnv(source);
+  return PRIVATE_ENVIRONMENT_DEFAULTS.filter((line) => {
+    const key = line.slice(0, line.indexOf("="));
+    return !Object.hasOwn(configured, key);
+  });
 }
 
 function xmlEscape(value) {
@@ -252,10 +268,18 @@ function releaseLock(paths) {
   fs.rmSync(paths.lockDir, { recursive: true, force: true });
 }
 
-function runAgent({ logger = console.log, dryRun = false, force = false } = {}) {
-  let paths = agentPaths();
+function runAgent({
+  logger = console.log,
+  dryRun = false,
+  force = false,
+  paths: providedPaths = null,
+  bunPath: providedBunPath = null,
+  commandRunner = command,
+  updateCheckoutRunner = updateCheckout,
+} = {}) {
+  let paths = providedPaths || agentPaths();
   loadEnvFile(ROOT, paths.envFile);
-  paths = agentPaths();
+  if (!providedPaths) paths = agentPaths();
   fs.mkdirSync(paths.agentHome, { recursive: true, mode: 0o700 });
   if (!fs.existsSync(path.join(paths.checkout, ".git"))) {
     throw new Error(`后台专用仓库不存在，请先运行 install：${paths.checkout}`);
@@ -264,25 +288,32 @@ function runAgent({ logger = console.log, dryRun = false, force = false } = {}) 
 
   const startedAt = new Date().toISOString();
   try {
-    const bunPath = process.env.WECHAT_BUN_PATH || findExecutable("bun", [
+    const bunPath = providedBunPath || process.env.WECHAT_BUN_PATH || findExecutable("bun", [
       "/opt/homebrew/bin/bun",
       "/usr/local/bin/bun",
     ]);
     if (!bunPath) throw new Error("未找到 Bun；请先通过 Homebrew 安装 bun");
     const branch = process.env.WECHAT_SYNC_BRANCH || "main";
     const remote = process.env.WECHAT_SYNC_REMOTE || "origin";
-    const { after } = updateCheckout({ checkout: paths.checkout, remote, branch, bunPath, logger });
+    const { after } = updateCheckoutRunner({ checkout: paths.checkout, remote, branch, bunPath, logger });
     const syncScript = path.join(paths.checkout, "scripts", "wechat-sync.cjs");
-    const syncEnv = {
+    const childEnv = {
       ...process.env,
       WECHAT_ENV_FILE: paths.envFile,
       WECHAT_SYNC_STATE_FILE: paths.stateFile,
+      WECHAT_AGENT_HOME: paths.agentHome,
     };
     logger("检查微信公众号草稿…");
     const syncArguments = [syncScript, "--automatic"];
     if (dryRun) syncArguments.push("--dry-run");
     if (force) syncArguments.push("--force");
-    command(bunPath, syncArguments, { cwd: paths.checkout, env: syncEnv, logger });
+    commandRunner(bunPath, syncArguments, { cwd: paths.checkout, env: childEnv, logger });
+
+    logger("检查微信公众号发布生命周期…");
+    const publisherScript = path.join(paths.checkout, "scripts", "wechat-publish.cjs");
+    const publisherArguments = [publisherScript, "run", "--automatic"];
+    if (dryRun) publisherArguments.push("--dry-run");
+    commandRunner(bunPath, publisherArguments, { cwd: paths.checkout, env: childEnv, logger });
     const result = {
       status: "success",
       mode: dryRun ? "dry-run" : force ? "force" : "automatic",
@@ -387,16 +418,27 @@ function uninstallAgent({ logger = console.log } = {}) {
   return paths;
 }
 
-function statusAgent({ logger = console.log } = {}) {
-  let paths = agentPaths();
+function statusAgent({
+  logger = console.log,
+  paths: providedPaths = null,
+  commandRunner = command,
+} = {}) {
+  let paths = providedPaths || agentPaths();
   loadEnvFile(ROOT, paths.envFile);
-  paths = agentPaths();
-  const service = command("/bin/launchctl", ["print", `${launchctlDomain()}/${LABEL}`], {
+  if (!providedPaths) paths = agentPaths();
+  const service = commandRunner("/bin/launchctl", ["print", `${launchctlDomain()}/${LABEL}`], {
     allowFailure: true,
   });
   logger(`LaunchAgent：${service.status === 0 ? "已加载" : "未加载"}`);
   logger(`后台仓库：${fs.existsSync(path.join(paths.checkout, ".git")) ? paths.checkout : "未创建"}`);
   logger(`私密配置：${fs.existsSync(paths.envFile) ? paths.envFile : "未创建"}`);
+  if (fs.existsSync(paths.envFile)) {
+    const missing = missingEnvironmentLines(fs.readFileSync(paths.envFile, "utf8"));
+    if (missing.length > 0) {
+      logger("私密配置缺少以下设置；请复制到私密配置文件末尾：");
+      for (const line of missing) logger(line);
+    }
+  }
   if (fs.existsSync(paths.lastRunFile)) {
     try {
       const lastRun = JSON.parse(fs.readFileSync(paths.lastRunFile, "utf8"));
@@ -440,8 +482,10 @@ module.exports = {
   createPlist,
   dependenciesChanged,
   environmentTemplate,
+  missingEnvironmentLines,
   parseArguments,
   runAgent,
+  statusAgent,
   updateCheckout,
   usage,
   xmlEscape,

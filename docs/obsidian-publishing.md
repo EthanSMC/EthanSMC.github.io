@@ -1,25 +1,24 @@
-# Obsidian Writing 发布说明
+# Obsidian Writing 发布与撤回说明
 
-你只负责写作和移动文件。标题、日期、摘要、类型、Tag、阅读时间、URL、RSS 和网页均由构建自动生成。
+你只负责写作和移动文件。标题、日期、摘要、类型、Tag、阅读时间、URL、RSS、网页和公众号草稿均由后续流程生成。
 
-## 1. 一次性初始化
+## 1. 每台设备都要初始化
 
-在终端运行：
+在每一台会写作、发布或撤回文章的设备上，进入该设备的仓库根目录并运行：
 
 ```bash
-cd /Users/ethancc/Documents/Personal_Page
 ./scripts/setup-obsidian-git.sh
 ```
 
-脚本会复用现有 `Obsidian_vault` 中已经安装的 Obsidian Git，并在新 vault 内写入下述 Git 与文件设置。配置保存在被忽略的 `content/.obsidian/`，不会上传到公开仓库。
+首次克隆要运行；以后拉到新版脚本或 Git hook 后也要重新运行。脚本会设置当前仓库的 `core.hooksPath`，复用并配置 Obsidian Git，然后提示应该打开的 vault。只同步仓库文件不会自动启用更新后的 hook。
 
-然后在 Obsidian 中选择“打开本地仓库”，打开：
+在 Obsidian 中选择“打开本地仓库”，只打开：
 
 ```text
 /Users/ethancc/Documents/Personal_Page/content
 ```
 
-不要打开整个 `Personal_Page`；`content/` 才是写作仓库。
+不要打开整个 `Personal_Page`。`content/` 才是写作 vault。
 
 ## 2. Obsidian 设置
 
@@ -28,28 +27,13 @@ cd /Users/ethancc/Documents/Personal_Page
 - 新建笔记的存放位置：指定文件夹中的 `drafts`。
 - 新附件的默认位置：指定文件夹中的 `assets`。
 - 新链接格式：基于当前笔记的相对路径。
-- 关闭“使用 [[Wikilinks]]”。公开内容使用标准 Markdown 链接和图片。
+- 关闭“使用 [[Wikilinks]]”，使用标准 Markdown 链接和图片。
 
-不需要启用“唯一笔记创建器”，也不需要按时间戳给文章命名。直接使用 Obsidian 的普通“新建笔记”，文件名写成你自己看得懂的标题即可。
+Obsidian Git 应保持：启动时拉取、每 2 分钟自动 commit-and-sync、停止编辑后自动同步、提交前拉取、提交后推送、显示状态与错误通知。自动提交消息是 `blog: sync {{date}}`。
 
-## 3. Obsidian Git 设置
+## 3. 写作与发布
 
-初始化脚本会自动复制、启用并配置社区插件 **Git**（Vinzent03）。可以在设置页核对：
-
-- Auto pull on startup：开启。
-- Auto commit-and-sync interval：`2` 分钟。
-- Auto commit-and-sync after stopping file edits：开启。
-- Pull on commit-and-sync：开启。
-- Push on commit-and-sync：开启。
-- Auto commit only staged files：关闭。
-- Auto commit message：`blog: sync {{date}}`。
-- 状态与错误通知：保持开启。
-
-“停止编辑后同步”和固定间隔共用同一个 interval。这里不是把 interval 设为 0，而是设为 2 分钟并开启停止编辑模式。
-
-## 4. 写作和发布
-
-新建的草稿类似：
+普通文章可以这样写：
 
 ```markdown
 # 当执行越来越便宜，判断力还剩下什么？
@@ -67,43 +51,120 @@ cd /Users/ethancc/Documents/Personal_Page
 #产品 #工作
 ```
 
-完成后只需要把 Markdown 从 `drafts/` 移到 `published/`。停止编辑两分钟后，Git 保护脚本会自动把文件名转换为内部时间戳 ID，再继续发布：
+完成后，把 Markdown 从 `drafts/` 移到 `published/`。Git hook 会把普通文件名转换为内部时间戳 ID，再允许 Obsidian Git 提交：
 
 ```text
-自动分配时间戳 → Obsidian Git 提交 → 拉取 → 推送 → Vercel 构建 → Writing 更新
+移动到 published/
+  → 分配时间戳 ID
+  → Obsidian Git 提交、拉取、推送
+  → Vercel / GitHub Pages 更新网站
+  → Mac Agent 同步公众号草稿
+  → 已授权时精确发布到公众号
 ```
 
-配置 Mac 后台 Agent 后，同一次 GitHub Push 还会进入：
+类型会自动判断：包含二级标题或正文超过 600 个可见字符的是 Essay，否则是 Note。需要覆盖时可以添加 `#essay` 或 `#note`，但不能同时添加。
+
+## 4. 私密草稿与精确撤回
+
+`content/drafts/` 被 Git 忽略。草稿正文、标题、Tag、附件和本机路径都不会推送到公开仓库；请使用 Time Machine 或其他私有备份保护它们。
+
+要从网站和微信一起撤回，必须在装有当前 Git hook 的设备上，把时间戳文件原样从：
 
 ```text
-GitHub main → Mac Agent 定期检查 → 独立副本拉取 → 转换公众号格式 → 新增或更新公众号草稿
+content/published/POST_ID.md
 ```
 
-从任何设备写作都遵循同一流程。Mac 在线时通常在 5 分钟内同步；离线时 GitHub 保留最新内容，Mac 下次上线后自动补同步。公众号当前只自动进入草稿箱，仍需在微信后台人工检查和发布；从网站撤稿也不会自动删除已发布的微信文章。详细设置参见 [微信公众号草稿自动同步](wechat-draft-sync.md)。
+移动到：
 
-类型会自动判断：包含二级标题或正文超过 600 个可见字符的是 Essay，否则是 Note。需要覆盖判断时，可二选一添加 `#essay` 或 `#note`；它们不会显示成公开 Tag，同时出现会阻止发布并提示修正。
+```text
+content/drafts/POST_ID.md
+```
 
-## 5. Git 保护的实际边界
+不要改名，也不要复制出第二份。Obsidian Git 提交时会把网站文件删除，并生成只含 `postId` 和 UTC `requestedAt` 的公开撤回标记；私密正文仍留在本机。
 
-自动提交时，仓库 hook 只允许：
+这几个边界必须区分：
 
-- `content/published/` 中的 Markdown；普通文件名会在提交前自动转换为时间戳 ID。
-- 这些已发布 Markdown 实际引用的 `content/assets/` 附件。
+- 只有“同 ID 的 published 删除 + 本机 drafts 文件存在”这一精确移动会授权微信撤回。
+- 直接删除 `published/` 文件、换分支或后台副本暂时缺少文件都没有撤回授权，只让网站下线。
+- 尚未发表的文章移回草稿时，系统取消后续发表，但保留已经创建的微信草稿。
+- 已经发表的文章移回草稿时，如果自动撤回已通过验收并开启，Mac Agent 会精确匹配后撤回，不再逐篇弹出确认请求。
+- 页面身份或点击结果不确定时，Agent 会停止在待核对状态，不会重复点击。操作员必须查看微信并使用 `publisher:resolve`。
+- 任何已知发表过的文章都不会自动再次发表。撤回后重新移到 `published/` 只恢复网站。
 
-Obsidian Git 本身会先暂存整个仓库。发布保护会在提交前自动移除网站代码，只把 `published/` 和被正文引用的附件放进本次提交；网站代码仍留在工作区，不会被推送。若只有网站代码、没有可发布内容，自动提交会停止。
+如果同一个时间戳 ID 同时存在于 `published/` 和 `drafts/`，提交会被拒绝，直到只保留符合真实意图的一份。
 
-在 Codex 或编辑器中开发网站时，不要依赖暂存区长期保存选中的文件：Obsidian 的自动同步会重新暂存仓库，保护脚本随后会把网站代码取消暂存。工作内容不会丢失，但原有暂存选择不会保留。
+## 5. 公众号发布器首次设置
 
-这层保护针对“自动提交和推送”，不能拦截 Obsidian Git 中人工触发的 **Discard all changes / 丢弃全部更改**。不要在 Obsidian 中使用丢弃全部更改、重置仓库或删除仓库等命令；它们可能作用于整个 `Personal_Page` 仓库。
+Mac Agent 的安装、私密配置和受控验收详见 [微信公众号草稿与浏览器生命周期](wechat-draft-sync.md)。在用于操作发布器的终端中先设置：
 
-草稿与未引用附件被 Git 忽略，因此不会出现在公开 GitHub，也没有 Git 备份。使用 Time Machine 或其他私有备份保护它们。
+```bash
+export WECHAT_ENV_FILE="$HOME/Library/Application Support/EthanSMC/WeChat Draft Sync/wechat.env"
+```
 
-## 6. 常见错误
+确认 Agent 已成功产生外部状态文件后，严格按以下顺序执行：
 
-- `automatic sync found no publishable content`：只有网站代码变化，没有新文章；代码仍在本地，无需处理。
-- `published filename must use YYYY-MM-DD-HHmmss.md`：通常不会再出现；若出现，表示自动命名脚本未能完成，请保留原文件并检查 Obsidian Git 通知。
-- `missing published attachment`：文章引用的本地图片被移动或删除；修正链接或恢复图片。
-- Push 失败：先确认普通终端中的 `git push` 可用，再检查 Obsidian Git 的认证提示。
-- Vercel 构建失败：到 Vercel Deployment 查看构建日志；失败构建不会生成新的 Writing 页面。
+```bash
+pnpm install
+pnpm wechat:publisher:login
+pnpm wechat:publisher:arm
+pnpm wechat:publisher:status
+pnpm wechat:publisher:run -- --dry-run
+```
 
-正式网站以 Vercel 为准。`ethansmc.github.io` 由 GitHub Actions 构建同一份静态网站，作为可直接访问的镜像；本地预览始终使用 <http://localhost:4173/>，不要直接双击 `index.html` 作为正式预览。
+安装与建立基线不会开启自动操作。私密配置中的初始值必须保持：
+
+```text
+WECHAT_AUTO_PUBLISH=0
+WECHAT_AUTO_WITHDRAW=0
+WECHAT_BROWSER_CHANNEL=chrome
+WECHAT_BROWSER_HEADLESS=0
+```
+
+发布和撤回需要分别完成受控验收后再单独改为 `1`。Mac Agent 使用的 `--automatic` 只是无人值守调用标记，不会改变这些开关，也不会形成另一套运行模式。
+
+## 6. 不确定状态怎么处理
+
+先查看状态：
+
+```bash
+pnpm wechat:publisher:status
+```
+
+若显示发表结果待核对，人工打开微信确认后执行其中一个：
+
+```bash
+pnpm wechat:publisher:resolve POST_ID -- --published https://mp.weixin.qq.com/s/...
+pnpm wechat:publisher:resolve POST_ID -- --not-published
+```
+
+若显示撤回结果待核对，人工确认公开文章是否仍存在后执行其中一个：
+
+```bash
+pnpm wechat:publisher:resolve POST_ID -- --withdrawn
+pnpm wechat:publisher:resolve POST_ID -- --still-published
+```
+
+不要通过删除 `state.json`、重复移动文件或运行 `--force` 来解除待核对状态。`--force` 只重建尚未发表的 API 草稿，不授权任何浏览器操作。
+
+## 7. Git 保护边界
+
+自动提交只允许：
+
+- `content/published/` 中的 Markdown；普通文件名会先转换为时间戳 ID。
+- 被这些 Markdown 实际引用的 `content/assets/` 附件。
+- 当前精确移动生成的无正文撤回标记。
+
+Obsidian Git 会先暂存整个仓库，保护脚本再移除网站代码，只提交允许的内容。网站开发改动仍留在工作区，但原有暂存选择可能被自动同步重排。
+
+保护脚本不能拦截 Obsidian 中人工触发的 **Discard all changes / 丢弃全部更改**、重置或删除仓库。不要使用这些命令；它们可能作用于整个 `Personal_Page`。
+
+## 8. 常见错误
+
+- `automatic sync found no publishable content`：只有网站代码变化，没有新文章；代码仍在本地。
+- `published filename must use YYYY-MM-DD-HHmmss.md`：自动命名没有完成；保留原文件并查看 Obsidian Git 通知。
+- `同一文章不能同时位于 published 和 drafts`：同一时间戳 ID 两处都存在；按真实意图只保留一处。
+- `missing published attachment`：本地图片被移动或删除；修正链接或恢复图片。
+- Push 失败：先确认普通终端中的 `git push` 可用，再检查 Obsidian Git 认证。
+- Publisher 显示待核对：不要继续移动或强制重试，按上一节的 `resolve` 流程处理。
+
+正式网站以 Vercel 为准；`ethansmc.github.io` 是由 GitHub Actions 构建的镜像。本地预览使用 <http://localhost:4173/>。
