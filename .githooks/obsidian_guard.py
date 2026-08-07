@@ -3,7 +3,8 @@
 
 from pathlib import Path
 from urllib.parse import unquote
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import json
 import re
 import subprocess
 import sys
@@ -39,9 +40,24 @@ def reject(errors: list[str]) -> None:
 
 root = Path(git("rev-parse", "--show-toplevel").stdout.strip()).resolve()
 published_root = (root / "content" / "published").resolve()
+drafts_root = (root / "content" / "drafts").resolve()
 assets_root = (root / "content" / "assets").resolve()
+withdrawals_root = (root / "content" / ".lifecycle" / "withdrawals").resolve()
 referenced_assets: set[str] = set()
 errors: list[str] = []
+
+published_ids = {
+    path.stem
+    for path in published_root.glob("*.md")
+    if TIMESTAMP_NAME.fullmatch(path.name)
+}
+draft_ids = {
+    path.stem
+    for path in drafts_root.glob("*.md")
+    if TIMESTAMP_NAME.fullmatch(path.name)
+}
+if published_ids & draft_ids:
+    reject(["同一文章不能同时位于 published 和 drafts"])
 
 
 def normalize_published_filenames() -> None:
@@ -119,19 +135,6 @@ if referenced_assets:
         check=True,
     )
 
-staged_raw = git(
-    "diff",
-    "--cached",
-    "--name-only",
-    "-z",
-    "--diff-filter=ACDMRTUXB",
-    text=False,
-).stdout
-staged_paths = [
-    value.decode("utf-8", errors="surrogateescape")
-    for value in staged_raw.split(b"\0")
-    if value
-]
 deleted_raw = git(
     "diff",
     "--cached",
@@ -146,9 +149,56 @@ deleted_paths = {
     if value
 }
 
+generated_withdrawal_markers: set[str] = set()
+for deleted_path in sorted(deleted_paths):
+    candidate = Path(deleted_path)
+    if (
+        candidate.parent != Path("content/published")
+        or not TIMESTAMP_NAME.fullmatch(candidate.name)
+    ):
+        continue
+    draft_path = drafts_root / candidate.name
+    if not draft_path.is_file():
+        continue
+
+    marker_path = withdrawals_root / f"{candidate.stem}.json"
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    marker = {
+        "postId": candidate.stem,
+        "requestedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    marker_path.write_text(
+        json.dumps(marker, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    marker_relative = marker_path.relative_to(root).as_posix()
+    subprocess.run(
+        ["git", "add", "--", marker_relative],
+        cwd=root,
+        check=True,
+    )
+    generated_withdrawal_markers.add(marker_relative)
+
+staged_raw = git(
+    "diff",
+    "--cached",
+    "--name-only",
+    "-z",
+    "--diff-filter=ACDMRTUXB",
+    text=False,
+).stdout
+staged_paths = [
+    value.decode("utf-8", errors="surrogateescape")
+    for value in staged_raw.split(b"\0")
+    if value
+]
+
 disallowed: list[str] = []
 publishable: list[str] = []
 for staged_path in staged_paths:
+    if staged_path in generated_withdrawal_markers:
+        publishable.append(staged_path)
+        continue
     candidate = Path(staged_path)
     if candidate.parent == Path("content/published") and candidate.suffix == ".md":
         if not TIMESTAMP_NAME.fullmatch(candidate.name):
