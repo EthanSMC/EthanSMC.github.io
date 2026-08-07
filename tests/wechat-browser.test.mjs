@@ -127,6 +127,49 @@ test("sanitizes profile-directory filesystem failures", async () => {
   assert.equal(launched, false);
 });
 
+test("rejects symlink and non-directory browser profile targets before launching Chrome", async () => {
+  for (const targetKind of ["symlink", "file"]) {
+    const agentHome = temporaryDirectory();
+    const profile = path.join(agentHome, "browser-profile");
+    const external = temporaryDirectory("wechat-browser-external-");
+    if (targetKind === "symlink") fs.symlinkSync(external, profile, "dir");
+    else fs.writeFileSync(profile, "not a directory");
+    let launches = 0;
+
+    await assert.rejects(
+      () => launchWechatContext({
+        agentHome,
+        chromium: {
+          launchPersistentContext: async () => { launches += 1; },
+        },
+      }),
+      (error) => error.code === "WECHAT_BROWSER_PROFILE_IO_FAILED",
+      targetKind,
+    );
+    assert.equal(launches, 0, targetKind);
+    assert.deepEqual(fs.readdirSync(external), [], targetKind);
+  }
+});
+
+test("rejects a symlink browser profile parent without writing through it", async () => {
+  const container = temporaryDirectory();
+  const external = temporaryDirectory("wechat-browser-parent-target-");
+  const agentHome = path.join(container, "agent-home-link");
+  fs.symlinkSync(external, agentHome, "dir");
+  let launches = 0;
+
+  await assert.rejects(
+    () => launchWechatContext({
+      agentHome,
+      chromium: { launchPersistentContext: async () => { launches += 1; } },
+    }),
+    (error) => error.code === "WECHAT_BROWSER_PROFILE_IO_FAILED",
+  );
+
+  assert.equal(launches, 0);
+  assert.deepEqual(fs.readdirSync(external), []);
+});
+
 test("retains only three private diagnostic screenshots", async () => {
   const agentHome = temporaryDirectory();
   let timestamp = Date.parse("2026-08-07T08:00:00.000Z");
@@ -203,6 +246,47 @@ test("sanitizes diagnostic directory, Playwright, and screenshot filesystem fail
   );
 });
 
+test("rejects symlink and non-directory diagnostics targets before taking a screenshot", async () => {
+  for (const targetKind of ["symlink", "file"]) {
+    const agentHome = temporaryDirectory();
+    const diagnostics = path.join(agentHome, "diagnostics");
+    const external = temporaryDirectory("wechat-diagnostics-external-");
+    if (targetKind === "symlink") fs.symlinkSync(external, diagnostics, "dir");
+    else fs.writeFileSync(diagnostics, "not a directory");
+    let screenshots = 0;
+
+    await assert.rejects(
+      () => retainDiagnosticScreenshot({
+        agentHome,
+        page: { screenshot: async () => { screenshots += 1; } },
+      }),
+      (error) => error.code === "WECHAT_BROWSER_DIAGNOSTIC_FAILED",
+      targetKind,
+    );
+    assert.equal(screenshots, 0, targetKind);
+    assert.deepEqual(fs.readdirSync(external), [], targetKind);
+  }
+});
+
+test("rejects a symlink diagnostics parent before taking a screenshot", async () => {
+  const container = temporaryDirectory();
+  const external = temporaryDirectory("wechat-diagnostics-parent-target-");
+  const agentHome = path.join(container, "agent-home-link");
+  fs.symlinkSync(external, agentHome, "dir");
+  let screenshots = 0;
+
+  await assert.rejects(
+    () => retainDiagnosticScreenshot({
+      agentHome,
+      page: { screenshot: async () => { screenshots += 1; } },
+    }),
+    (error) => error.code === "WECHAT_BROWSER_DIAGNOSTIC_FAILED",
+  );
+
+  assert.equal(screenshots, 0);
+  assert.deepEqual(fs.readdirSync(external), []);
+});
+
 function executableMissing(error) {
   const message = error instanceof Error ? error.message : String(error);
   return /browserType\.launch:.*(?:executable|distribution)[^\n]*(?:does not exist|not found)/i.test(message)
@@ -252,7 +336,20 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
   const fixtureServer = await startFixtureServer();
   try {
     const page = await browser.newPage();
-    const adapter = new WechatBrowserAdapter(page);
+    let publicArticleResponse = { status: 404 };
+    const requestedPublicUrls = [];
+    const publishedListReadiness = async ({ page: currentPage }) => {
+      const state = currentPage.locator("[data-published-list-state]");
+      if (await state.count() !== 1) return { kind: "unrecognized" };
+      return { kind: await state.getAttribute("data-published-list-state") };
+    };
+    const adapter = new WechatBrowserAdapter(page, {
+      publishedListReadiness,
+      fetchPublicArticle: async (url) => {
+        requestedPublicUrls.push(url);
+        return publicArticleResponse;
+      },
+    });
     const draftPost = {
       title: "唯一草稿",
       sourceUrl: "https://ethansmc.com/posts/draft/",
@@ -419,18 +516,79 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
       assert.deepEqual(await adapter.verifyWithdrawn(publishedPost), { withdrawn: true });
     });
 
-    await t.test("classifies a missing published candidate as trustworthy absence", async () => {
-      await page.goto(`${fixtureServer.baseUrl}/published.html`);
-      await assert.rejects(
-        () => adapter.findPublishedCandidate({
+    await t.test("returns typed absence only for a recognized complete and exhaustive published list", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/published-empty-complete.html`);
+      assert.deepEqual(
+        await adapter.findPublishedCandidate({
           title: "不存在的发表记录",
           sourceUrl: "https://ethansmc.com/posts/missing/",
         }),
-        (error) => {
-          assert.equal(error.code, "WECHAT_PUBLISHED_CANDIDATE_NOT_FOUND");
-          return true;
-        },
+        { kind: "absent" },
       );
+    });
+
+    await t.test("rejects loading, partial, and paginated published lists as global ambiguity", async () => {
+      const cases = [
+        ["published-loading.html", "WECHAT_PUBLISHED_LIST_NOT_READY"],
+        ["published-partial.html", "WECHAT_PUBLISHED_LIST_NOT_EXHAUSTIVE"],
+        ["published-paginated.html", "WECHAT_PUBLISHED_LIST_NOT_EXHAUSTIVE"],
+      ];
+      for (const [fixture, code] of cases) {
+        await page.goto(`${fixtureServer.baseUrl}/${fixture}`);
+        await assert.rejects(
+          () => adapter.findPublishedCandidate({
+            title: "不存在的发表记录",
+            sourceUrl: "https://ethansmc.com/posts/missing/",
+          }),
+          (error) => error.code === code,
+          fixture,
+        );
+      }
+    });
+
+    await t.test("keeps live published-list absence disabled without an accepted readiness contract", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/published-empty-complete.html`);
+      const liveGatedAdapter = new WechatBrowserAdapter(page);
+      await assert.rejects(
+        () => liveGatedAdapter.findPublishedCandidate({
+          title: "不存在的发表记录",
+          sourceUrl: "https://ethansmc.com/posts/missing/",
+        }),
+        (error) => error.code === "WECHAT_PAGE_UNRECOGNIZED",
+      );
+    });
+
+    await t.test("verifies the exact stored public URL is unavailable before accepting withdrawal", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/published-empty-complete.html`);
+      const publishedUrl = "https://mp.weixin.qq.com/s/exact-public-article";
+      publicArticleResponse = { status: 410 };
+      requestedPublicUrls.length = 0;
+
+      assert.deepEqual(
+        await adapter.verifyWithdrawn({ title: "已发表文章", publishedUrl }),
+        { withdrawn: true },
+      );
+      assert.deepEqual(requestedPublicUrls, [publishedUrl]);
+    });
+
+    await t.test("keeps readable or ambiguous public URLs unverified", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/published-empty-complete.html`);
+      const post = {
+        title: "已发表文章",
+        publishedUrl: "https://mp.weixin.qq.com/s/exact-public-article",
+      };
+      for (const [response, code] of [
+        [{ status: 200 }, "WECHAT_WITHDRAWAL_STILL_PRESENT"],
+        [{ status: 503 }, "WECHAT_WITHDRAWAL_AMBIGUOUS"],
+        [{ status: "404" }, "WECHAT_WITHDRAWAL_AMBIGUOUS"],
+      ]) {
+        publicArticleResponse = response;
+        await assert.rejects(
+          () => adapter.verifyWithdrawn(post),
+          (error) => error.code === code,
+          JSON.stringify(response),
+        );
+      }
     });
 
     await t.test("rejects changed and ambiguous withdrawal controls without clicking", async () => {

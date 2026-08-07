@@ -15,8 +15,9 @@ const BROWSER_ERROR_CODES = Object.freeze({
   NAVIGATION_ENTRY_CHANGED: "WECHAT_NAVIGATION_ENTRY_CHANGED",
   DRAFT_CANDIDATE_NOT_FOUND: "WECHAT_DRAFT_CANDIDATE_NOT_FOUND",
   DRAFT_CANDIDATE_MULTIPLE: "WECHAT_DRAFT_CANDIDATE_MULTIPLE",
-  PUBLISHED_CANDIDATE_NOT_FOUND: "WECHAT_PUBLISHED_CANDIDATE_NOT_FOUND",
   PUBLISHED_CANDIDATE_MULTIPLE: "WECHAT_PUBLISHED_CANDIDATE_MULTIPLE",
+  PUBLISHED_LIST_NOT_READY: "WECHAT_PUBLISHED_LIST_NOT_READY",
+  PUBLISHED_LIST_NOT_EXHAUSTIVE: "WECHAT_PUBLISHED_LIST_NOT_EXHAUSTIVE",
   CANDIDATE_LINK_MISSING: "WECHAT_CANDIDATE_LINK_MISSING",
   CANDIDATE_IDENTITY_CONFLICT: "WECHAT_CANDIDATE_IDENTITY_CONFLICT",
   CANDIDATE_INPUT_INVALID: "WECHAT_CANDIDATE_INPUT_INVALID",
@@ -171,8 +172,52 @@ async function oneVisible(locator, messages) {
 }
 
 class WechatBrowserAdapter {
-  constructor(page) {
+  constructor(page, options = {}) {
     this.page = page;
+    this.publishedListReadiness = options.publishedListReadiness || null;
+    this.fetchPublicArticle = options.fetchPublicArticle || (async (url) => {
+      const response = await this.page.request.get(url, {
+        failOnStatusCode: false,
+        maxRedirects: 0,
+        timeout: 15_000,
+      });
+      return { status: response.status() };
+    });
+  }
+
+  async assertPublishedListReady() {
+    if (typeof this.publishedListReadiness !== "function") {
+      throw browserError(
+        BROWSER_ERROR_CODES.PAGE_UNRECOGNIZED,
+        "尚未验收微信发表列表的完整就绪状态，已停止所有操作。",
+      );
+    }
+    let readiness;
+    try {
+      readiness = await this.publishedListReadiness({ page: this.page });
+    } catch {
+      throw browserError(
+        BROWSER_ERROR_CODES.PAGE_UNRECOGNIZED,
+        "无法验证微信发表列表状态，已停止所有操作。",
+      );
+    }
+    if (readiness?.kind === "complete" && Object.keys(readiness).length === 1) return;
+    if (readiness?.kind === "loading") {
+      throw browserError(
+        BROWSER_ERROR_CODES.PUBLISHED_LIST_NOT_READY,
+        "微信发表列表仍在加载，已停止所有操作。",
+      );
+    }
+    if (readiness?.kind === "partial" || readiness?.kind === "paginated") {
+      throw browserError(
+        BROWSER_ERROR_CODES.PUBLISHED_LIST_NOT_EXHAUSTIVE,
+        "微信发表列表不是可穷尽结果，已停止所有操作。",
+      );
+    }
+    throw browserError(
+      BROWSER_ERROR_CODES.PAGE_UNRECOGNIZED,
+      "无法识别微信发表列表的完整就绪状态，已停止所有操作。",
+    );
   }
 
   async checkSession() {
@@ -213,15 +258,15 @@ class WechatBrowserAdapter {
     const isDraft = type === "draft";
     await this.navigateTo(isDraft ? LABELS.drafts : LABELS.published);
     await assertNoGlobalBlocker(this.page);
+    if (!isDraft) await this.assertPublishedListReady();
     const links = await visibleLocators(
       this.page.getByRole("link", { name: post.title, exact: true }),
     );
     if (links.length === 0) {
+      if (!isDraft) return { kind: "absent" };
       throw browserError(
-        isDraft
-          ? BROWSER_ERROR_CODES.DRAFT_CANDIDATE_NOT_FOUND
-          : BROWSER_ERROR_CODES.PUBLISHED_CANDIDATE_NOT_FOUND,
-        isDraft ? "未找到同名草稿。" : "未找到同名已发表文章。",
+        BROWSER_ERROR_CODES.DRAFT_CANDIDATE_NOT_FOUND,
+        "未找到同名草稿。",
       );
     }
     if (links.length > 1) {
@@ -442,20 +487,61 @@ class WechatBrowserAdapter {
   }
 
   async verifyWithdrawn(post) {
-    await this.navigateTo(LABELS.published);
-    await assertNoGlobalBlocker(this.page);
-    const matches = await visibleLocators(
-      this.page.getByRole("link", { name: post.title, exact: true }),
-    );
-    if (matches.length > 0) {
+    const result = await this.findPublishedCandidate(post);
+    if (result.kind !== "absent") {
       throw browserError(
-        matches.length === 1
-          ? BROWSER_ERROR_CODES.WITHDRAWAL_STILL_PRESENT
-          : BROWSER_ERROR_CODES.WITHDRAWAL_AMBIGUOUS,
-        matches.length === 1
-          ? "同名文章仍在发表记录中，撤回尚未验证。"
-          : "发表记录中存在多个同名文章，撤回状态不明确。",
+        BROWSER_ERROR_CODES.WITHDRAWAL_STILL_PRESENT,
+        "文章仍在发表记录中，撤回尚未验证。",
       );
+    }
+    if (post.publishedUrl) {
+      let publicUrl;
+      try {
+        publicUrl = new URL(post.publishedUrl);
+      } catch {
+        throw browserError(
+          BROWSER_ERROR_CODES.WITHDRAWAL_AMBIGUOUS,
+          "已保存的公开文章链接无效，撤回状态不明确。",
+        );
+      }
+      if (
+        publicUrl.protocol !== "https:"
+        || publicUrl.host !== "mp.weixin.qq.com"
+        || publicUrl.username
+        || publicUrl.password
+        || !/^\/s(?:\/.*)?$/.test(publicUrl.pathname)
+      ) {
+        throw browserError(
+          BROWSER_ERROR_CODES.WITHDRAWAL_AMBIGUOUS,
+          "已保存的公开文章链接无效，撤回状态不明确。",
+        );
+      }
+
+      let response;
+      try {
+        response = await this.fetchPublicArticle(publicUrl.href);
+      } catch {
+        throw browserError(
+          BROWSER_ERROR_CODES.WITHDRAWAL_AMBIGUOUS,
+          "公开文章链接响应不明确，撤回尚未验证。",
+        );
+      }
+      if (!response || !Number.isInteger(response.status)) {
+        throw browserError(
+          BROWSER_ERROR_CODES.WITHDRAWAL_AMBIGUOUS,
+          "公开文章链接响应不明确，撤回尚未验证。",
+        );
+      }
+      if (response.status !== 404 && response.status !== 410) {
+        throw browserError(
+          response.status >= 200 && response.status < 300
+            ? BROWSER_ERROR_CODES.WITHDRAWAL_STILL_PRESENT
+            : BROWSER_ERROR_CODES.WITHDRAWAL_AMBIGUOUS,
+          response.status >= 200 && response.status < 300
+            ? "公开文章链接仍可读取，撤回尚未验证。"
+            : "公开文章链接响应不明确，撤回尚未验证。",
+        );
+      }
     }
     return { withdrawn: true };
   }

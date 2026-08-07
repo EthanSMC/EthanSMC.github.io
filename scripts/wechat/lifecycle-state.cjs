@@ -20,6 +20,19 @@ const PUBLICATION_IDENTITY_FIELDS = [
 const PUBLISHED_EVIDENCE_STATUSES = new Set([
   "published", "withdrawing", "withdraw_reconcile", "withdrawn",
 ]);
+const POST_ID_PATTERN = /^\d{4}-\d{2}-\d{2}-\d{6}$/;
+
+function isCanonicalUtcTimestamp(value) {
+  if (typeof value !== "string" || !value.endsWith("Z")) return false;
+  const milliseconds = Date.parse(value);
+  return Number.isFinite(milliseconds) && new Date(milliseconds).toISOString() === value;
+}
+
+function hasValidBaselineSnapshot(publisher) {
+  if (publisher?.baselineCaptured !== true || !Array.isArray(publisher.baselinePostIds)) return false;
+  if (!publisher.baselinePostIds.every((postId) => POST_ID_PATTERN.test(postId))) return false;
+  return new Set(publisher.baselinePostIds).size === publisher.baselinePostIds.length;
+}
 
 function emptyPublication(status = "manual") {
   if (!STATUSES.has(status)) throw new Error(`未知公众号生命周期状态：${status}`);
@@ -55,13 +68,21 @@ function copyPublication(value, fallbackStatus = "manual") {
 
 function hasValidPublisherArming(state) {
   const armedAt = state.publisher?.armedAt;
-  return typeof armedAt === "string" && Number.isFinite(Date.parse(armedAt));
+  return isCanonicalUtcTimestamp(armedAt) && hasValidBaselineSnapshot(state.publisher);
 }
 
 function armPublisher(state, postIds, now) {
   if (hasValidPublisherArming(state)) return state;
+  if (!isCanonicalUtcTimestamp(now) || !Array.isArray(postIds)) {
+    throw new Error("公众号自动发布基线输入无效。");
+  }
+  const baselinePostIds = [...new Set(postIds)];
+  if (!baselinePostIds.every((postId) => POST_ID_PATTERN.test(postId))) {
+    throw new Error("公众号自动发布基线文章 ID 无效。");
+  }
   state.publisher.armedAt = now;
-  state.publisher.baselinePostIds = [...new Set(postIds)];
+  state.publisher.baselineCaptured = true;
+  state.publisher.baselinePostIds = baselinePostIds;
   return state;
 }
 
@@ -144,6 +165,7 @@ module.exports = {
   armPublisher,
   emptyPublication,
   hasValidPublisherArming,
+  isCanonicalUtcTimestamp,
   publicationForNewPost,
   recoverInterruptedOperations,
   transitionPublication,

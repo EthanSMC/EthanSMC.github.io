@@ -3,6 +3,21 @@ const path = require("node:path");
 
 const { STATUSES, emptyPublication } = require("./lifecycle-state.cjs");
 
+const POST_ID_PATTERN = /^\d{4}-\d{2}-\d{2}-\d{6}$/;
+
+function normalizedBaseline(publisher) {
+  const baselinePostIds = Array.isArray(publisher.baselinePostIds)
+    ? [...publisher.baselinePostIds]
+    : [];
+  const valid = publisher.baselineCaptured === true
+    && baselinePostIds.every((postId) => typeof postId === "string" && POST_ID_PATTERN.test(postId))
+    && new Set(baselinePostIds).size === baselinePostIds.length;
+  return {
+    baselineCaptured: valid,
+    baselinePostIds: valid ? baselinePostIds : [],
+  };
+}
+
 function emptyState() {
   return {
     version: 2,
@@ -11,6 +26,7 @@ function emptyState() {
     posts: {},
     publisher: {
       armedAt: null,
+      baselineCaptured: false,
       baselinePostIds: [],
       browserSessionCheckedAt: null,
     },
@@ -34,6 +50,7 @@ function normalizeState(value) {
   const publisher = value.version === 2 && value.publisher && typeof value.publisher === "object"
     ? value.publisher
     : {};
+  const baseline = normalizedBaseline(publisher);
   return {
     version: 2,
     articleImages: value.articleImages || {},
@@ -41,9 +58,8 @@ function normalizeState(value) {
     posts,
     publisher: {
       armedAt: publisher.armedAt ?? null,
-      baselinePostIds: Array.isArray(publisher.baselinePostIds)
-        ? [...publisher.baselinePostIds]
-        : [],
+      baselineCaptured: baseline.baselineCaptured,
+      baselinePostIds: baseline.baselinePostIds,
       browserSessionCheckedAt: publisher.browserSessionCheckedAt ?? null,
     },
   };

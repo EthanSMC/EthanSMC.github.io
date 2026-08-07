@@ -137,7 +137,26 @@ async function syncOnePost({ client, config, dryRun, force, logger, post, prepar
     logger(`公众号已发布一次，本次修改仅更新网站：${post.title}`);
     return { action: "website-only", post, mediaId: previous.mediaId };
   }
-  if (!force && previous?.fingerprint === prepared.fingerprint) {
+  const restoredPublication = previous?.publication?.status === "draft_only"
+    && previous.publication.desiredLocation === "published"
+    ? publicationForNewPost(state, post.id, new Date().toISOString())
+    : null;
+  const canRestore = restoredPublication?.status === "pending";
+  if (!dryRun && !force && previous?.fingerprint === prepared.fingerprint && canRestore && previous.mediaId) {
+    previous.publication = {
+      ...restoredPublication,
+      draftFingerprint: prepared.fingerprint,
+    };
+    delete previous.sourceDeletedAt;
+    saveState(stateFile, state);
+    logger(`已恢复公众号待发布状态：${post.title}`);
+    return { action: "restored", post, mediaId: previous.mediaId };
+  }
+  if (
+    !force
+    && previous?.fingerprint === prepared.fingerprint
+    && !(canRestore && !previous.mediaId)
+  ) {
     if (previous.sourceDeletedAt && !dryRun) {
       delete previous.sourceDeletedAt;
       saveState(stateFile, state);
@@ -211,10 +230,17 @@ async function syncWechatDrafts({
   const state = loadState(stateFile);
   let stateChanged = false;
   for (const [postId, record] of Object.entries(state.posts)) {
-    const location = desiredLocation(postId, publishedIds, markers);
+    const location = desiredLocation(postId, publishedIds, markers, record.publication);
     if (!location) continue;
     if (record.publication.desiredLocation !== location) {
       record.publication.desiredLocation = location;
+      stateChanged = true;
+    }
+    if (
+      location === "drafts"
+      && record.publication.withdrawRequestedAt !== markers.get(postId).requestedAt
+    ) {
+      record.publication.withdrawRequestedAt = markers.get(postId).requestedAt;
       stateChanged = true;
     }
     if (
@@ -258,7 +284,16 @@ async function syncWechatDrafts({
   const preparedPosts = selection.posts.map((post) => ({ post, prepared: preparePost(root, post, config) }));
   const needsNetwork = preparedPosts.some(({ post, prepared }) => (
     !state.posts[post.id]?.publication?.everPublished
-    && (force || state.posts[post.id]?.fingerprint !== prepared.fingerprint)
+    && (
+      force
+      || state.posts[post.id]?.fingerprint !== prepared.fingerprint
+      || (
+        state.posts[post.id]?.publication?.status === "draft_only"
+        && state.posts[post.id]?.publication?.desiredLocation === "published"
+        && !state.posts[post.id]?.mediaId
+        && publicationForNewPost(state, post.id, new Date().toISOString()).status === "pending"
+      )
+    )
   ));
   const apiClient = client || (
     needsNetwork && !dryRun

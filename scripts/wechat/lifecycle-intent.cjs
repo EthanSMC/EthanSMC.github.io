@@ -3,6 +3,12 @@ const path = require("node:path");
 
 const POST_ID_PATTERN = /^\d{4}-\d{2}-\d{2}-\d{6}$/;
 
+function isCanonicalUtcTimestamp(value) {
+  if (typeof value !== "string" || !value.endsWith("Z")) return false;
+  const milliseconds = Date.parse(value);
+  return Number.isFinite(milliseconds) && new Date(milliseconds).toISOString() === value;
+}
+
 function invalidMarker(filename) {
   throw new Error(`撤回标记格式无效：${filename}`);
 }
@@ -39,8 +45,7 @@ function loadWithdrawalMarkers(root) {
       || keys[0] !== "postId"
       || keys[1] !== "requestedAt"
       || marker.postId !== postId
-      || typeof marker.requestedAt !== "string"
-      || !Number.isFinite(Date.parse(marker.requestedAt))
+      || !isCanonicalUtcTimestamp(marker.requestedAt)
     ) {
       invalidMarker(entry.name);
     }
@@ -49,9 +54,17 @@ function loadWithdrawalMarkers(root) {
   return markers;
 }
 
-function desiredLocation(postId, publishedIds, markers) {
+function desiredLocation(postId, publishedIds, markers, publication = null) {
   if (publishedIds.has(postId)) return "published";
-  if (markers.has(postId)) return "drafts";
+  const marker = markers.get(postId);
+  const consumedAt = publication?.withdrawRequestedAt;
+  if (
+    marker
+    && (
+      !isCanonicalUtcTimestamp(consumedAt)
+      || Date.parse(marker.requestedAt) > Date.parse(consumedAt)
+    )
+  ) return "drafts";
   return null;
 }
 

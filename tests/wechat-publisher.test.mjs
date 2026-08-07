@@ -14,7 +14,6 @@ const { emptyState, loadState, saveState } = require("../scripts/wechat/state.cj
 const POST_ID = "2026-08-07-120000";
 const SECOND_ID = "2026-08-07-120001";
 const NOW = "2026-08-07T04:00:00.000Z";
-const ABSENT_ERROR = "未找到同名已发表文章。";
 
 function codedError(code, message = "opaque browser failure") {
   const error = new Error(message);
@@ -44,6 +43,7 @@ function seed(options = {}) {
   const { root, stateFile } = fixture();
   const state = emptyState();
   state.publisher.armedAt = NOW;
+  state.publisher.baselineCaptured = true;
   state.publisher.baselinePostIds = [];
   state.posts[POST_ID] = post(options.status, options);
   for (const [postId, record] of Object.entries(options.posts || {})) state.posts[postId] = record;
@@ -51,12 +51,12 @@ function seed(options = {}) {
   return { root, stateFile };
 }
 
-function marker(root, postId = POST_ID) {
+function marker(root, postId = POST_ID, requestedAt = "2026-08-07T03:00:00.000Z") {
   const directory = path.join(root, "content", ".lifecycle", "withdrawals");
   fs.mkdirSync(directory, { recursive: true });
   fs.writeFileSync(path.join(directory, `${postId}.json`), `${JSON.stringify({
     postId,
-    requestedAt: "2026-08-07T03:00:00.000Z",
+    requestedAt,
   })}\n`);
 }
 
@@ -82,7 +82,7 @@ function fakeAdapter(options = {}) {
       adapter.calls.push(["findPublishedCandidate", record.title]);
       if (options.onBrowserCall) options.onBrowserCall("findPublishedCandidate");
       if (options.findPublished) return options.findPublished(record);
-      throw codedError("WECHAT_PUBLISHED_CANDIDATE_NOT_FOUND", ABSENT_ERROR);
+      return { kind: "absent" };
     },
     async findDraftCandidate(record) {
       adapter.calls.push(["findDraftCandidate", record.title]);
@@ -296,10 +296,36 @@ test("malformed arming fails closed in run, status, and arm", async () => {
   );
 });
 
+test("a timestamp without a validated baseline snapshot fails closed before browser work", async () => {
+  const data = seed();
+  const state = loadState(data.stateFile);
+  state.publisher.baselineCaptured = false;
+  saveState(data.stateFile, state);
+  let browserOpens = 0;
+
+  await assert.rejects(
+    () => runLifecycle({
+      ...data,
+      openAdapter: async () => {
+        browserOpens += 1;
+        return { adapter: fakeAdapter(), close: async () => {} };
+      },
+      autoPublish: true,
+      autoWithdraw: true,
+      now: () => NOW,
+    }),
+    (error) => error.code === "WECHAT_PUBLISHER_ARMING_INVALID",
+  );
+
+  assert.equal(browserOpens, 0);
+  assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "pending");
+});
+
 test("dry-run recovery and retry preview clone injected state without mutating it", async () => {
   const data = fixture();
   const shared = emptyState();
   shared.publisher.armedAt = NOW;
+  shared.publisher.baselineCaptured = true;
   shared.posts[POST_ID] = post("publishing");
   shared.posts[SECOND_ID] = post("blocked", {
     title: "第二篇文章",
@@ -367,9 +393,8 @@ test("manual withdrawal intent branches on trustworthy published evidence", asyn
   assert.equal(loadState(absentData.stateFile).posts[POST_ID].publication.status, "draft_only");
 });
 
-test("both trustworthy absence representations preserve lifecycle certainty", async () => {
+test("typed trustworthy absence preserves lifecycle certainty", async () => {
   const representations = [
-    ["coded absence", {}],
     ["structured absence", { findPublished: () => ({ kind: "absent" }) }],
   ];
 
@@ -436,6 +461,35 @@ test("published withdrawal intent persists withdrawing and clicks exactly once",
   assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "withdrawn");
 });
 
+test("terminal, baseline, and ever-published records cannot reach an automatic publish click", async () => {
+  const data = fixture();
+  const state = emptyState();
+  state.publisher.armedAt = NOW;
+  state.publisher.baselineCaptured = true;
+  state.publisher.baselinePostIds = [POST_ID];
+  state.posts[POST_ID] = post("pending");
+  state.posts[SECOND_ID] = post("pending", {
+    title: "第二篇文章",
+    publication: { everPublished: true },
+  });
+  state.posts["2026-08-07-120002"] = post("withdrawn", {
+    title: "终态文章",
+    publication: { everPublished: true },
+  });
+  saveState(data.stateFile, state);
+  const adapter = fakeAdapter({ findPublished: () => ({ kind: "absent" }) });
+
+  await run(data, adapter);
+
+  assert.equal(adapter.publishClicks, 0);
+  assert.equal(
+    adapter.calls.some(([name]) => name === "findDraftCandidate" || name === "openDraft"),
+    false,
+  );
+  assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "pending");
+  assert.equal(loadState(data.stateFile).posts[SECOND_ID].publication.status, "pending");
+});
+
 test("loaded withdrawing becomes withdraw_reconcile before inspection and never clicks", async () => {
   const data = seed({ status: "withdrawing", publication: { everPublished: true } });
   marker(data.root);
@@ -471,6 +525,99 @@ test("uncertain withdrawal outcome never causes an unattended second click", asy
   assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "withdraw_reconcile");
 });
 
+test("withdraw reconciliation persists its marker generation before verification and resolve authorizes one new attempt", async () => {
+  const requestedAt = "2026-08-07T03:00:00.000Z";
+  const data = seed({
+    status: "withdraw_reconcile",
+    publication: {
+      everPublished: true,
+      desiredLocation: "drafts",
+      withdrawRequestedAt: null,
+      publishedUrl: `https://mp.weixin.qq.com/s/${POST_ID}`,
+    },
+  });
+  marker(data.root, POST_ID, requestedAt);
+  const observedGenerations = [];
+  const reconcile = fakeAdapter({
+    onBrowserCall: (name) => {
+      if (name === "verifyWithdrawn") {
+        observedGenerations.push(
+          loadState(data.stateFile).posts[POST_ID].publication.withdrawRequestedAt,
+        );
+      }
+    },
+    verifyWithdrawnError: codedError("WECHAT_WITHDRAWAL_STILL_PRESENT"),
+  });
+
+  await run(data, reconcile);
+  assert.deepEqual(observedGenerations, [requestedAt]);
+  assert.equal(reconcile.withdrawClicks, 0);
+  resolveRecord({
+    ...data,
+    postId: POST_ID,
+    resolution: "still-published",
+    now: () => NOW,
+  });
+
+  const retry = fakeAdapter({ findPublished: () => exact() });
+  await run(data, retry);
+  assert.equal(retry.withdrawClicks, 1);
+  assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "withdrawn");
+
+  const later = fakeAdapter({ findPublished: () => exact() });
+  await run(data, later);
+  assert.equal(later.withdrawClicks, 0);
+});
+
+test("invalid withdrawal verification blocks every later automatic click", async () => {
+  const data = seed({ status: "published", publication: { everPublished: true } });
+  marker(data.root);
+  const first = fakeAdapter({
+    findPublished: () => exact(),
+    verifyWithdrawn: () => ({ withdrawn: true, extra: "untrusted" }),
+  });
+
+  await assert.rejects(() => run(data, first));
+  assert.equal(first.withdrawClicks, 1);
+  assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "withdraw_reconcile");
+
+  const later = fakeAdapter({
+    findPublished: () => exact(),
+    verifyWithdrawnError: codedError("WECHAT_WITHDRAWAL_STILL_PRESENT"),
+  });
+  await run(data, later);
+  assert.equal(later.withdrawClicks, 0);
+  assert.equal(later.publishClicks, 0);
+  assert.equal(loadState(data.stateFile).posts[POST_ID].publication.status, "withdraw_reconcile");
+});
+
+test("a still-readable or ambiguous public withdrawal verification aborts later queue clicks", async () => {
+  for (const code of ["WECHAT_WITHDRAWAL_STILL_PRESENT", "WECHAT_WITHDRAWAL_AMBIGUOUS"]) {
+    const data = seed({
+      status: "withdraw_reconcile",
+      publication: {
+        everPublished: true,
+        desiredLocation: "drafts",
+        withdrawRequestedAt: "2026-08-07T03:00:00.000Z",
+      },
+      posts: { [SECOND_ID]: post("pending", { title: "第二篇文章" }) },
+    });
+    marker(data.root);
+    const adapter = fakeAdapter({
+      verifyWithdrawnError: codedError(code),
+      verifyPublished: () => ({ published: true, candidate: exact(SECOND_ID) }),
+    });
+
+    await run(data, adapter);
+
+    const state = loadState(data.stateFile);
+    assert.equal(adapter.withdrawClicks, 0, code);
+    assert.equal(adapter.publishClicks, 0, code);
+    assert.equal(state.posts[POST_ID].publication.status, "withdraw_reconcile", code);
+    assert.equal(state.posts[SECOND_ID].publication.status, "pending", code);
+  }
+});
+
 test("disabled automatic withdrawal retains an actionable published record without browser work", async () => {
   const data = seed({ status: "published", publication: { everPublished: true } });
   marker(data.root);
@@ -502,7 +649,7 @@ test("withdrawal queue finishes before the publication queue starts", async () =
   const adapter = fakeAdapter({
     findPublished: (record) => record.title === "可验证文章"
       ? exact()
-      : (() => { throw codedError("WECHAT_PUBLISHED_CANDIDATE_NOT_FOUND", ABSENT_ERROR); })(),
+      : { kind: "absent" },
     onWithdraw: () => order.push("withdraw"),
     onPublish: () => order.push("publish"),
     verifyPublished: () => ({ published: true, candidate: exact(SECOND_ID) }),
@@ -580,7 +727,7 @@ test("unclassified page drift aborts the queue before a later record can click",
   const adapter = fakeAdapter({
     findPublished: (record) => {
       if (record.title === "可验证文章") throw new Error("changed page shape");
-      throw codedError("WECHAT_PUBLISHED_CANDIDATE_NOT_FOUND", ABSENT_ERROR);
+      return { kind: "absent" };
     },
   });
 
@@ -662,11 +809,13 @@ test("arm baselines current published IDs once", () => {
   assert.equal(second.baselineCount, 2);
   assert.deepEqual(loadState(data.stateFile).publisher.baselinePostIds, [POST_ID, SECOND_ID]);
   assert.equal(loadState(data.stateFile).publisher.armedAt, NOW);
+  assert.equal(loadState(data.stateFile).publisher.baselineCaptured, true);
 });
 
 test("status summary reports actionable and last verified lifecycle state", () => {
   const state = emptyState();
   state.publisher.armedAt = NOW;
+  state.publisher.baselineCaptured = true;
   state.publisher.baselinePostIds = [POST_ID];
   state.posts.a = post("pending");
   state.posts.b = post("publish_reconcile");

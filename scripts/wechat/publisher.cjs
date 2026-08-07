@@ -40,10 +40,20 @@ function publishedPostIds(root) {
     .sort();
 }
 
-function activeWithdrawalMarkers(root, markerInventory) {
+function sourceAbsentWithdrawalMarkers(root, markerInventory) {
   const markers = markerInventory || loadWithdrawalMarkers(root);
   const published = new Set(publishedPostIds(root));
   return new Map([...markers.entries()].filter(([postId]) => !published.has(postId)));
+}
+
+function markerAuthorizesRecord(markerValue, publication) {
+  const consumedAt = publication.withdrawRequestedAt;
+  if (!consumedAt) return true;
+  const requested = Date.parse(markerValue.requestedAt);
+  const consumed = Date.parse(consumedAt);
+  if (!Number.isFinite(requested) || !Number.isFinite(consumed)) return false;
+  if (requested > consumed) return true;
+  return requested === consumed && publication.desiredLocation === "drafts";
 }
 
 function statusChanged(before, state) {
@@ -82,7 +92,6 @@ function assertValidArming(state) {
 }
 
 function browserErrorKind(error) {
-  if (error?.code === BROWSER_ERROR_CODES.PUBLISHED_CANDIDATE_NOT_FOUND) return "absence";
   if (RECORD_LOCAL_ERROR_CODES.has(error?.code)) return "record";
   return "global";
 }
@@ -126,15 +135,10 @@ function explicitAbsence(value) {
 }
 
 async function findPublished(adapter, record) {
-  try {
-    const candidate = await adapter.findPublishedCandidate(record);
-    if (exactCandidate(candidate)) return { kind: "exact", candidate };
-    if (explicitAbsence(candidate)) return candidate;
-    throw codedError("WECHAT_ADAPTER_RESULT_INVALID", "已发表文章查找结果不明确。");
-  } catch (error) {
-    if (browserErrorKind(error) === "absence") return { kind: "absent" };
-    throw error;
-  }
+  const candidate = await adapter.findPublishedCandidate(record);
+  if (exactCandidate(candidate)) return { kind: "exact", candidate };
+  if (explicitAbsence(candidate)) return candidate;
+  throw codedError("WECHAT_ADAPTER_RESULT_INVALID", "已发表文章查找结果不明确。");
 }
 
 function candidatePatch(candidate) {
@@ -274,9 +278,12 @@ async function runLifecycle(options) {
 
   if (options.retry && retryBlockedRecord(state, options.retry)) persist();
 
-  const markers = activeWithdrawalMarkers(options.root, options.markers);
+  const markers = sourceAbsentWithdrawalMarkers(options.root, options.markers);
   const markerEntries = [...markers.entries()]
-    .filter(([postId]) => state.posts[postId])
+    .filter(([postId, markerValue]) => (
+      state.posts[postId]
+      && markerAuthorizesRecord(markerValue, state.posts[postId].publication)
+    ))
     .sort(([left], [right]) => left.localeCompare(right));
 
   if (dryRun) return { state, summary: statusSummary(state), browserOpened: false };
@@ -284,6 +291,7 @@ async function runLifecycle(options) {
   let opened = null;
   let adapter = options.adapter || null;
   let sessionChecked = false;
+  let withdrawalVerificationFailed = false;
   async function getAdapter() {
     if (!adapter) {
       if (typeof options.openAdapter !== "function") {
@@ -357,8 +365,14 @@ async function runLifecycle(options) {
   async function withdrawRecord(postId, markerValue) {
     const record = state.posts[postId];
     const publication = record.publication;
-    publication.desiredLocation = "drafts";
-    publication.withdrawRequestedAt = markerValue.requestedAt;
+    if (
+      publication.desiredLocation !== "drafts"
+      || publication.withdrawRequestedAt !== markerValue.requestedAt
+    ) {
+      publication.desiredLocation = "drafts";
+      publication.withdrawRequestedAt = markerValue.requestedAt;
+      persist();
+    }
 
     if (
       publication.status === "pending"
@@ -398,6 +412,7 @@ async function runLifecycle(options) {
         });
         persist();
       } catch (error) {
+        withdrawalVerificationFailed = true;
         saveRecordError(postId, "withdraw", error);
       }
       return;
@@ -461,6 +476,7 @@ async function runLifecycle(options) {
     try {
       await browser.withdrawCurrentArticle(record);
     } catch (error) {
+      withdrawalVerificationFailed = true;
       transitionPublication(state, postId, "withdraw_reconcile", {
         lastError: sanitizedError(error, "公众号撤回结果需要人工核对。"),
       });
@@ -480,6 +496,7 @@ async function runLifecycle(options) {
       });
       persist();
     } catch (error) {
+      withdrawalVerificationFailed = true;
       transitionPublication(state, postId, "withdraw_reconcile", {
         lastError: sanitizedError(error, "公众号撤回结果需要人工核对。"),
       });
@@ -576,14 +593,17 @@ async function runLifecycle(options) {
   try {
     for (const [postId, markerValue] of markerEntries) {
       await withdrawRecord(postId, markerValue);
+      if (withdrawalVerificationFailed) break;
     }
 
-    if (options.autoPublish && arming.armed) {
+    if (!withdrawalVerificationFailed && options.autoPublish && arming.armed) {
       const publishIds = Object.keys(state.posts)
         .filter((postId) => {
           const publication = state.posts[postId].publication;
           return publication.desiredLocation === "published"
-            && (publication.status === "pending" || publication.status === "publish_reconcile");
+            && (publication.status === "pending" || publication.status === "publish_reconcile")
+            && !publication.everPublished
+            && !(state.publisher?.baselinePostIds || []).includes(postId);
         })
         .sort();
       for (const postId of publishIds) await publishRecord(postId);
@@ -603,7 +623,7 @@ function resolveRecord(options) {
   const record = state.posts[options.postId];
   if (!record) throw new Error(`找不到公众号文章状态：${options.postId}`);
   const publication = record.publication;
-  const activeMarkers = activeWithdrawalMarkers(options.root, options.markers);
+  const sourceAbsentMarkers = sourceAbsentWithdrawalMarkers(options.root, options.markers);
 
   if (options.resolution === "published") {
     if (publication.status !== "publish_reconcile") {
@@ -624,7 +644,10 @@ function resolveRecord(options) {
     if (publication.everPublished) {
       throw new Error("已有发表证据的文章不能重置为待发布。");
     }
-    const canceled = activeMarkers.has(options.postId);
+    const markerValue = sourceAbsentMarkers.get(options.postId);
+    const canceled = Boolean(
+      markerValue && markerAuthorizesRecord(markerValue, publication),
+    );
     if (!canceled && (state.publisher?.baselinePostIds || []).includes(options.postId)) {
       throw new Error("自动发布基线文章不能重置为待发布。");
     }

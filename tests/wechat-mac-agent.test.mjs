@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import test from "node:test";
+import test, { afterEach, beforeEach } from "node:test";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 
@@ -25,6 +25,28 @@ const PRIVATE_ENVIRONMENT_DEFAULTS = [
   "WECHAT_BROWSER_CHANNEL=chrome",
   "WECHAT_BROWSER_HEADLESS=0",
 ];
+const AUTOMATION_ENVIRONMENT_KEYS = [
+  "WECHAT_AUTO_PUBLISH",
+  "WECHAT_AUTO_WITHDRAW",
+  "WECHAT_BROWSER_CHANNEL",
+  "WECHAT_BROWSER_HEADLESS",
+];
+let environmentSnapshot;
+
+beforeEach(() => {
+  environmentSnapshot = new Map(
+    AUTOMATION_ENVIRONMENT_KEYS.map((key) => [key, process.env[key]]),
+  );
+  for (const key of AUTOMATION_ENVIRONMENT_KEYS) delete process.env[key];
+});
+
+afterEach(() => {
+  for (const key of AUTOMATION_ENVIRONMENT_KEYS) {
+    const value = environmentSnapshot.get(key);
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
 
 function git(cwd, args) {
   return execFileSync("/usr/bin/git", args, {

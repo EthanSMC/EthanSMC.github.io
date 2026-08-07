@@ -3,9 +3,19 @@ const path = require("node:path");
 
 const MAX_DIAGNOSTIC_SCREENSHOTS = 3;
 
-function privateDirectory(directory) {
-  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+function assertRealDirectory(directory) {
+  const stat = fs.lstatSync(directory);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error("unsafe private directory");
+}
+
+function privateChildDirectory(agentHome, leafName) {
+  assertRealDirectory(agentHome);
+  const directory = path.join(agentHome, leafName);
+  if (fs.existsSync(directory)) assertRealDirectory(directory);
+  else fs.mkdirSync(directory, { recursive: false, mode: 0o700 });
+  assertRealDirectory(directory);
   fs.chmodSync(directory, 0o700);
+  return directory;
 }
 
 function sanitizedLaunchError(error) {
@@ -33,9 +43,9 @@ async function launchWechatContext(options) {
     headless = false,
   } = options;
   const chromium = options.chromium || require("playwright-core").chromium;
-  const profileDirectory = path.join(agentHome, "browser-profile");
+  let profileDirectory;
   try {
-    privateDirectory(profileDirectory);
+    profileDirectory = privateChildDirectory(agentHome, "browser-profile");
   } catch {
     throw sanitizedRuntimeError(
       "WECHAT_BROWSER_PROFILE_IO_FAILED",
@@ -64,8 +74,7 @@ function safeLabel(value) {
 
 async function retainDiagnosticScreenshot(options) {
   try {
-    const diagnosticsDirectory = path.join(options.agentHome, "diagnostics");
-    privateDirectory(diagnosticsDirectory);
+    const diagnosticsDirectory = privateChildDirectory(options.agentHome, "diagnostics");
     const timestamp = (options.now ? options.now() : new Date())
       .toISOString()
       .replace(/[:.]/g, "-");
@@ -75,8 +84,9 @@ async function retainDiagnosticScreenshot(options) {
     await options.page.screenshot({ path: screenshotPath, type: "png" });
     fs.chmodSync(screenshotPath, 0o600);
 
-    const screenshots = fs.readdirSync(diagnosticsDirectory)
-      .filter((entry) => entry.endsWith(".png"))
+    const screenshots = fs.readdirSync(diagnosticsDirectory, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && !entry.isSymbolicLink() && entry.name.endsWith(".png"))
+      .map((entry) => entry.name)
       .sort();
     for (const expired of screenshots.slice(0, -MAX_DIAGNOSTIC_SCREENSHOTS)) {
       fs.rmSync(path.join(diagnosticsDirectory, expired));

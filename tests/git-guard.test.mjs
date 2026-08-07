@@ -175,6 +175,8 @@ test("moving a published article to private drafts commits a content-free withdr
   );
   assert.deepEqual(Object.keys(marker).sort(), ["postId", "requestedAt"]);
   assert.equal(marker.postId, "2026-07-28-120000");
+  assert.match(marker.requestedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  assert.equal(new Date(marker.requestedAt).toISOString(), marker.requestedAt);
   assert.doesNotMatch(JSON.stringify(marker), /Baseline|Published|drafts/);
   assert.equal(run(directory, "git", ["ls-files", "content/drafts"]).stdout, "");
 });

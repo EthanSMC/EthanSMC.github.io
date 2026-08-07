@@ -227,7 +227,7 @@ generated_withdrawal_markers: set[str] = set()
 for post_id, marker_path in pending_withdrawal_markers:
     marker = {
         "postId": post_id,
-        "requestedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "requestedAt": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
     }
     write_marker_atomically(marker_path, marker)
     marker_relative = marker_path.relative_to(root).as_posix()

@@ -9,11 +9,13 @@ const require = createRequire(import.meta.url);
 const {
   armPublisher,
   emptyPublication,
+  hasValidPublisherArming,
   publicationForNewPost,
   recoverInterruptedOperations,
   transitionPublication,
 } = require("../scripts/wechat/lifecycle-state.cjs");
 const { emptyState, normalizeState, saveState } = require("../scripts/wechat/state.cjs");
+const BASELINE_ID = "2026-08-04-120000";
 
 test("creates the canonical publication record and rejects unknown statuses", () => {
   assert.deepEqual(emptyPublication("pending"), {
@@ -63,21 +65,50 @@ test("arming is idempotent and baselines every current post", () => {
   armPublisher(state, ["2026-08-04-120000"], "2026-08-08T00:00:00.000Z");
   assert.deepEqual(state.publisher.baselinePostIds, ["2026-08-04-120000"]);
   assert.equal(state.publisher.armedAt, "2026-08-07T00:00:00.000Z");
+  assert.equal(state.publisher.baselineCaptured, true);
+  assert.equal(hasValidPublisherArming(state), true);
 });
 
-test("malformed arming neither freezes re-arming nor makes a post pending", () => {
-  const state = emptyState();
-  state.publisher.armedAt = "not-a-timestamp";
-  state.publisher.baselinePostIds = ["stale-baseline"];
+test("valid arming requires a canonical timestamp and an explicitly captured baseline snapshot", () => {
+  const missingSnapshot = emptyState();
+  missingSnapshot.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+  missingSnapshot.publisher.baselinePostIds = [];
 
-  assert.equal(
-    publicationForNewPost(state, "new", "2026-08-07T01:00:00.000Z").status,
-    "manual",
-  );
+  const malformedSnapshot = emptyState();
+  malformedSnapshot.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+  malformedSnapshot.publisher.baselineCaptured = true;
+  malformedSnapshot.publisher.baselinePostIds = ["not-a-post-id"];
 
-  armPublisher(state, ["new"], "2026-08-07T00:00:00.000Z");
-  assert.equal(state.publisher.armedAt, "2026-08-07T00:00:00.000Z");
-  assert.deepEqual(state.publisher.baselinePostIds, ["new"]);
+  const nonCanonicalTime = emptyState();
+  nonCanonicalTime.publisher.armedAt = "2026-08-07T08:00:00+08:00";
+  nonCanonicalTime.publisher.baselineCaptured = true;
+  nonCanonicalTime.publisher.baselinePostIds = [];
+
+  for (const state of [missingSnapshot, malformedSnapshot, nonCanonicalTime]) {
+    assert.equal(hasValidPublisherArming(state), false);
+    assert.equal(
+      publicationForNewPost(state, "2026-08-07-120000", "2026-08-07T01:00:00.000Z").status,
+      "manual",
+    );
+  }
+});
+
+test("normalization preserves unarmed armability but fails closed for legacy armed state without a snapshot", () => {
+  const unarmed = normalizeState({ version: 1, posts: {} });
+  armPublisher(unarmed, [], "2026-08-07T00:00:00.000Z");
+  assert.equal(hasValidPublisherArming(unarmed), true);
+  assert.deepEqual(unarmed.publisher.baselinePostIds, []);
+
+  const legacyArmed = normalizeState({
+    version: 2,
+    posts: {},
+    publisher: {
+      armedAt: "2026-08-07T00:00:00.000Z",
+      baselinePostIds: [],
+    },
+  });
+  assert.equal(legacyArmed.publisher.baselineCaptured, false);
+  assert.equal(hasValidPublisherArming(legacyArmed), false);
 });
 
 test("recovers persisted click states into operation-specific reconciliation", () => {
@@ -109,7 +140,8 @@ test("normalizes readable v2 state without losing caches or post metadata", () =
     },
     publisher: {
       armedAt: "2026-08-07T00:00:00.000Z",
-      baselinePostIds: ["baseline"],
+      baselineCaptured: true,
+      baselinePostIds: ["2026-08-04-120000"],
       browserSessionCheckedAt: "2026-08-07T01:00:00.000Z",
     },
   });
@@ -127,7 +159,8 @@ test("normalizes readable v2 state without losing caches or post metadata", () =
   assert.equal("ignoredLifecycleField" in state.posts.post.publication, false);
   assert.deepEqual(state.publisher, {
     armedAt: "2026-08-07T00:00:00.000Z",
-    baselinePostIds: ["baseline"],
+    baselineCaptured: true,
+    baselinePostIds: ["2026-08-04-120000"],
     browserSessionCheckedAt: "2026-08-07T01:00:00.000Z",
   });
 });
@@ -140,11 +173,11 @@ test("only makes armed non-baseline never-published posts pending", () => {
   );
 
   const armed = emptyState();
-  armPublisher(armed, ["baseline"], "2026-08-07T00:00:00.000Z");
+  armPublisher(armed, [BASELINE_ID], "2026-08-07T00:00:00.000Z");
   const pending = publicationForNewPost(armed, "new", "2026-08-07T01:00:00.000Z");
   assert.equal(pending.status, "pending");
   assert.equal(pending.eligibleAt, "2026-08-07T01:00:00.000Z");
-  assert.equal(publicationForNewPost(armed, "baseline", "later").status, "manual");
+  assert.equal(publicationForNewPost(armed, BASELINE_ID, "later").status, "manual");
 
   armed.posts.published = { publication: {
     ...emptyPublication("published"),
@@ -179,10 +212,10 @@ test("new-post eligibility never resets click-start or reconciliation states", (
 test("rejects pending transitions for unsafe reconciliation, terminal, baseline, and ever-published posts", () => {
   assert.equal(typeof transitionPublication, "function");
   const state = emptyState();
-  armPublisher(state, ["baseline"], "2026-08-07T00:00:00.000Z");
+  armPublisher(state, [BASELINE_ID], "2026-08-07T00:00:00.000Z");
   state.posts.published = { publication: emptyPublication("published") };
   state.posts.withdrawn = { publication: emptyPublication("withdrawn") };
-  state.posts.baseline = { publication: emptyPublication("manual") };
+  state.posts[BASELINE_ID] = { publication: emptyPublication("manual") };
   state.posts.ever = { publication: {
     ...emptyPublication("draft_only"),
     everPublished: true,
@@ -195,7 +228,7 @@ test("rejects pending transitions for unsafe reconciliation, terminal, baseline,
   for (const postId of [
     "published",
     "withdrawn",
-    "baseline",
+    BASELINE_ID,
     "ever",
     "publishing",
     "publishReconcile",
@@ -208,8 +241,8 @@ test("rejects pending transitions for unsafe reconciliation, terminal, baseline,
 
 test("click-start transitions require a safe pre-click state", () => {
   const state = emptyState();
-  armPublisher(state, ["baseline"], "2026-08-07T00:00:00.000Z");
-  state.posts.baseline = { publication: emptyPublication("manual") };
+  armPublisher(state, [BASELINE_ID], "2026-08-07T00:00:00.000Z");
+  state.posts[BASELINE_ID] = { publication: emptyPublication("manual") };
   state.posts.publishReconcile = { publication: emptyPublication("publish_reconcile") };
   state.posts.withdrawReconcile = { publication: {
     ...emptyPublication("withdraw_reconcile"),
@@ -221,7 +254,7 @@ test("click-start transitions require a safe pre-click state", () => {
     everPublished: true,
   }};
 
-  assert.throws(() => transitionPublication(state, "baseline", "publishing"));
+  assert.throws(() => transitionPublication(state, BASELINE_ID, "publishing"));
   assert.throws(() => transitionPublication(state, "publishReconcile", "publishing"));
   assert.throws(() => transitionPublication(state, "withdrawReconcile", "withdrawing"));
   assert.equal(transitionPublication(state, "pending", "publishing").status, "publishing");

@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { syncWechatDrafts } = require("../scripts/wechat/sync.cjs");
+const { runLifecycle } = require("../scripts/wechat/publisher.cjs");
 const { desiredLocation, loadWithdrawalMarkers } = require("../scripts/wechat/lifecycle-intent.cjs");
 const { emptyPublication } = require("../scripts/wechat/lifecycle-state.cjs");
 const { emptyState, loadState, saveState } = require("../scripts/wechat/state.cjs");
@@ -125,6 +126,14 @@ test("rejects malformed withdrawal markers", () => {
     },
     {
       filename: `${POST_ID}.json`,
+      contents: JSON.stringify({ postId: POST_ID, requestedAt: "2026-08-07T08:00:00+08:00" }),
+    },
+    {
+      filename: `${POST_ID}.json`,
+      contents: JSON.stringify({ postId: POST_ID, requestedAt: "2026-08-07T00:00:00Z" }),
+    },
+    {
+      filename: `${POST_ID}.json`,
       contents: "{",
     },
   ];
@@ -193,6 +202,7 @@ test("makes an armed new post pending only after draft creation succeeds", async
   const client = fakeClient();
   writeLifecycleState(root, (state) => {
     state.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+    state.publisher.baselineCaptured = true;
   });
 
   const result = await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
@@ -214,6 +224,7 @@ test("does not make an armed new post pending when draft creation fails", async 
   };
   writeLifecycleState(root, (state) => {
     state.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+    state.publisher.baselineCaptured = true;
   });
 
   await assert.rejects(
@@ -229,6 +240,7 @@ test("restores a canceled non-baseline post to pending only after draft update s
   const client = fakeClient();
   writeLifecycleState(root, (state) => {
     state.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+    state.publisher.baselineCaptured = true;
     state.posts[POST_ID] = {
       fingerprint: "old-observed-fingerprint",
       mediaId: "draft-media",
@@ -250,6 +262,54 @@ test("restores a canceled non-baseline post to pending only after draft update s
   assert.equal(client.calls.filter(([name]) => name === "updateDraft").length, 1);
 });
 
+test("restores an unchanged canceled non-baseline article without updating its existing draft", async () => {
+  const root = fixture();
+  const client = fakeClient();
+  await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  const state = loadState(config(root).stateFile);
+  state.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+  state.publisher.baselineCaptured = true;
+  state.publisher.baselinePostIds = [];
+  state.posts[POST_ID].publication.status = "draft_only";
+  state.posts[POST_ID].publication.desiredLocation = "drafts";
+  state.posts[POST_ID].sourceDeletedAt = "2026-08-07T01:00:00.000Z";
+  saveState(config(root).stateFile, state);
+  client.calls.length = 0;
+
+  const result = await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  const restored = loadState(config(root).stateFile).posts[POST_ID];
+
+  assert.equal(result.results[0].action, "restored");
+  assert.equal(restored.publication.status, "pending");
+  assert.equal(restored.publication.desiredLocation, "published");
+  assert.equal(restored.publication.draftFingerprint, restored.fingerprint);
+  assert.equal(restored.sourceDeletedAt, undefined);
+  assert.deepEqual(client.calls, []);
+});
+
+test("restores an unchanged canceled article with no stored media ID through the normal add flow", async () => {
+  const root = fixture();
+  const client = fakeClient();
+  await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  const state = loadState(config(root).stateFile);
+  state.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+  state.publisher.baselineCaptured = true;
+  state.publisher.baselinePostIds = [];
+  state.posts[POST_ID].mediaId = null;
+  state.posts[POST_ID].publication.status = "draft_only";
+  state.posts[POST_ID].publication.desiredLocation = "drafts";
+  saveState(config(root).stateFile, state);
+  client.calls.length = 0;
+
+  const result = await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  const restored = loadState(config(root).stateFile).posts[POST_ID];
+
+  assert.equal(result.results[0].action, "add");
+  assert.equal(restored.mediaId, "draft-media");
+  assert.equal(restored.publication.status, "pending");
+  assert.deepEqual(client.calls.map(([name]) => name), ["addDraft"]);
+});
+
 test("keeps a canceled post draft-only when draft update fails", async () => {
   const root = fixture();
   const client = fakeClient();
@@ -259,6 +319,7 @@ test("keeps a canceled post draft-only when draft update fails", async () => {
   };
   writeLifecycleState(root, (state) => {
     state.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+    state.publisher.baselineCaptured = true;
     state.posts[POST_ID] = {
       fingerprint: "old-observed-fingerprint",
       mediaId: "draft-media",
@@ -284,6 +345,7 @@ test("keeps baseline posts manual after successful draft creation", async () => 
   const client = fakeClient();
   writeLifecycleState(root, (state) => {
     state.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+    state.publisher.baselineCaptured = true;
     state.publisher.baselinePostIds = [POST_ID];
   });
 
@@ -300,6 +362,7 @@ test("an inactive historical marker does not cancel a currently published source
   writeMarker(root);
   writeLifecycleState(root, (state) => {
     state.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+    state.publisher.baselineCaptured = true;
   });
 
   await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
@@ -308,6 +371,93 @@ test("an inactive historical marker does not cancel a currently published source
   assert.equal(publication.status, "pending");
   assert.equal(publication.desiredLocation, "published");
   assert.equal(client.calls.filter(([name]) => name === "addDraft").length, 1);
+});
+
+test("a consumed cancellation marker cannot reactivate after restore, publish, and later plain deletion", async () => {
+  const root = fixture();
+  const client = fakeClient();
+  const stateFile = config(root).stateFile;
+  writeLifecycleState(root, (state) => {
+    state.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+    state.publisher.baselineCaptured = true;
+    state.publisher.baselinePostIds = [];
+  });
+
+  await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  const sourcePath = path.join(root, "content", "published", `${POST_ID}.md`);
+  const source = fs.readFileSync(sourcePath, "utf8");
+  fs.unlinkSync(sourcePath);
+  writeMarker(root);
+  await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  let publication = loadState(stateFile).posts[POST_ID].publication;
+  assert.equal(publication.status, "draft_only");
+  assert.equal(publication.withdrawRequestedAt, "2026-08-07T00:00:00.000Z");
+
+  fs.writeFileSync(sourcePath, source);
+  client.calls.length = 0;
+  await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  publication = loadState(stateFile).posts[POST_ID].publication;
+  assert.equal(publication.status, "pending");
+  assert.equal(publication.desiredLocation, "published");
+  assert.deepEqual(client.calls, []);
+
+  let publishClicks = 0;
+  const publishAdapter = {
+    checkSession: async () => ({ authenticated: true }),
+    findPublishedCandidate: async () => ({ kind: "absent" }),
+    findDraftCandidate: async (record) => ({
+      kind: "exact",
+      title: record.title,
+      href: "https://mp.weixin.qq.com/draft/exact",
+    }),
+    openDraft: async () => {},
+    publishCurrentDraft: async () => { publishClicks += 1; },
+    verifyPublished: async (record) => ({
+      published: true,
+      candidate: {
+        kind: "exact",
+        title: record.title,
+        href: "https://mp.weixin.qq.com/s/exact",
+      },
+    }),
+  };
+  await runLifecycle({
+    root,
+    stateFile,
+    adapter: publishAdapter,
+    autoPublish: true,
+    autoWithdraw: true,
+    now: () => "2026-08-07T02:00:00.000Z",
+  });
+  assert.equal(publishClicks, 1);
+  assert.equal(loadState(stateFile).posts[POST_ID].publication.status, "published");
+
+  fs.unlinkSync(sourcePath);
+  await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  let withdrawClicks = 0;
+  await runLifecycle({
+    root,
+    stateFile,
+    adapter: {
+      checkSession: async () => ({ authenticated: true }),
+      findPublishedCandidate: async (record) => ({
+        kind: "exact",
+        title: record.title,
+        href: "https://mp.weixin.qq.com/s/exact",
+      }),
+      openPublished: async () => {},
+      withdrawCurrentArticle: async () => { withdrawClicks += 1; },
+      verifyWithdrawn: async () => ({ withdrawn: true }),
+    },
+    autoPublish: true,
+    autoWithdraw: true,
+    now: () => "2026-08-07T03:00:00.000Z",
+  });
+
+  publication = loadState(stateFile).posts[POST_ID].publication;
+  assert.equal(publication.status, "published");
+  assert.equal(publication.desiredLocation, "published");
+  assert.equal(withdrawClicks, 0);
 });
 
 test("active markers cancel safe publication states before any WeChat API call", async () => {
@@ -385,6 +535,7 @@ test("ever-published records update only the observed website fingerprint", asyn
     };
     writeLifecycleState(root, (state) => {
       state.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+      state.publisher.baselineCaptured = true;
       state.posts[POST_ID] = {
         fingerprint: "old-observed-fingerprint",
         mediaId: "published-media",
