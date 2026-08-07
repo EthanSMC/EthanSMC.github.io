@@ -391,6 +391,7 @@ test("ever-published records update only the observed website fingerprint", asyn
         title: "保留的公众号标题",
         sourceUrl: "https://example.com/frozen-source",
         syncedAt: "2026-08-07T01:30:00.000Z",
+        sourceDeletedAt: "2026-08-07T01:45:00.000Z",
         publication,
       };
     });
@@ -410,6 +411,7 @@ test("ever-published records update only the observed website fingerprint", asyn
     assert.equal(record.title, "保留的公众号标题");
     assert.equal(record.sourceUrl, "https://example.com/frozen-source");
     assert.equal(record.syncedAt, "2026-08-07T01:30:00.000Z");
+    assert.equal(record.sourceDeletedAt, "2026-08-07T01:45:00.000Z");
     assert.deepEqual(record.publication, publication);
     assert.equal(client.calls.length, 0);
   }
@@ -427,6 +429,28 @@ test("dry-run validates a draft without credentials, API mutations, or state wri
   assert.equal(result.results[0].action, "dry-run-add");
   assert.match(logs.join("\n"), /\[dry-run\] 新增草稿/);
   assert.equal(fs.existsSync(config(root).stateFile), false);
+});
+
+test("dry-run leaves restored unchanged source state bytes untouched", async () => {
+  const root = fixture();
+  const client = fakeClient();
+  const stateFile = config(root).stateFile;
+  await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  const state = loadState(stateFile);
+  state.posts[POST_ID].sourceDeletedAt = "2026-08-07T02:00:00.000Z";
+  state.posts[POST_ID].publication.desiredLocation = "drafts";
+  saveState(stateFile, state);
+  const before = fs.readFileSync(stateFile);
+
+  const result = await syncWechatDrafts({
+    root,
+    config: config(root),
+    dryRun: true,
+    logger: () => {},
+  });
+
+  assert.equal(result.results[0].action, "skipped");
+  assert.deepEqual(fs.readFileSync(stateFile), before);
 });
 
 test("marks source deletions for manual WeChat handling without deleting remotely", async () => {

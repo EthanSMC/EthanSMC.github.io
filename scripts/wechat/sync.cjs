@@ -133,16 +133,12 @@ async function syncOnePost({ client, config, dryRun, force, logger, post, prepar
       previous.fingerprint = prepared.fingerprint;
       changed = true;
     }
-    if (previous.sourceDeletedAt) {
-      delete previous.sourceDeletedAt;
-      changed = true;
-    }
     if (changed && !dryRun) saveState(stateFile, state);
     logger(`公众号已发布一次，本次修改仅更新网站：${post.title}`);
     return { action: "website-only", post, mediaId: previous.mediaId };
   }
   if (!force && previous?.fingerprint === prepared.fingerprint) {
-    if (previous.sourceDeletedAt) {
+    if (previous.sourceDeletedAt && !dryRun) {
       delete previous.sourceDeletedAt;
       saveState(stateFile, state);
     }
