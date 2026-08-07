@@ -87,6 +87,32 @@ test("keeps hashtags out of code, headings and links", () => {
   assert.deepEqual(result.tags.map((tag) => tag.label), ["真实标签"]);
 });
 
+test("recognizes tags after Chinese punctuation", () => {
+  const result = cleanSourceAndExtractTags("正文，#AI。下一句：#产品");
+  assert.deepEqual(result.tags.map((tag) => tag.label), ["AI", "产品"]);
+});
+
+test("does not close a Markdown fence with a shorter marker", () => {
+  const result = cleanSourceAndExtractTags(`\`\`\`\`js
+#code
+\`\`\`
+#still-code
+\`\`\`\`
+#真实标签`);
+  assert.deepEqual(result.tags.map((tag) => tag.label), ["真实标签"]);
+  assert.match(result.cleanedSource, /#still-code/);
+});
+
+test("rejects conflicting article type directives", () => {
+  assert.throws(
+    () => parsePost({
+      filename: "2026-07-28-120000.md",
+      source: "# 冲突类型\n\n正文。\n\n#note #essay",
+    }),
+    /cannot use both #note and #essay/i,
+  );
+});
+
 test("generates a metadata-only title for an untitled note", () => {
   const post = parsePost({
     filename: "2026-07-28-120000.md",

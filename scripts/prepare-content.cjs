@@ -7,7 +7,7 @@ const ROOT = path.resolve(__dirname, "..");
 const PUBLISHED_DIR = path.join(ROOT, "content", "published");
 const PAGE_SIZE = 20;
 const RESERVED_TYPES = new Set(["note", "essay"]);
-const TAG_PATTERN = /(^|[\s（(【\[])#([\p{L}\p{N}_-]+)/gu;
+const TAG_PATTERN = /(^|(?:(?!#)[\s\p{P}\p{S}]))#([\p{L}\p{N}_-]+)/gu;
 const TAG_ONLY_PATTERN = /^\s*(?:#[\p{L}\p{N}_-]+\s*)+$/u;
 const TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})\.md$/;
 const MARKDOWN_ATTACHMENT_PATTERN = /!?\[[^\]]*\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+["'][^"']*["'])?\s*\)/g;
@@ -98,13 +98,17 @@ function cleanSourceAndExtractTags(source) {
   let fenceMarker = "";
 
   for (const line of source.replace(/\r\n?/g, "\n").split("\n")) {
-    const fence = line.match(/^\s{0,3}(`{3,}|~{3,})/);
+    const fence = line.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/);
     if (fence) {
-      const marker = fence[1][0];
+      const marker = fence[1];
       if (!inFence) {
         inFence = true;
         fenceMarker = marker;
-      } else if (marker === fenceMarker) {
+      } else if (
+        marker[0] === fenceMarker[0]
+        && marker.length >= fenceMarker.length
+        && fence[2].trim() === ""
+      ) {
         inFence = false;
         fenceMarker = "";
       }
@@ -219,6 +223,9 @@ function parseTimestamp(filename) {
 function parsePost({ filename, source }) {
   const timestamp = parseTimestamp(filename);
   const { cleanedSource, tags, directives } = cleanSourceAndExtractTags(source);
+  if (directives.has("note") && directives.has("essay")) {
+    throw new Error(`Article cannot use both #note and #essay: ${filename}`);
+  }
   const { authoredTitle, bodySource } = findTitle(cleanedSource);
   const text = plainTextFromMarkdown(bodySource);
   const summary = truncateVisible(firstParagraph(bodySource) || text, 120);
