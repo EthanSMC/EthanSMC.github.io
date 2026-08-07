@@ -143,7 +143,25 @@ test("only makes armed non-baseline never-published posts pending", () => {
   assert.equal(publicationForNewPost(armed, "ever", "later").status, "draft_only");
 });
 
-test("rejects pending transitions for terminal, baseline, and ever-published posts", () => {
+test("new-post eligibility never resets click-start or reconciliation states", () => {
+  const state = emptyState();
+  armPublisher(state, [], "2026-08-07T00:00:00.000Z");
+  for (const status of [
+    "publishing",
+    "publish_reconcile",
+    "withdrawing",
+    "withdraw_reconcile",
+    "blocked",
+  ]) {
+    state.posts[status] = { publication: emptyPublication(status) };
+    assert.equal(
+      publicationForNewPost(state, status, "2026-08-07T01:00:00.000Z").status,
+      status,
+    );
+  }
+});
+
+test("rejects pending transitions for unsafe reconciliation, terminal, baseline, and ever-published posts", () => {
   assert.equal(typeof transitionPublication, "function");
   const state = emptyState();
   armPublisher(state, ["baseline"], "2026-08-07T00:00:00.000Z");
@@ -154,10 +172,67 @@ test("rejects pending transitions for terminal, baseline, and ever-published pos
     ...emptyPublication("draft_only"),
     everPublished: true,
   }};
+  state.posts.publishReconcile = { publication: emptyPublication("publish_reconcile") };
+  state.posts.withdrawing = { publication: emptyPublication("withdrawing") };
+  state.posts.withdrawReconcile = { publication: emptyPublication("withdraw_reconcile") };
 
-  for (const postId of ["published", "withdrawn", "baseline", "ever"]) {
+  for (const postId of [
+    "published",
+    "withdrawn",
+    "baseline",
+    "ever",
+    "publishReconcile",
+    "withdrawing",
+    "withdrawReconcile",
+  ]) {
     assert.throws(() => transitionPublication(state, postId, "pending"));
   }
+});
+
+test("click-start transitions require a safe pre-click state", () => {
+  const state = emptyState();
+  armPublisher(state, ["baseline"], "2026-08-07T00:00:00.000Z");
+  state.posts.baseline = { publication: emptyPublication("manual") };
+  state.posts.publishReconcile = { publication: emptyPublication("publish_reconcile") };
+  state.posts.withdrawReconcile = { publication: {
+    ...emptyPublication("withdraw_reconcile"),
+    everPublished: true,
+  }};
+  state.posts.pending = { publication: emptyPublication("pending") };
+  state.posts.published = { publication: {
+    ...emptyPublication("published"),
+    everPublished: true,
+  }};
+
+  assert.throws(() => transitionPublication(state, "baseline", "publishing"));
+  assert.throws(() => transitionPublication(state, "publishReconcile", "publishing"));
+  assert.throws(() => transitionPublication(state, "withdrawReconcile", "withdrawing"));
+  assert.equal(transitionPublication(state, "pending", "publishing").status, "publishing");
+  assert.equal(transitionPublication(state, "published", "withdrawing").status, "withdrawing");
+});
+
+test("human reconciliation is represented before another withdrawal attempt", () => {
+  const state = emptyState();
+  state.posts.post = { publication: {
+    ...emptyPublication("withdraw_reconcile"),
+    everPublished: true,
+  }};
+
+  transitionPublication(state, "post", "published");
+  assert.equal(state.posts.post.publication.status, "published");
+  transitionPublication(state, "post", "withdrawing");
+  assert.equal(state.posts.post.publication.status, "withdrawing");
+});
+
+test("ever-published remains true across every later transition", () => {
+  const state = emptyState();
+  state.posts.post = { publication: {
+    ...emptyPublication("published"),
+    everPublished: true,
+  }};
+
+  transitionPublication(state, "post", "withdrawing", { everPublished: false });
+  assert.equal(state.posts.post.publication.everPublished, true);
 });
 
 test("published transitions become terminal and withdrawn transitions retain identity", () => {
@@ -180,6 +255,32 @@ test("published transitions become terminal and withdrawn transitions retain ide
   assert.equal(state.posts.post.publication.publishedUrl, "https://mp.weixin.qq.com/s/article");
   assert.equal(state.posts.post.publication.platformArticleId, "article-id");
   assert.equal(state.posts.post.publication.publishedAt, "2026-08-07T01:00:00.000Z");
+  assert.equal(state.posts.post.publication.withdrawnAt, "2026-08-07T02:00:00.000Z");
+});
+
+test("withdrawn transitions ignore patches that erase publication identity", () => {
+  const state = emptyState();
+  state.posts.post = { publication: {
+    ...emptyPublication("published"),
+    everPublished: true,
+    draftFingerprint: "frozen-fingerprint",
+    publishedAt: "2026-08-07T01:00:00.000Z",
+    publishedUrl: "https://mp.weixin.qq.com/s/article",
+    platformArticleId: "article-id",
+  }};
+
+  transitionPublication(state, "post", "withdrawn", {
+    draftFingerprint: null,
+    publishedAt: null,
+    publishedUrl: null,
+    platformArticleId: null,
+    withdrawnAt: "2026-08-07T02:00:00.000Z",
+  });
+
+  assert.equal(state.posts.post.publication.draftFingerprint, "frozen-fingerprint");
+  assert.equal(state.posts.post.publication.publishedAt, "2026-08-07T01:00:00.000Z");
+  assert.equal(state.posts.post.publication.publishedUrl, "https://mp.weixin.qq.com/s/article");
+  assert.equal(state.posts.post.publication.platformArticleId, "article-id");
   assert.equal(state.posts.post.publication.withdrawnAt, "2026-08-07T02:00:00.000Z");
 });
 

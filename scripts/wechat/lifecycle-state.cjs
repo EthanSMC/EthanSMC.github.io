@@ -3,6 +3,24 @@ const STATUSES = new Set([
   "published", "withdrawing", "withdraw_reconcile", "withdrawn", "blocked",
 ]);
 
+const NEW_POST_ELIGIBLE_STATUSES = new Set(["manual", "draft_only"]);
+const PENDING_TRANSITION_STATUSES = new Set([
+  "manual", "draft_only", "blocked", "pending", "publishing",
+]);
+const WITHDRAWAL_START_STATUSES = new Set([
+  "manual", "published", "publishing", "publish_reconcile",
+]);
+const PUBLICATION_IDENTITY_FIELDS = [
+  "publicationOrigin",
+  "draftFingerprint",
+  "publishedAt",
+  "publishedUrl",
+  "platformArticleId",
+];
+const PUBLISHED_EVIDENCE_STATUSES = new Set([
+  "published", "withdrawing", "withdraw_reconcile", "withdrawn",
+]);
+
 function emptyPublication(status = "manual") {
   if (!STATUSES.has(status)) throw new Error(`未知公众号生命周期状态：${status}`);
   return {
@@ -57,11 +75,10 @@ function recoverInterruptedOperations(state, now) {
 function publicationForNewPost(state, postId, now) {
   const publication = copyPublication(state.posts[postId]?.publication);
   const baselinePostIds = state.publisher?.baselinePostIds || [];
-  const terminal = publication.status === "published" || publication.status === "withdrawn";
   if (
     !state.publisher?.armedAt
     || baselinePostIds.includes(postId)
-    || terminal
+    || !NEW_POST_ELIGIBLE_STATUSES.has(publication.status)
     || publication.everPublished
   ) {
     return publication;
@@ -86,18 +103,33 @@ function transitionPublication(state, postId, nextStatus, patch = {}) {
   if (
     nextStatus === "pending"
     && (
-      publication.status === "published"
-      || publication.status === "withdrawn"
+      !PENDING_TRANSITION_STATUSES.has(publication.status)
       || isBaseline
       || publication.everPublished
     )
   ) {
     throw new Error(`公众号文章不可重新进入待发布状态：${postId}`);
   }
+  if (
+    nextStatus === "publishing"
+    && (publication.status !== "pending" || isBaseline || publication.everPublished)
+  ) {
+    throw new Error(`公众号文章不可开始自动发布：${postId}`);
+  }
+  if (nextStatus === "withdrawing" && !WITHDRAWAL_START_STATUSES.has(publication.status)) {
+    throw new Error(`公众号文章不可开始自动撤回：${postId}`);
+  }
 
   const transitioned = copyPublication({ ...publication, ...patch }, nextStatus);
   transitioned.status = nextStatus;
-  if (nextStatus === "published") transitioned.everPublished = true;
+  if (publication.everPublished || PUBLISHED_EVIDENCE_STATUSES.has(nextStatus)) {
+    transitioned.everPublished = true;
+  }
+  if (nextStatus === "withdrawn") {
+    for (const field of PUBLICATION_IDENTITY_FIELDS) {
+      if (publication[field] !== null) transitioned[field] = publication[field];
+    }
+  }
   record.publication = transitioned;
   return transitioned;
 }
