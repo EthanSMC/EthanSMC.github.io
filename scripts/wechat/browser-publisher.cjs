@@ -19,6 +19,30 @@ const BLOCKER_ERRORS = Object.freeze({
   verification: "微信页面要求账号验证，已停止所有操作。",
 });
 
+const CONTAINER_LABELS = Object.freeze({
+  draft: "草稿编辑器",
+  published: "已发表文章详情",
+});
+
+const IDENTITY_LABELS = Object.freeze({
+  sourceUrl: "原文链接",
+  platformArticleId: "平台文章 ID",
+});
+
+const CONFIRMATIONS = Object.freeze({
+  publish: Object.freeze({
+    prompt: "确认发表这篇文章吗？",
+    confirm: LABELS.confirmPublish,
+  }),
+  withdraw: Object.freeze({
+    prompt: "撤回后文章将无法公开访问。",
+    confirm: LABELS.confirmWithdraw,
+  }),
+});
+
+const SOURCE_URL_ALIASES = Object.freeze(["content_source_url", "source_url"]);
+const PLATFORM_ID_ALIASES = Object.freeze(["appmsgid", "appmsg_id", "article_id"]);
+
 async function visibleLocators(locator) {
   const visible = [];
   for (let index = 0; index < await locator.count(); index += 1) {
@@ -60,24 +84,35 @@ function normalizedUrl(value) {
   }
 }
 
+function collectQueryValues(url, aliases) {
+  return aliases.flatMap((alias) => url.searchParams.getAll(alias));
+}
+
 function candidateMetadata(href) {
   const url = new URL(href);
   return {
-    sourceUrl: url.searchParams.get("content_source_url")
-      || url.searchParams.get("source_url"),
-    platformArticleId: url.searchParams.get("appmsgid")
-      || url.searchParams.get("appmsg_id")
-      || url.searchParams.get("article_id"),
+    sourceUrls: collectQueryValues(url, SOURCE_URL_ALIASES),
+    platformArticleIds: collectQueryValues(url, PLATFORM_ID_ALIASES),
   };
+}
+
+function valuesConflict(expected, values, normalize) {
+  if (values.length === 0) return false;
+  if (values.some((value) => value === "")) return true;
+  const normalizedValues = values.map(normalize);
+  if (new Set(normalizedValues).size !== 1) return true;
+  return expected ? normalizedValues.some((value) => value !== normalize(expected)) : false;
 }
 
 function metadataConflicts(post, href) {
   const metadata = candidateMetadata(href);
   return Boolean(
-    (post.sourceUrl && metadata.sourceUrl
-      && normalizedUrl(post.sourceUrl) !== normalizedUrl(metadata.sourceUrl))
-    || (post.platformArticleId && metadata.platformArticleId
-      && String(post.platformArticleId) !== metadata.platformArticleId),
+    valuesConflict(post.sourceUrl, metadata.sourceUrls, normalizedUrl)
+    || valuesConflict(
+      post.platformArticleId,
+      metadata.platformArticleIds,
+      (value) => String(value),
+    ),
   );
 }
 
@@ -188,30 +223,69 @@ class WechatBrowserAdapter {
     await this.openCandidate(candidate, "published");
   }
 
-  async assertCurrentTitle(post, type) {
+  async containerMatchesPost(container, post) {
     const headings = await visibleLocators(
-      this.page.getByRole("heading", { name: post.title, exact: true }),
+      container.getByRole("heading", { name: post.title, exact: true }),
     );
-    if (headings.length !== 1) {
-      throw new Error(type === "draft"
-        ? "当前草稿标题与目标文章不一致，未发表。"
-        : "当前发表记录标题与目标文章不一致，未撤回。");
+    if (headings.length !== 1) return false;
+
+    const expectedIdentities = [
+      ["sourceUrl", post.sourceUrl, normalizedUrl],
+      ["platformArticleId", post.platformArticleId, (value) => String(value)],
+    ].filter(([, expected]) => expected);
+    if (expectedIdentities.length === 0) return false;
+
+    for (const [field, expected, normalize] of expectedIdentities) {
+      const controls = await visibleLocators(
+        container.getByRole("textbox", { name: IDENTITY_LABELS[field], exact: true }),
+      );
+      if (controls.length !== 1) return false;
+      if (normalize(await controls[0].inputValue()) !== normalize(expected)) return false;
     }
+    return true;
   }
 
-  async clickExpectedConfirmation({ dialog, expected, errorMessage }) {
+  async verifiedCurrentContainer(post, type) {
+    const containers = await visibleLocators(
+      this.page.getByRole("region", { name: CONTAINER_LABELS[type], exact: true }),
+    );
+    const matching = [];
+    for (const container of containers) {
+      if (await this.containerMatchesPost(container, post)) matching.push(container);
+    }
+    if (matching.length !== 1) {
+      throw new Error(type === "draft"
+        ? "无法唯一验证当前草稿的标题与身份，未发表。"
+        : "无法唯一验证当前发表记录的标题与身份，未撤回。");
+    }
+    return matching[0];
+  }
+
+  async clickExpectedConfirmation({ dialog, expected, prompt, errorMessage }) {
     const confirm = await visibleLocators(
       dialog.getByRole("button", { name: expected, exact: true }),
     );
-    if (confirm.length !== 1) throw new Error(errorMessage);
+    const cancel = await visibleLocators(
+      dialog.getByRole("button", { name: "取消", exact: true }),
+    );
 
     const buttons = await visibleLocators(dialog.getByRole("button"));
     const texts = await Promise.all(buttons.map((button) => button.textContent()));
-    const unexpected = texts.some((text) => {
-      const normalized = String(text || "").trim();
-      return normalized !== expected && normalized !== "取消";
-    });
-    if (unexpected) throw new Error(errorMessage);
+    const exactButtons = texts.length === 2
+      && confirm.length === 1
+      && cancel.length === 1
+      && texts.every((text) => [expected, "取消"].includes(String(text || "").trim()));
+
+    const unexpectedControls = [];
+    for (const role of ["checkbox", "radio", "textbox", "combobox", "listbox", "link", "switch"]) {
+      unexpectedControls.push(...await visibleLocators(dialog.getByRole(role)));
+    }
+    unexpectedControls.push(...await visibleLocators(dialog.locator("input, select, textarea")));
+    const actualText = (await dialog.innerText()).replace(/\s+/g, " ").trim();
+    const expectedText = `${prompt} ${expected} 取消`;
+    if (!exactButtons || unexpectedControls.length > 0 || actualText !== expectedText) {
+      throw new Error(errorMessage);
+    }
 
     await assertNoGlobalBlocker(this.page);
     await confirm[0].click();
@@ -219,9 +293,9 @@ class WechatBrowserAdapter {
 
   async publishCurrentDraft(post) {
     await assertNoGlobalBlocker(this.page);
-    await this.assertCurrentTitle(post, "draft");
+    const container = await this.verifiedCurrentContainer(post, "draft");
     const publish = await oneVisible(
-      this.page.getByRole("button", { name: LABELS.publish, exact: true }),
+      container.getByRole("button", { name: LABELS.publish, exact: true }),
       {
         zero: "未找到唯一的发表按钮，未发表。",
         multiple: "找到多个发表按钮，未发表。",
@@ -229,6 +303,7 @@ class WechatBrowserAdapter {
     );
     await assertNoGlobalBlocker(this.page);
     await publish.click();
+    await assertNoGlobalBlocker(this.page);
 
     const dialog = await oneVisible(this.page.getByRole("dialog"), {
       zero: "未出现预期的发布确认对话框，未确认发表。",
@@ -236,8 +311,9 @@ class WechatBrowserAdapter {
     });
     await this.clickExpectedConfirmation({
       dialog,
-      expected: LABELS.confirmPublish,
-      errorMessage: "发布确认文案与预期不符，未确认发表。",
+      expected: CONFIRMATIONS.publish.confirm,
+      prompt: CONFIRMATIONS.publish.prompt,
+      errorMessage: "发布确认内容与预期不符，未确认发表。",
     });
   }
 
@@ -248,11 +324,11 @@ class WechatBrowserAdapter {
 
   async withdrawCurrentArticle(post) {
     await assertNoGlobalBlocker(this.page);
-    await this.assertCurrentTitle(post, "published");
+    const container = await this.verifiedCurrentContainer(post, "published");
     const actions = [];
     for (const label of LABELS.withdraw) {
       for (const locator of await visibleLocators(
-        this.page.getByRole("button", { name: label, exact: true }),
+        container.getByRole("button", { name: label, exact: true }),
       )) {
         actions.push({ label, locator });
       }
@@ -262,6 +338,7 @@ class WechatBrowserAdapter {
 
     await assertNoGlobalBlocker(this.page);
     await actions[0].locator.click();
+    await assertNoGlobalBlocker(this.page);
     const dialog = await oneVisible(this.page.getByRole("dialog"), {
       zero: "未出现预期的撤回确认对话框，未确认撤回。",
       multiple: "出现多个撤回确认对话框，未确认撤回。",
@@ -269,8 +346,9 @@ class WechatBrowserAdapter {
     const actionIndex = LABELS.withdraw.indexOf(actions[0].label);
     await this.clickExpectedConfirmation({
       dialog,
-      expected: LABELS.confirmWithdraw[actionIndex],
-      errorMessage: "撤回确认文案与预期不符，未确认撤回。",
+      expected: CONFIRMATIONS.withdraw.confirm[actionIndex],
+      prompt: CONFIRMATIONS.withdraw.prompt,
+      errorMessage: "撤回确认内容与预期不符，未确认撤回。",
     });
   }
 

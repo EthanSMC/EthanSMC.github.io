@@ -20,6 +20,12 @@ function sanitizedLaunchError(error) {
   return result;
 }
 
+function sanitizedRuntimeError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
 async function launchWechatContext(options) {
   const {
     agentHome,
@@ -28,7 +34,14 @@ async function launchWechatContext(options) {
   } = options;
   const chromium = options.chromium || require("playwright-core").chromium;
   const profileDirectory = path.join(agentHome, "browser-profile");
-  privateDirectory(profileDirectory);
+  try {
+    privateDirectory(profileDirectory);
+  } catch {
+    throw sanitizedRuntimeError(
+      "WECHAT_BROWSER_PROFILE_IO_FAILED",
+      "无法准备 Chrome 专用浏览器配置。",
+    );
+  }
 
   try {
     return await chromium.launchPersistentContext(profileDirectory, {
@@ -50,25 +63,32 @@ function safeLabel(value) {
 }
 
 async function retainDiagnosticScreenshot(options) {
-  const diagnosticsDirectory = path.join(options.agentHome, "diagnostics");
-  privateDirectory(diagnosticsDirectory);
-  const timestamp = (options.now ? options.now() : new Date())
-    .toISOString()
-    .replace(/[:.]/g, "-");
-  const filename = `${timestamp}-${safeLabel(options.label)}.png`;
-  const screenshotPath = path.join(diagnosticsDirectory, filename);
+  try {
+    const diagnosticsDirectory = path.join(options.agentHome, "diagnostics");
+    privateDirectory(diagnosticsDirectory);
+    const timestamp = (options.now ? options.now() : new Date())
+      .toISOString()
+      .replace(/[:.]/g, "-");
+    const filename = `${timestamp}-${safeLabel(options.label)}.png`;
+    const screenshotPath = path.join(diagnosticsDirectory, filename);
 
-  await options.page.screenshot({ path: screenshotPath, type: "png" });
-  fs.chmodSync(screenshotPath, 0o600);
+    await options.page.screenshot({ path: screenshotPath, type: "png" });
+    fs.chmodSync(screenshotPath, 0o600);
 
-  const screenshots = fs.readdirSync(diagnosticsDirectory)
-    .filter((entry) => entry.endsWith(".png"))
-    .sort();
-  for (const expired of screenshots.slice(0, -MAX_DIAGNOSTIC_SCREENSHOTS)) {
-    fs.rmSync(path.join(diagnosticsDirectory, expired));
+    const screenshots = fs.readdirSync(diagnosticsDirectory)
+      .filter((entry) => entry.endsWith(".png"))
+      .sort();
+    for (const expired of screenshots.slice(0, -MAX_DIAGNOSTIC_SCREENSHOTS)) {
+      fs.rmSync(path.join(diagnosticsDirectory, expired));
+    }
+
+    return screenshotPath;
+  } catch {
+    throw sanitizedRuntimeError(
+      "WECHAT_BROWSER_DIAGNOSTIC_FAILED",
+      "无法保留浏览器诊断截图。",
+    );
   }
-
-  return screenshotPath;
 }
 
 module.exports = {

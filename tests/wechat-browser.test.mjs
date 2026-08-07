@@ -82,6 +82,33 @@ test("sanitizes a browser profile lock error without leaking sensitive text", as
   );
 });
 
+test("sanitizes profile-directory filesystem failures", async () => {
+  const agentHome = temporaryDirectory();
+  const blockedHome = path.join(agentHome, "private-cookie=session-secret");
+  fs.writeFileSync(blockedHome, "not a directory");
+  let launched = false;
+
+  await assert.rejects(
+    () => launchWechatContext({
+      agentHome: blockedHome,
+      chromium: {
+        launchPersistentContext: async () => {
+          launched = true;
+        },
+      },
+    }),
+    (error) => {
+      assert.equal(error.code, "WECHAT_BROWSER_PROFILE_IO_FAILED");
+      assert.match(error.message, /无法准备 Chrome 专用浏览器配置/);
+      assert.equal(error.message.includes(blockedHome), false);
+      assert.equal(error.message.includes("session-secret"), false);
+      assert.ok(error.message.length <= 120);
+      return true;
+    },
+  );
+  assert.equal(launched, false);
+});
+
 test("retains only three private diagnostic screenshots", async () => {
   const agentHome = temporaryDirectory();
   let timestamp = Date.parse("2026-08-07T08:00:00.000Z");
@@ -109,6 +136,53 @@ test("retains only three private diagnostic screenshots", async () => {
   for (const screenshot of screenshots) {
     assert.equal(fs.statSync(path.join(diagnosticsDirectory, screenshot)).mode & 0o777, 0o600);
   }
+});
+
+test("sanitizes diagnostic directory, Playwright, and screenshot filesystem failures", async () => {
+  const assertSanitized = async (operation, privateText) => {
+    await assert.rejects(operation, (error) => {
+      assert.equal(error.code, "WECHAT_BROWSER_DIAGNOSTIC_FAILED");
+      assert.match(error.message, /无法保留浏览器诊断截图/);
+      assert.equal(error.message.includes(privateText), false);
+      assert.equal(error.message.includes("session-secret"), false);
+      assert.ok(error.message.length <= 120);
+      return true;
+    });
+  };
+
+  const directoryFailureRoot = temporaryDirectory();
+  const blockedHome = path.join(directoryFailureRoot, "private-cookie=session-secret");
+  fs.writeFileSync(blockedHome, "not a directory");
+  await assertSanitized(
+    () => retainDiagnosticScreenshot({
+      agentHome: blockedHome,
+      page: { screenshot: async () => assert.fail("screenshot must not run") },
+    }),
+    blockedHome,
+  );
+
+  const playwrightFailureHome = temporaryDirectory();
+  const privateScreenshotPath = path.join(playwrightFailureHome, "diagnostics", "private.png");
+  await assertSanitized(
+    () => retainDiagnosticScreenshot({
+      agentHome: playwrightFailureHome,
+      page: {
+        screenshot: async () => {
+          throw new Error(`Playwright failed at ${privateScreenshotPath}; cookie=session-secret`);
+        },
+      },
+    }),
+    privateScreenshotPath,
+  );
+
+  const chmodFailureHome = temporaryDirectory();
+  await assertSanitized(
+    () => retainDiagnosticScreenshot({
+      agentHome: chmodFailureHome,
+      page: { screenshot: async () => {} },
+    }),
+    chmodFailureHome,
+  );
 });
 
 function executableMissing(error) {
@@ -203,6 +277,30 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
       );
     });
 
+    await t.test("rejects every conflicting source URL alias occurrence", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/drafts.html`);
+      await assert.rejects(
+        () => adapter.findDraftCandidate({
+          title: "来源别名冲突草稿",
+          sourceUrl: "https://ethansmc.com/posts/source-alias/",
+          platformArticleId: "wx-source-alias",
+        }),
+        /草稿元数据与目标文章冲突/,
+      );
+    });
+
+    await t.test("rejects every conflicting platform ID alias occurrence", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/drafts.html`);
+      await assert.rejects(
+        () => adapter.findDraftCandidate({
+          title: "平台别名冲突草稿",
+          sourceUrl: "https://ethansmc.com/posts/platform-alias/",
+          platformArticleId: "wx-platform-alias",
+        }),
+        /草稿元数据与目标文章冲突/,
+      );
+    });
+
     await t.test("opens the selected draft and publishes with one primary and one confirmation click", async () => {
       await page.goto(`${fixtureServer.baseUrl}/drafts.html`);
       const candidate = await adapter.findDraftCandidate(draftPost);
@@ -210,6 +308,7 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
       await adapter.publishCurrentDraft(draftPost);
       assert.equal(await page.locator("[data-click-count=publish]").textContent(), "1");
       assert.equal(await page.locator("[data-click-count=confirm-publish]").textContent(), "1");
+      assert.equal(await page.locator("[data-click-count=decoy-publish]").textContent(), "0");
     });
 
     await t.test("rejects changed publish confirmation text without confirming", async () => {
@@ -219,10 +318,45 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
       });
       await assert.rejects(
         () => adapter.publishCurrentDraft(draftPost),
-        /发布确认文案与预期不符/,
+        /发布确认内容与预期不符/,
       );
       assert.equal(await page.locator("[data-click-count=publish]").textContent(), "1");
       assert.equal(await page.locator("[data-click-count=confirm-publish]").textContent(), "0");
+    });
+
+    await t.test("rejects unexpected dialog text even when confirmation buttons are unchanged", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/drafts.html`);
+      await page.locator("[data-confirmation-prompt=publish]").evaluate((element) => {
+        element.textContent = "确认发表到另一个公众号吗？";
+      });
+      await assert.rejects(
+        () => adapter.publishCurrentDraft(draftPost),
+        /发布确认内容与预期不符/,
+      );
+      assert.equal(await page.locator("[data-click-count=publish]").textContent(), "1");
+      assert.equal(await page.locator("[data-click-count=confirm-publish]").textContent(), "0");
+    });
+
+    await t.test("rejects extra confirmation fields, links, and secondary choices", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/drafts.html?extra=1`);
+      await assert.rejects(
+        () => adapter.publishCurrentDraft(draftPost),
+        /发布确认内容与预期不符/,
+      );
+      assert.equal(await page.locator("[data-click-count=publish]").textContent(), "1");
+      assert.equal(await page.locator("[data-click-count=confirm-publish]").textContent(), "0");
+      assert.equal(await page.locator("[data-click-count=secondary-publish]").textContent(), "0");
+    });
+
+    await t.test("rejects an unrelated simultaneous dialog with the same buttons", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/drafts.html?unrelated=1`);
+      await assert.rejects(
+        () => adapter.publishCurrentDraft(draftPost),
+        /多个发布确认对话框/,
+      );
+      assert.equal(await page.locator("[data-click-count=publish]").textContent(), "1");
+      assert.equal(await page.locator("[data-click-count=confirm-publish]").textContent(), "0");
+      assert.equal(await page.locator("[data-click-count=unrelated-confirm]").textContent(), "0");
     });
 
     await t.test("finds, opens, verifies, and withdraws one published article once", async () => {
@@ -236,7 +370,47 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
       await adapter.withdrawCurrentArticle(publishedPost);
       assert.equal(await page.locator("[data-click-count=withdraw]").textContent(), "1");
       assert.equal(await page.locator("[data-click-count=confirm-withdraw]").textContent(), "1");
+      assert.equal(await page.locator("[data-click-count=decoy-withdraw]").textContent(), "0");
       assert.deepEqual(await adapter.verifyWithdrawn(publishedPost), { withdrawn: true });
+    });
+
+    await t.test("rejects changed and ambiguous withdrawal controls without clicking", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/published.html`);
+      await page.locator("[data-verified-container=published] [data-action=withdraw]").evaluate((element) => {
+        element.textContent = "下架";
+      });
+      await assert.rejects(() => adapter.withdrawCurrentArticle(publishedPost), /未找到唯一的撤回控件/);
+      assert.equal(await page.locator("[data-click-count=withdraw]").textContent(), "0");
+      assert.equal(await page.locator("[data-click-count=decoy-withdraw]").textContent(), "0");
+
+      await page.goto(`${fixtureServer.baseUrl}/published.html?ambiguous=1`);
+      await assert.rejects(() => adapter.withdrawCurrentArticle(publishedPost), /找到多个撤回控件/);
+      assert.equal(await page.locator("[data-click-count=withdraw]").textContent(), "0");
+      assert.equal(await page.locator("[data-click-count=delete]").textContent(), "0");
+      assert.equal(await page.locator("[data-click-count=decoy-withdraw]").textContent(), "0");
+    });
+
+    await t.test("rejects changed withdrawal confirmation text without confirming", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/published.html`);
+      await page.locator("[data-confirm=withdraw]").evaluate((element) => {
+        element.textContent = "继续撤回";
+      });
+      await assert.rejects(
+        () => adapter.withdrawCurrentArticle(publishedPost),
+        /撤回确认内容与预期不符/,
+      );
+      assert.equal(await page.locator("[data-click-count=withdraw]").textContent(), "1");
+      assert.equal(await page.locator("[data-click-count=confirm-withdraw]").textContent(), "0");
+    });
+
+    await t.test("stops when a blocker appears after the primary click", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/published.html?blockerAfterClick=1`);
+      await assert.rejects(
+        () => adapter.withdrawCurrentArticle(publishedPost),
+        /微信页面要求账号验证/,
+      );
+      assert.equal(await page.locator("[data-click-count=withdraw]").textContent(), "1");
+      assert.equal(await page.locator("[data-click-count=confirm-withdraw]").textContent(), "0");
     });
 
     await t.test("reports login and CAPTCHA blockers before clicking any action", async () => {
