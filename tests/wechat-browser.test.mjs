@@ -3,10 +3,13 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { afterEach, test } from "node:test";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const {
   launchWechatContext,
   retainDiagnosticScreenshot,
@@ -28,6 +31,21 @@ afterEach(() => {
   while (temporaryDirectories.length > 0) {
     fs.rmSync(temporaryDirectories.pop(), { recursive: true, force: true });
   }
+});
+
+test("keeps semantic WeChat fixtures out of the public Eleventy build", () => {
+  const outputDirectory = temporaryDirectory("wechat-browser-build-");
+  const result = spawnSync(
+    process.execPath,
+    [path.join(ROOT, "node_modules", "@11ty", "eleventy", "cmd.cjs"), `--output=${outputDirectory}`],
+    { cwd: ROOT, encoding: "utf8" },
+  );
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(
+    fs.existsSync(path.join(outputDirectory, "tests", "fixtures", "wechat-browser")),
+    false,
+  );
 });
 
 test("launches installed Chrome with a private persistent profile", async () => {
