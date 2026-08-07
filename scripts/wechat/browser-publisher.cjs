@@ -494,10 +494,26 @@ class WechatBrowserAdapter {
         "文章仍在发表记录中，撤回尚未验证。",
       );
     }
-    if (post.publishedUrl) {
+    let publishedUrl;
+    if (Object.hasOwn(post, "publication")) {
+      if (
+        !post.publication
+        || typeof post.publication !== "object"
+        || Array.isArray(post.publication)
+      ) {
+        throw browserError(
+          BROWSER_ERROR_CODES.WITHDRAWAL_AMBIGUOUS,
+          "已保存的公开文章状态无效，撤回状态不明确。",
+        );
+      }
+      publishedUrl = post.publication.publishedUrl;
+    } else {
+      publishedUrl = post.publishedUrl;
+    }
+    if (publishedUrl) {
       let publicUrl;
       try {
-        publicUrl = new URL(post.publishedUrl);
+        publicUrl = new URL(publishedUrl);
       } catch {
         throw browserError(
           BROWSER_ERROR_CODES.WITHDRAWAL_AMBIGUOUS,

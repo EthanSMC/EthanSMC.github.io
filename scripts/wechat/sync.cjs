@@ -232,15 +232,27 @@ async function syncWechatDrafts({
   for (const [postId, record] of Object.entries(state.posts)) {
     const location = desiredLocation(postId, publishedIds, markers, record.publication);
     if (!location) continue;
+    const marker = markers.get(postId);
     if (record.publication.desiredLocation !== location) {
       record.publication.desiredLocation = location;
       stateChanged = true;
     }
     if (
-      location === "drafts"
-      && record.publication.withdrawRequestedAt !== markers.get(postId).requestedAt
+      location === "published"
+      && marker
+      && (
+        !Number.isFinite(Date.parse(record.publication.withdrawRequestedAt || ""))
+        || Date.parse(marker.requestedAt) > Date.parse(record.publication.withdrawRequestedAt)
+      )
     ) {
-      record.publication.withdrawRequestedAt = markers.get(postId).requestedAt;
+      record.publication.withdrawRequestedAt = marker.requestedAt;
+      stateChanged = true;
+    }
+    if (
+      location === "drafts"
+      && record.publication.withdrawRequestedAt !== marker.requestedAt
+    ) {
+      record.publication.withdrawRequestedAt = marker.requestedAt;
       stateChanged = true;
     }
     if (

@@ -287,6 +287,27 @@ test("rejects a symlink diagnostics parent before taking a screenshot", async ()
   assert.deepEqual(fs.readdirSync(external), []);
 });
 
+test("rejects malformed lifecycle publication without using a top-level URL fallback", async () => {
+  let publicRequests = 0;
+  const adapter = new WechatBrowserAdapter({}, {
+    fetchPublicArticle: async () => {
+      publicRequests += 1;
+      return { status: 404 };
+    },
+  });
+  adapter.findPublishedCandidate = async () => ({ kind: "absent" });
+
+  await assert.rejects(
+    () => adapter.verifyWithdrawn({
+      title: "已发表文章",
+      publication: null,
+      publishedUrl: "https://mp.weixin.qq.com/s/unsafe-fallback",
+    }),
+    (error) => error.code === "WECHAT_WITHDRAWAL_AMBIGUOUS",
+  );
+  assert.equal(publicRequests, 0);
+});
+
 function executableMissing(error) {
   const message = error instanceof Error ? error.message : String(error);
   return /browserType\.launch:.*(?:executable|distribution)[^\n]*(?:does not exist|not found)/i.test(message)

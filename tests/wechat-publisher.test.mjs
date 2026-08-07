@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { arm, resolveRecord, runLifecycle, statusSummary } = require("../scripts/wechat/publisher.cjs");
+const { WechatBrowserAdapter } = require("../scripts/wechat/browser-publisher.cjs");
 const { main, parseArguments, publicCliFailure } = require("../scripts/wechat-publish.cjs");
 const { emptyPublication } = require("../scripts/wechat/lifecycle-state.cjs");
 const { emptyState, loadState, saveState } = require("../scripts/wechat/state.cjs");
@@ -616,6 +617,50 @@ test("a still-readable or ambiguous public withdrawal verification aborts later 
     assert.equal(state.posts[POST_ID].publication.status, "withdraw_reconcile", code);
     assert.equal(state.posts[SECOND_ID].publication.status, "pending", code);
   }
+});
+
+test("publisher passes nested publication URL to withdrawal verification before later clicks", async () => {
+  const publishedUrl = `https://mp.weixin.qq.com/s/${POST_ID}`;
+  const data = seed({
+    status: "withdraw_reconcile",
+    publication: {
+      everPublished: true,
+      desiredLocation: "drafts",
+      withdrawRequestedAt: "2026-08-07T03:00:00.000Z",
+      publishedUrl,
+    },
+    posts: { [SECOND_ID]: post("pending", { title: "第二篇文章" }) },
+  });
+  marker(data.root);
+  const requestedPublicUrls = [];
+  const adapter = new WechatBrowserAdapter({}, {
+    fetchPublicArticle: async (url) => {
+      requestedPublicUrls.push(url);
+      return { status: 200 };
+    },
+  });
+  let laterAutomaticClicks = 0;
+  adapter.checkSession = async () => ({ authenticated: true });
+  adapter.findPublishedCandidate = async () => ({ kind: "absent" });
+  adapter.findDraftCandidate = async (record) => ({
+    kind: "exact",
+    title: record.title,
+    href: "https://mp.weixin.qq.com/draft/second",
+  });
+  adapter.openDraft = async () => {};
+  adapter.publishCurrentDraft = async () => { laterAutomaticClicks += 1; };
+  adapter.verifyPublished = async (record) => ({
+    published: true,
+    candidate: exact(record.title === "第二篇文章" ? SECOND_ID : POST_ID),
+  });
+
+  await run(data, adapter);
+
+  const state = loadState(data.stateFile);
+  assert.deepEqual(requestedPublicUrls, [publishedUrl]);
+  assert.equal(state.posts[POST_ID].publication.status, "withdraw_reconcile");
+  assert.equal(state.posts[SECOND_ID].publication.status, "pending");
+  assert.equal(laterAutomaticClicks, 0);
 });
 
 test("disabled automatic withdrawal retains an actionable published record without browser work", async () => {
