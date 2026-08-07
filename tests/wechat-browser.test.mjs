@@ -308,6 +308,29 @@ test("rejects malformed lifecycle publication without using a top-level URL fall
   assert.equal(publicRequests, 0);
 });
 
+test("rejects present falsey nested public URLs as ambiguous", async () => {
+  for (const publishedUrl of [0, false, ""]) {
+    let publicRequests = 0;
+    const adapter = new WechatBrowserAdapter({}, {
+      fetchPublicArticle: async () => {
+        publicRequests += 1;
+        return { status: 404 };
+      },
+    });
+    adapter.findPublishedCandidate = async () => ({ kind: "absent" });
+
+    await assert.rejects(
+      () => adapter.verifyWithdrawn({
+        title: "已发表文章",
+        publication: { publishedUrl },
+      }),
+      (error) => error.code === "WECHAT_WITHDRAWAL_AMBIGUOUS",
+      JSON.stringify(publishedUrl),
+    );
+    assert.equal(publicRequests, 0, JSON.stringify(publishedUrl));
+  }
+});
+
 function executableMissing(error) {
   const message = error instanceof Error ? error.message : String(error);
   return /browserType\.launch:.*(?:executable|distribution)[^\n]*(?:does not exist|not found)/i.test(message)

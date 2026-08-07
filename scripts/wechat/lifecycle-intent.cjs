@@ -68,4 +68,4 @@ function desiredLocation(postId, publishedIds, markers, publication = null) {
   return null;
 }
 
-module.exports = { desiredLocation, loadWithdrawalMarkers };
+module.exports = { desiredLocation, isCanonicalUtcTimestamp, loadWithdrawalMarkers };

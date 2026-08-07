@@ -526,6 +526,89 @@ test("a marker superseded by restore cannot authorize a later plain deletion", a
   assert.equal(withdrawClicks, 0);
 });
 
+test("restore canonicalizes an equivalent marker before only a newer marker can authorize", async () => {
+  const root = fixture();
+  const client = fakeClient();
+  const stateFile = config(root).stateFile;
+  const sourcePath = path.join(root, "content", "published", `${POST_ID}.md`);
+  writeLifecycleState(root, (state) => {
+    state.publisher.armedAt = "2026-08-06T22:00:00.000Z";
+    state.publisher.baselineCaptured = true;
+    state.publisher.baselinePostIds = [];
+    state.posts[POST_ID] = {
+      fingerprint: "published-fingerprint",
+      mediaId: "published-media",
+      title: "已发表文章",
+      sourceUrl: "https://example.com/posts/published/",
+      syncedAt: "2026-08-06T23:00:00.000Z",
+      publication: {
+        ...emptyPublication("published"),
+        everPublished: true,
+        publicationOrigin: "automatic",
+        draftFingerprint: "published-fingerprint",
+        publishedAt: "2026-08-06T23:30:00.000Z",
+        publishedUrl: "https://mp.weixin.qq.com/s/exact",
+        platformArticleId: "wx-published",
+        withdrawRequestedAt: "2026-08-07T00:00:00Z",
+      },
+    };
+  });
+  writeMarker(root);
+
+  await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+
+  let publication = loadState(stateFile).posts[POST_ID].publication;
+  assert.equal(publication.withdrawRequestedAt, "2026-08-07T00:00:00.000Z");
+  assert.equal(publication.desiredLocation, "published");
+
+  fs.unlinkSync(sourcePath);
+  await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  let withdrawClicks = 0;
+  const adapter = {
+    checkSession: async () => ({ authenticated: true }),
+    findPublishedCandidate: async (record) => ({
+      kind: "exact",
+      title: record.title,
+      href: "https://mp.weixin.qq.com/s/exact",
+    }),
+    openPublished: async () => {},
+    withdrawCurrentArticle: async () => { withdrawClicks += 1; },
+    verifyWithdrawn: async () => ({ withdrawn: true }),
+  };
+  await runLifecycle({
+    root,
+    stateFile,
+    adapter,
+    autoPublish: true,
+    autoWithdraw: true,
+    now: () => "2026-08-07T01:00:00.000Z",
+  });
+
+  publication = loadState(stateFile).posts[POST_ID].publication;
+  assert.equal(publication.status, "published");
+  assert.equal(publication.desiredLocation, "published");
+  assert.equal(withdrawClicks, 0);
+
+  writeMarker(root, POST_ID, {
+    postId: POST_ID,
+    requestedAt: "2026-08-07T02:00:00.000Z",
+  });
+  await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  await runLifecycle({
+    root,
+    stateFile,
+    adapter,
+    autoPublish: true,
+    autoWithdraw: true,
+    now: () => "2026-08-07T03:00:00.000Z",
+  });
+
+  publication = loadState(stateFile).posts[POST_ID].publication;
+  assert.equal(publication.status, "withdrawn");
+  assert.equal(publication.withdrawRequestedAt, "2026-08-07T02:00:00.000Z");
+  assert.equal(withdrawClicks, 1);
+});
+
 test("active markers cancel safe publication states before any WeChat API call", async () => {
   const root = fixture();
   const client = fakeClient();

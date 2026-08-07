@@ -495,6 +495,7 @@ class WechatBrowserAdapter {
       );
     }
     let publishedUrl;
+    let hasPublishedUrl;
     if (Object.hasOwn(post, "publication")) {
       if (
         !post.publication
@@ -506,11 +507,13 @@ class WechatBrowserAdapter {
           "已保存的公开文章状态无效，撤回状态不明确。",
         );
       }
+      hasPublishedUrl = Object.hasOwn(post.publication, "publishedUrl");
       publishedUrl = post.publication.publishedUrl;
     } else {
+      hasPublishedUrl = Object.hasOwn(post, "publishedUrl");
       publishedUrl = post.publishedUrl;
     }
-    if (publishedUrl) {
+    if (hasPublishedUrl && publishedUrl !== null) {
       let publicUrl;
       try {
         publicUrl = new URL(publishedUrl);

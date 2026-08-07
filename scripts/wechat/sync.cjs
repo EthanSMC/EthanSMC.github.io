@@ -10,7 +10,11 @@ const {
   hashBuffer,
   publicationFingerprint,
 } = require("./content.cjs");
-const { desiredLocation, loadWithdrawalMarkers } = require("./lifecycle-intent.cjs");
+const {
+  desiredLocation,
+  isCanonicalUtcTimestamp,
+  loadWithdrawalMarkers,
+} = require("./lifecycle-intent.cjs");
 const { publicationForNewPost } = require("./lifecycle-state.cjs");
 const { loadState, saveState } = require("./state.cjs");
 
@@ -241,7 +245,7 @@ async function syncWechatDrafts({
       location === "published"
       && marker
       && (
-        !Number.isFinite(Date.parse(record.publication.withdrawRequestedAt || ""))
+        !isCanonicalUtcTimestamp(record.publication.withdrawRequestedAt)
         || Date.parse(marker.requestedAt) > Date.parse(record.publication.withdrawRequestedAt)
       )
     ) {
