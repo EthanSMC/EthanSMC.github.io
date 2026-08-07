@@ -5,7 +5,7 @@ const STATUSES = new Set([
 
 const NEW_POST_ELIGIBLE_STATUSES = new Set(["manual", "draft_only"]);
 const PENDING_TRANSITION_STATUSES = new Set([
-  "manual", "draft_only", "blocked", "pending", "publishing",
+  "manual", "draft_only", "blocked", "pending",
 ]);
 const WITHDRAWAL_START_STATUSES = new Set([
   "manual", "published", "publishing", "publish_reconcile",

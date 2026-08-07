@@ -172,6 +172,7 @@ test("rejects pending transitions for unsafe reconciliation, terminal, baseline,
     ...emptyPublication("draft_only"),
     everPublished: true,
   }};
+  state.posts.publishing = { publication: emptyPublication("publishing") };
   state.posts.publishReconcile = { publication: emptyPublication("publish_reconcile") };
   state.posts.withdrawing = { publication: emptyPublication("withdrawing") };
   state.posts.withdrawReconcile = { publication: emptyPublication("withdraw_reconcile") };
@@ -181,6 +182,7 @@ test("rejects pending transitions for unsafe reconciliation, terminal, baseline,
     "withdrawn",
     "baseline",
     "ever",
+    "publishing",
     "publishReconcile",
     "withdrawing",
     "withdrawReconcile",
