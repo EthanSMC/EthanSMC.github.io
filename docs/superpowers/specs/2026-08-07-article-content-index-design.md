@@ -1,7 +1,7 @@
 # Article Content Index Design
 
-**Status:** Design complete; awaiting written-spec review  
-**Date:** 2026-08-07  
+**Status:** Design complete; awaiting written-spec review
+**Date:** 2026-08-07
 **Scope:** Hybrid local retrieval for published articles; semantic search degrades safely at runtime
 
 ## 1. Context
