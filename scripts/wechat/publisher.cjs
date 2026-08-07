@@ -8,6 +8,7 @@ const {
 const { loadWithdrawalMarkers } = require("./lifecycle-intent.cjs");
 const {
   armPublisher,
+  hasValidPublisherArming,
   recoverInterruptedOperations,
   transitionPublication,
 } = require("./lifecycle-state.cjs");
@@ -63,7 +64,7 @@ function sanitizedError(error, fallback) {
 function armingStatus(state) {
   const value = state.publisher?.armedAt;
   if (value === null || value === undefined) return { armed: false, invalid: false, armedAt: null };
-  if (typeof value === "string" && Number.isFinite(Date.parse(value))) {
+  if (hasValidPublisherArming(state)) {
     return { armed: true, invalid: false, armedAt: value };
   }
   return { armed: false, invalid: true, armedAt: null };
@@ -115,10 +116,20 @@ function exactCandidate(value) {
   return value?.kind === "exact" && typeof value.title === "string" && typeof value.href === "string";
 }
 
+function explicitAbsence(value) {
+  return value !== null
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && Object.hasOwn(value, "kind")
+    && value.kind === "absent"
+    && Object.keys(value).length === 1;
+}
+
 async function findPublished(adapter, record) {
   try {
     const candidate = await adapter.findPublishedCandidate(record);
     if (exactCandidate(candidate)) return { kind: "exact", candidate };
+    if (explicitAbsence(candidate)) return candidate;
     throw codedError("WECHAT_ADAPTER_RESULT_INVALID", "已发表文章查找结果不明确。");
   } catch (error) {
     if (browserErrorKind(error) === "absence") return { kind: "absent" };
@@ -152,7 +163,12 @@ function verificationCandidate(result) {
 }
 
 function verifiedWithdrawal(result) {
-  return result?.withdrawn === true;
+  return result !== null
+    && typeof result === "object"
+    && !Array.isArray(result)
+    && Object.hasOwn(result, "withdrawn")
+    && result.withdrawn === true
+    && Object.keys(result).length === 1;
 }
 
 function statusSummary(state) {
@@ -368,15 +384,19 @@ async function runLifecycle(options) {
     if (publication.status === "withdraw_reconcile") {
       try {
         const result = await browser.verifyWithdrawn(record);
-        if (verifiedWithdrawal(result)) {
-          transitionPublication(state, postId, "withdrawn", {
-            desiredLocation: "drafts",
-            withdrawnAt: timestamp(options.now),
-            blockedOperation: null,
-            lastError: null,
-          });
-          persist();
+        if (!verifiedWithdrawal(result)) {
+          throw codedError(
+            "WECHAT_ADAPTER_RESULT_INVALID",
+            "公众号撤回验证结果无效，已停止后续自动操作。",
+          );
         }
+        transitionPublication(state, postId, "withdrawn", {
+          desiredLocation: "drafts",
+          withdrawnAt: timestamp(options.now),
+          blockedOperation: null,
+          lastError: null,
+        });
+        persist();
       } catch (error) {
         saveRecordError(postId, "withdraw", error);
       }

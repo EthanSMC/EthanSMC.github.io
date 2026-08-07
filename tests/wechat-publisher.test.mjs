@@ -367,17 +367,37 @@ test("manual withdrawal intent branches on trustworthy published evidence", asyn
   assert.equal(loadState(absentData.stateFile).posts[POST_ID].publication.status, "draft_only");
 });
 
-test("trustworthy absence withdraws a known published record without clicking", async () => {
-  const data = seed({ status: "published", publication: { everPublished: true } });
-  marker(data.root);
-  const adapter = fakeAdapter();
+test("both trustworthy absence representations preserve lifecycle certainty", async () => {
+  const representations = [
+    ["coded absence", {}],
+    ["structured absence", { findPublished: () => ({ kind: "absent" }) }],
+  ];
 
-  await run(data, adapter);
+  for (const [label, adapterOptions] of representations) {
+    const publishedData = seed({ status: "published", publication: { everPublished: true } });
+    marker(publishedData.root);
+    const publishedAdapter = fakeAdapter(adapterOptions);
 
-  const publication = loadState(data.stateFile).posts[POST_ID].publication;
-  assert.equal(adapter.withdrawClicks, 0);
-  assert.equal(publication.status, "withdrawn");
-  assert.equal(publication.withdrawnAt, NOW);
+    await run(publishedData, publishedAdapter);
+
+    const publication = loadState(publishedData.stateFile).posts[POST_ID].publication;
+    assert.equal(publishedAdapter.withdrawClicks, 0, label);
+    assert.equal(publication.status, "withdrawn", label);
+    assert.equal(publication.withdrawnAt, NOW, label);
+
+    const uncertainData = seed({ status: "publish_reconcile" });
+    marker(uncertainData.root);
+    const uncertainAdapter = fakeAdapter(adapterOptions);
+
+    await run(uncertainData, uncertainAdapter);
+
+    assert.equal(uncertainAdapter.withdrawClicks, 0, label);
+    assert.equal(
+      loadState(uncertainData.stateFile).posts[POST_ID].publication.status,
+      "publish_reconcile",
+      label,
+    );
+  }
 });
 
 test("ambiguous withdrawal identity blocks before any withdrawal click", async () => {
@@ -491,6 +511,42 @@ test("withdrawal queue finishes before the publication queue starts", async () =
   await run(data, adapter);
 
   assert.deepEqual(order, ["withdraw", "publish"]);
+});
+
+test("invalid withdrawal reconciliation results abort before later publication clicks", async () => {
+  const invalidResults = [
+    null,
+    {},
+    { withdrawn: false },
+    { withdrawn: true, extra: "untrusted" },
+  ];
+
+  for (const result of invalidResults) {
+    const data = seed({
+      status: "withdraw_reconcile",
+      publication: { everPublished: true },
+      posts: { [SECOND_ID]: post("pending", { title: "第二篇文章" }) },
+    });
+    marker(data.root);
+    const adapter = fakeAdapter({
+      verifyWithdrawn: () => result,
+      verifyPublished: () => ({ published: true, candidate: exact(SECOND_ID) }),
+    });
+
+    await assert.rejects(
+      () => run(data, adapter),
+      (error) => {
+        assert.equal(error.code, "WECHAT_ADAPTER_RESULT_INVALID");
+        return true;
+      },
+    );
+
+    const state = loadState(data.stateFile);
+    assert.equal(adapter.withdrawClicks, 0);
+    assert.equal(adapter.publishClicks, 0);
+    assert.equal(state.posts[POST_ID].publication.status, "withdraw_reconcile");
+    assert.equal(state.posts[SECOND_ID].publication.status, "pending");
+  }
 });
 
 test("enumerated candidate errors block one record and allow the next safe record", async () => {

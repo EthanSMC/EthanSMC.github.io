@@ -53,8 +53,13 @@ function copyPublication(value, fallbackStatus = "manual") {
   return publication;
 }
 
+function hasValidPublisherArming(state) {
+  const armedAt = state.publisher?.armedAt;
+  return typeof armedAt === "string" && Number.isFinite(Date.parse(armedAt));
+}
+
 function armPublisher(state, postIds, now) {
-  if (state.publisher.armedAt) return state;
+  if (hasValidPublisherArming(state)) return state;
   state.publisher.armedAt = now;
   state.publisher.baselinePostIds = [...new Set(postIds)];
   return state;
@@ -76,7 +81,7 @@ function publicationForNewPost(state, postId, now) {
   const publication = copyPublication(state.posts[postId]?.publication);
   const baselinePostIds = state.publisher?.baselinePostIds || [];
   if (
-    !state.publisher?.armedAt
+    !hasValidPublisherArming(state)
     || baselinePostIds.includes(postId)
     || !NEW_POST_ELIGIBLE_STATUSES.has(publication.status)
     || publication.everPublished
@@ -138,6 +143,7 @@ module.exports = {
   STATUSES,
   armPublisher,
   emptyPublication,
+  hasValidPublisherArming,
   publicationForNewPost,
   recoverInterruptedOperations,
   transitionPublication,

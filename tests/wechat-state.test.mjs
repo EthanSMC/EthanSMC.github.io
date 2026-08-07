@@ -65,6 +65,21 @@ test("arming is idempotent and baselines every current post", () => {
   assert.equal(state.publisher.armedAt, "2026-08-07T00:00:00.000Z");
 });
 
+test("malformed arming neither freezes re-arming nor makes a post pending", () => {
+  const state = emptyState();
+  state.publisher.armedAt = "not-a-timestamp";
+  state.publisher.baselinePostIds = ["stale-baseline"];
+
+  assert.equal(
+    publicationForNewPost(state, "new", "2026-08-07T01:00:00.000Z").status,
+    "manual",
+  );
+
+  armPublisher(state, ["new"], "2026-08-07T00:00:00.000Z");
+  assert.equal(state.publisher.armedAt, "2026-08-07T00:00:00.000Z");
+  assert.deepEqual(state.publisher.baselinePostIds, ["new"]);
+});
+
 test("recovers persisted click states into operation-specific reconciliation", () => {
   const state = emptyState();
   state.posts.a = { publication: emptyPublication("publishing") };
