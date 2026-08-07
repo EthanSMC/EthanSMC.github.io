@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>登录微信公众平台</title></head>
+<body>
+  <main>
+    <h1>请使用微信扫描二维码登录</h1>
+    <button type="button" data-action="publish">发表</button>
+    <output data-click-count="publish">0</output>
+  </main>
+  <script>
+    document.querySelector('[data-action="publish"]').addEventListener('click', () => {
+      const output = document.querySelector('[data-click-count="publish"]');
+      output.textContent = String(Number(output.textContent) + 1);
+    });
+  </script>
+</body>
+</html>

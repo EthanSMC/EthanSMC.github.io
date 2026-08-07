@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>草稿箱</title></head>
+<body>
+  <nav aria-label="内容管理">
+    <a href="/drafts.html" aria-current="page">草稿箱</a>
+    <a href="/published.html">发表记录</a>
+  </nav>
+  <main>
+    <h1>草稿箱</h1>
+    <section aria-label="草稿列表">
+      <article><a href="/drafts.html?content_source_url=https%3A%2F%2Fethansmc.com%2Fposts%2Fdraft%2F&amp;appmsgid=wx-draft-1#editor">唯一草稿</a></article>
+      <article><a href="/drafts.html?content_source_url=https%3A%2F%2Fethansmc.com%2Fposts%2Fduplicate%2F&amp;appmsgid=wx-duplicate-1">重复草稿</a></article>
+      <article><a href="/drafts.html?content_source_url=https%3A%2F%2Fethansmc.com%2Fposts%2Fduplicate%2F&amp;appmsgid=wx-duplicate-2">重复草稿</a></article>
+      <article><a href="/drafts.html?content_source_url=https%3A%2F%2Fother.example%2Fwrong&amp;appmsgid=wx-wrong">来源冲突草稿</a></article>
+    </section>
+    <section id="editor" aria-label="草稿编辑器">
+      <h2>唯一草稿</h2>
+      <button type="button" data-action="publish">发表</button>
+      <output data-click-count="publish">0</output>
+      <output data-click-count="confirm-publish">0</output>
+    </section>
+    <p data-verification-message hidden>请完成账号验证</p>
+    <dialog data-dialog="publish">
+      <p>确认发表这篇文章吗？</p>
+      <button type="button" data-confirm="publish">发表</button>
+      <button type="button" data-cancel="publish">取消</button>
+    </dialog>
+  </main>
+  <script>
+    const publishCount = document.querySelector('[data-click-count="publish"]');
+    const confirmCount = document.querySelector('[data-click-count="confirm-publish"]');
+    const dialog = document.querySelector('[data-dialog="publish"]');
+    document.querySelector('[data-action="publish"]').addEventListener('click', () => {
+      publishCount.textContent = String(Number(publishCount.textContent) + 1);
+      dialog.showModal();
+    });
+    document.querySelector('[data-confirm="publish"]').addEventListener('click', () => {
+      confirmCount.textContent = String(Number(confirmCount.textContent) + 1);
+      dialog.close();
+    });
+    document.querySelector('[data-cancel="publish"]').addEventListener('click', () => dialog.close());
+  </script>
+</body>
+</html>

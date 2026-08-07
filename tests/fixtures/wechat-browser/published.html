@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>发表记录</title></head>
+<body>
+  <nav aria-label="内容管理">
+    <a href="/drafts.html">草稿箱</a>
+    <a href="/published.html" aria-current="page">发表记录</a>
+  </nav>
+  <main>
+    <h1>发表记录</h1>
+    <section aria-label="发表列表">
+      <article id="published-target"><a href="/published.html?content_source_url=https%3A%2F%2Fethansmc.com%2Fposts%2Fpublished%2F&amp;appmsgid=wx-published-1#article">已发表文章</a></article>
+    </section>
+    <section id="article" aria-label="已发表文章详情">
+      <h2>已发表文章</h2>
+      <button type="button" data-action="withdraw">撤回</button>
+      <output data-click-count="withdraw">0</output>
+      <output data-click-count="confirm-withdraw">0</output>
+    </section>
+    <dialog data-dialog="withdraw">
+      <p>撤回后文章将无法公开访问。</p>
+      <button type="button" data-confirm="withdraw">确认撤回</button>
+      <button type="button" data-cancel="withdraw">取消</button>
+    </dialog>
+  </main>
+  <script>
+    const withdrawCount = document.querySelector('[data-click-count="withdraw"]');
+    const confirmCount = document.querySelector('[data-click-count="confirm-withdraw"]');
+    const dialog = document.querySelector('[data-dialog="withdraw"]');
+    document.querySelector('[data-action="withdraw"]').addEventListener('click', () => {
+      withdrawCount.textContent = String(Number(withdrawCount.textContent) + 1);
+      dialog.showModal();
+    });
+    document.querySelector('[data-confirm="withdraw"]').addEventListener('click', () => {
+      confirmCount.textContent = String(Number(confirmCount.textContent) + 1);
+      document.querySelector('#published-target').remove();
+      dialog.close();
+    });
+    document.querySelector('[data-cancel="withdraw"]').addEventListener('click', () => dialog.close());
+  </script>
+</body>
+</html>
