@@ -1,17 +1,67 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const { STATUSES, emptyPublication } = require("./lifecycle-state.cjs");
+
+const POST_ID_PATTERN = /^\d{4}-\d{2}-\d{2}-\d{6}$/;
+
+function normalizedBaseline(publisher) {
+  const baselinePostIds = Array.isArray(publisher.baselinePostIds)
+    ? [...publisher.baselinePostIds]
+    : [];
+  const valid = publisher.baselineCaptured === true
+    && baselinePostIds.every((postId) => typeof postId === "string" && POST_ID_PATTERN.test(postId))
+    && new Set(baselinePostIds).size === baselinePostIds.length;
+  return {
+    baselineCaptured: valid,
+    baselinePostIds: valid ? baselinePostIds : [],
+  };
+}
+
 function emptyState() {
-  return { version: 1, articleImages: {}, covers: {}, posts: {} };
+  return {
+    version: 2,
+    articleImages: {},
+    covers: {},
+    posts: {},
+    publisher: {
+      armedAt: null,
+      baselineCaptured: false,
+      baselinePostIds: [],
+      browserSessionCheckedAt: null,
+    },
+  };
 }
 
 function normalizeState(value) {
-  if (!value || value.version !== 1) return emptyState();
+  if (!value || (value.version !== 1 && value.version !== 2)) return emptyState();
+  const posts = Object.fromEntries(Object.entries(value.posts || {}).map(([postId, record]) => {
+    const metadata = record && typeof record === "object" && !Array.isArray(record) ? record : {};
+    let publication = emptyPublication("manual");
+    if (value.version === 2 && metadata.publication && typeof metadata.publication === "object") {
+      const source = metadata.publication;
+      publication = emptyPublication(STATUSES.has(source.status) ? source.status : "manual");
+      for (const field of Object.keys(publication)) {
+        if (field !== "status" && Object.hasOwn(source, field)) publication[field] = source[field];
+      }
+    }
+    return [postId, { ...metadata, publication }];
+  }));
+  const publisher = value.version === 2 && value.publisher && typeof value.publisher === "object"
+    ? value.publisher
+    : {};
+  const baseline = normalizedBaseline(publisher);
   return {
-    version: 1,
+    version: 2,
     articleImages: value.articleImages || {},
     covers: value.covers || {},
-    posts: value.posts || {},
+    posts,
+    publisher: {
+      armedAt: publisher.armedAt ?? null,
+      baselineCaptured: baseline.baselineCaptured,
+      baselinePostIds: baseline.baselinePostIds,
+      browserSessionCheckedAt: publisher.browserSessionCheckedAt ?? null,
+    },
   };
 }
 

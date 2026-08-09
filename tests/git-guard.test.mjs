@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdtemp, mkdir, readdir, unlink, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, readFile, readdir, rename, symlink, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -152,4 +152,111 @@ test("allows deletion of a tracked attachment after its last reference is remove
   assert.equal(commit.status, 0, commit.stderr);
   const status = run(directory, "git", ["show", "--format=", "--name-status", "HEAD"]).stdout;
   assert.match(status, /D\s+content\/assets\/old\.png/);
+});
+
+test("moving a published article to private drafts commits a content-free withdrawal marker", async () => {
+  const directory = await fixture();
+  const filename = "2026-07-28-120000.md";
+  await rename(
+    path.join(directory, "content", "published", filename),
+    path.join(directory, "content", "drafts", filename),
+  );
+  run(directory, "git", ["add", "-A"]);
+
+  const commit = run(directory, "git", ["commit", "-m", "blog: withdraw"], { OBSIDIAN_GIT: "1" });
+
+  assert.equal(commit.status, 0, commit.stderr);
+  const marker = JSON.parse(
+    run(
+      directory,
+      "git",
+      ["show", "HEAD:content/.lifecycle/withdrawals/2026-07-28-120000.json"],
+    ).stdout,
+  );
+  assert.deepEqual(Object.keys(marker).sort(), ["postId", "requestedAt"]);
+  assert.equal(marker.postId, "2026-07-28-120000");
+  assert.match(marker.requestedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  assert.equal(new Date(marker.requestedAt).toISOString(), marker.requestedAt);
+  assert.doesNotMatch(JSON.stringify(marker), /Baseline|Published|drafts/);
+  assert.equal(run(directory, "git", ["ls-files", "content/drafts"]).stdout, "");
+});
+
+test("deleting a published article without a private draft does not commit a withdrawal marker", async () => {
+  const directory = await fixture();
+  await unlink(path.join(directory, "content", "published", "2026-07-28-120000.md"));
+  run(directory, "git", ["add", "-A"]);
+
+  const commit = run(directory, "git", ["commit", "-m", "blog: delete"], { OBSIDIAN_GIT: "1" });
+
+  assert.equal(commit.status, 0, commit.stderr);
+  const committedNames = run(directory, "git", ["show", "--format=", "--name-only", "HEAD"]).stdout;
+  assert.doesNotMatch(committedNames, /content\/\.lifecycle\/withdrawals\//);
+});
+
+test("Obsidian rejects the same timestamped article in published and private drafts", async () => {
+  const directory = await fixture();
+  const filename = "2026-07-28-120000.md";
+  await writeFile(
+    path.join(directory, "content", "drafts", filename),
+    "# Private duplicate\n",
+  );
+  await writeFile(
+    path.join(directory, "content", "published", filename),
+    "# Baseline\n\nStaged update.\n",
+  );
+  run(directory, "git", ["add", "-A"]);
+  const stagedBefore = run(directory, "git", ["diff", "--cached", "--binary"]).stdout;
+
+  const commit = run(directory, "git", ["commit", "-m", "blog: duplicate"], { OBSIDIAN_GIT: "1" });
+
+  assert.notEqual(commit.status, 0);
+  assert.match(commit.stderr, /同一文章不能同时位于 published 和 drafts/);
+  assert.equal(run(directory, "git", ["diff", "--cached", "--binary"]).stdout, stagedBefore);
+});
+
+test("Obsidian rejects a symlinked withdrawal marker without external writes or index changes", async () => {
+  const directory = await fixture();
+  const filename = "2026-07-28-120000.md";
+  const externalDirectory = await mkdtemp(path.join(os.tmpdir(), "ethan-blog-marker-target-"));
+  const externalFile = path.join(externalDirectory, "private.txt");
+  const sentinel = "private local content\n";
+  await writeFile(externalFile, sentinel);
+  const withdrawals = path.join(directory, "content", ".lifecycle", "withdrawals");
+  await mkdir(withdrawals, { recursive: true });
+  await symlink(externalFile, path.join(withdrawals, "2026-07-28-120000.json"));
+  await rename(
+    path.join(directory, "content", "published", filename),
+    path.join(directory, "content", "drafts", filename),
+  );
+  run(directory, "git", ["add", "-A"]);
+  const stagedBefore = run(directory, "git", ["diff", "--cached", "--binary"]).stdout;
+
+  const commit = run(directory, "git", ["commit", "-m", "blog: unsafe marker"], { OBSIDIAN_GIT: "1" });
+
+  assert.equal(await readFile(externalFile, "utf8"), sentinel);
+  assert.equal(run(directory, "git", ["diff", "--cached", "--binary"]).stdout, stagedBefore);
+  assert.notEqual(commit.status, 0);
+  assert.match(commit.stderr, /withdrawal marker path must be a regular file inside the repository/);
+});
+
+test("Obsidian rejects a symlinked withdrawal directory without external writes or index changes", async () => {
+  const directory = await fixture();
+  const filename = "2026-07-28-120000.md";
+  const externalDirectory = await mkdtemp(path.join(os.tmpdir(), "ethan-blog-withdrawals-target-"));
+  const lifecycle = path.join(directory, "content", ".lifecycle");
+  await mkdir(lifecycle, { recursive: true });
+  await symlink(externalDirectory, path.join(lifecycle, "withdrawals"), "dir");
+  await rename(
+    path.join(directory, "content", "published", filename),
+    path.join(directory, "content", "drafts", filename),
+  );
+  run(directory, "git", ["add", "-A"]);
+  const stagedBefore = run(directory, "git", ["diff", "--cached", "--binary"]).stdout;
+
+  const commit = run(directory, "git", ["commit", "-m", "blog: unsafe marker parent"], { OBSIDIAN_GIT: "1" });
+
+  assert.deepEqual(await readdir(externalDirectory), []);
+  assert.equal(run(directory, "git", ["diff", "--cached", "--binary"]).stdout, stagedBefore);
+  assert.notEqual(commit.status, 0);
+  assert.match(commit.stderr, /withdrawal marker path must be a regular file inside the repository/);
 });

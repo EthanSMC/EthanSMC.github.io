@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>发表记录</title></head>
+<body>
+  <nav aria-label="内容管理">
+    <a href="/drafts.html">草稿箱</a>
+    <a href="/published.html" aria-current="page">发表记录</a>
+  </nav>
+  <main>
+    <h1>发表记录</h1>
+    <section aria-label="发表列表" data-published-list-state="complete">
+      <article id="published-target"><a href="/published.html?content_source_url=https%3A%2F%2Fethansmc.com%2Fposts%2Fpublished%2F&amp;appmsgid=wx-published-1#article">已发表文章</a></article>
+    </section>
+    <section aria-label="已发表文章详情" data-decoy-container="published">
+      <h2>已发表文章</h2>
+      <label>原文链接 <input value="https://evil.example/wrong"></label>
+      <label>平台文章 ID <input value="wx-evil"></label>
+      <button type="button" data-action="decoy-withdraw">撤回</button>
+      <output data-click-count="decoy-withdraw">0</output>
+    </section>
+    <section id="article" aria-label="已发表文章详情" data-verified-container="published">
+      <h2>已发表文章</h2>
+      <label>原文链接 <input value="https://ethansmc.com/posts/published/"></label>
+      <label>平台文章 ID <input value="wx-published-1"></label>
+      <button type="button" data-action="withdraw">撤回</button>
+      <button type="button" data-action="delete" hidden>删除</button>
+      <output data-click-count="withdraw">0</output>
+      <output data-click-count="delete">0</output>
+      <output data-click-count="confirm-withdraw">0</output>
+    </section>
+    <p data-verification-message hidden>请完成账号验证</p>
+    <dialog data-dialog="withdraw">
+      <p>撤回后文章将无法公开访问。</p>
+      <button type="button" data-confirm="withdraw">确认撤回</button>
+      <button type="button" data-cancel="withdraw">取消</button>
+    </dialog>
+  </main>
+  <script>
+    const withdrawCount = document.querySelector('[data-click-count="withdraw"]');
+    const confirmCount = document.querySelector('[data-click-count="confirm-withdraw"]');
+    const dialog = document.querySelector('[data-dialog="withdraw"]');
+    const query = new URLSearchParams(location.search);
+    if (query.get('ambiguous') === '1') document.querySelector('[data-action="delete"]').hidden = false;
+    document.querySelector('[data-action="withdraw"]').addEventListener('click', () => {
+      withdrawCount.textContent = String(Number(withdrawCount.textContent) + 1);
+      if (query.get('blockerAfterClick') === '1') document.querySelector('[data-verification-message]').hidden = false;
+      dialog.showModal();
+    });
+    document.querySelector('[data-confirm="withdraw"]').addEventListener('click', () => {
+      confirmCount.textContent = String(Number(confirmCount.textContent) + 1);
+      document.querySelector('#published-target').remove();
+      dialog.close();
+    });
+    document.querySelector('[data-action="delete"]').addEventListener('click', () => {
+      const output = document.querySelector('[data-click-count="delete"]');
+      output.textContent = String(Number(output.textContent) + 1);
+    });
+    document.querySelector('[data-action="decoy-withdraw"]').addEventListener('click', () => {
+      const output = document.querySelector('[data-click-count="decoy-withdraw"]');
+      output.textContent = String(Number(output.textContent) + 1);
+    });
+    document.querySelector('[data-cancel="withdraw"]').addEventListener('click', () => dialog.close());
+  </script>
+</body>
+</html>

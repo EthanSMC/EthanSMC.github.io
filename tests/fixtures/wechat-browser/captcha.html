@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>微信安全验证</title></head>
+<body>
+  <main>
+    <h1>请完成验证码</h1>
+    <button type="button" data-action="withdraw">撤回</button>
+    <output data-click-count="withdraw">0</output>
+  </main>
+  <script>
+    document.querySelector('[data-action="withdraw"]').addEventListener('click', () => {
+      const output = document.querySelector('[data-click-count="withdraw"]');
+      output.textContent = String(Number(output.textContent) + 1);
+    });
+  </script>
+</body>
+</html>

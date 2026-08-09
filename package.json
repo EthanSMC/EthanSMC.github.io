@@ -12,7 +12,12 @@
     "wechat:agent:install": "bun scripts/wechat-mac-agent.cjs install",
     "wechat:agent:status": "bun scripts/wechat-mac-agent.cjs status",
     "wechat:agent:run": "bun scripts/wechat-mac-agent.cjs run",
-    "wechat:agent:uninstall": "bun scripts/wechat-mac-agent.cjs uninstall"
+    "wechat:agent:uninstall": "bun scripts/wechat-mac-agent.cjs uninstall",
+    "wechat:publisher:login": "bun scripts/wechat-publish.cjs login",
+    "wechat:publisher:arm": "bun scripts/wechat-publish.cjs arm",
+    "wechat:publisher:status": "bun scripts/wechat-publish.cjs status",
+    "wechat:publisher:run": "bun scripts/wechat-publish.cjs run",
+    "wechat:publisher:resolve": "bun scripts/wechat-publish.cjs resolve"
   },
   "engines": {
     "node": ">=20"
@@ -20,6 +25,7 @@
   "devDependencies": {
     "@11ty/eleventy": "3.1.6",
     "markdown-it": "14.3.0",
-    "markdown-it-footnote": "4.0.0"
+    "markdown-it-footnote": "4.0.0",
+    "playwright-core": "^1.62.1"
   }
 }

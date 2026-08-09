@@ -3,10 +3,14 @@
 
 from pathlib import Path
 from urllib.parse import unquote
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import json
+import os
 import re
+import stat
 import subprocess
 import sys
+import tempfile
 
 
 TIMESTAMP_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{6}\.md$")
@@ -39,9 +43,100 @@ def reject(errors: list[str]) -> None:
 
 root = Path(git("rev-parse", "--show-toplevel").stdout.strip()).resolve()
 published_root = (root / "content" / "published").resolve()
+drafts_root = (root / "content" / "drafts").resolve()
 assets_root = (root / "content" / "assets").resolve()
+withdrawals_root = root / "content" / ".lifecycle" / "withdrawals"
 referenced_assets: set[str] = set()
 errors: list[str] = []
+
+published_ids = {
+    path.stem
+    for path in published_root.glob("*.md")
+    if TIMESTAMP_NAME.fullmatch(path.name)
+}
+draft_ids = {
+    path.stem
+    for path in drafts_root.glob("*.md")
+    if TIMESTAMP_NAME.fullmatch(path.name)
+}
+if published_ids & draft_ids:
+    reject(["同一文章不能同时位于 published 和 drafts"])
+
+
+def withdrawal_marker_path_is_safe(marker_path: Path) -> bool:
+    """Require regular marker files beneath real repository directories."""
+    try:
+        relative = marker_path.relative_to(root)
+    except ValueError:
+        return False
+
+    current = root
+    for part in relative.parts[:-1]:
+        current /= part
+        try:
+            mode = current.lstat().st_mode
+        except FileNotFoundError:
+            continue
+        if not stat.S_ISDIR(mode):
+            return False
+
+    try:
+        marker_mode = marker_path.lstat().st_mode
+    except FileNotFoundError:
+        return True
+    return stat.S_ISREG(marker_mode)
+
+
+def write_marker_atomically(marker_path: Path, marker: dict[str, str]) -> None:
+    contents = json.dumps(marker, ensure_ascii=False, indent=2) + "\n"
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=marker_path.parent,
+        prefix=f".{marker_path.name}.",
+        suffix=".tmp",
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as temporary_file:
+            temporary_file.write(contents)
+        os.replace(temporary_path, marker_path)
+    except BaseException:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+deleted_raw = git(
+    "diff",
+    "--cached",
+    "--name-only",
+    "-z",
+    "--diff-filter=D",
+    text=False,
+).stdout
+deleted_paths = {
+    value.decode("utf-8", errors="surrogateescape")
+    for value in deleted_raw.split(b"\0")
+    if value
+}
+
+pending_withdrawal_markers: list[tuple[str, Path]] = []
+for deleted_path in sorted(deleted_paths):
+    candidate = Path(deleted_path)
+    if (
+        candidate.parent != Path("content/published")
+        or not TIMESTAMP_NAME.fullmatch(candidate.name)
+    ):
+        continue
+    if not (drafts_root / candidate.name).is_file():
+        continue
+    pending_withdrawal_markers.append(
+        (candidate.stem, withdrawals_root / f"{candidate.stem}.json")
+    )
+
+if any(
+    not withdrawal_marker_path_is_safe(marker_path)
+    for _, marker_path in pending_withdrawal_markers
+):
+    reject(["withdrawal marker path must be a regular file inside the repository"])
 
 
 def normalize_published_filenames() -> None:
@@ -119,6 +214,33 @@ if referenced_assets:
         check=True,
     )
 
+for _, marker_path in pending_withdrawal_markers:
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+
+if any(
+    not withdrawal_marker_path_is_safe(marker_path)
+    for _, marker_path in pending_withdrawal_markers
+):
+    reject(["withdrawal marker path must be a regular file inside the repository"])
+
+generated_withdrawal_markers: set[str] = set()
+for post_id, marker_path in pending_withdrawal_markers:
+    marker = {
+        "postId": post_id,
+        "requestedAt": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+    }
+    write_marker_atomically(marker_path, marker)
+    marker_relative = marker_path.relative_to(root).as_posix()
+
+    generated_withdrawal_markers.add(marker_relative)
+
+if generated_withdrawal_markers:
+    subprocess.run(
+        ["git", "add", "--", *sorted(generated_withdrawal_markers)],
+        cwd=root,
+        check=True,
+    )
+
 staged_raw = git(
     "diff",
     "--cached",
@@ -132,23 +254,13 @@ staged_paths = [
     for value in staged_raw.split(b"\0")
     if value
 ]
-deleted_raw = git(
-    "diff",
-    "--cached",
-    "--name-only",
-    "-z",
-    "--diff-filter=D",
-    text=False,
-).stdout
-deleted_paths = {
-    value.decode("utf-8", errors="surrogateescape")
-    for value in deleted_raw.split(b"\0")
-    if value
-}
 
 disallowed: list[str] = []
 publishable: list[str] = []
 for staged_path in staged_paths:
+    if staged_path in generated_withdrawal_markers:
+        publishable.append(staged_path)
+        continue
     candidate = Path(staged_path)
     if candidate.parent == Path("content/published") and candidate.suffix == ".md":
         if not TIMESTAMP_NAME.fullmatch(candidate.name):
