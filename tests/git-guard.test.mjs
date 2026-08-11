@@ -235,6 +235,42 @@ test("Obsidian honors a staged Album deletion despite a replacement working file
   assert.match(run(directory, "git", ["status", "--short", "--", relativeAlbum]).stdout, /^\?\?/);
 });
 
+test("Obsidian rejects a symlinked albums root without committing staged deletions", async () => {
+  const directory = await fixture();
+  const albumsRoot = path.join(directory, "content", "albums");
+  for (const [filename, slug] of [["first.md", "first"], ["second.md", "second"]]) {
+    await writeFile(
+      path.join(albumsRoot, filename),
+      `---\nkind: album\nslug: ${slug}\n---\n# ${slug}\n`,
+    );
+  }
+  run(directory, "git", ["add", "--", "content/albums"]);
+  assert.equal(run(directory, "git", ["commit", "-m", "test: tracked albums"]).status, 0);
+  const headBefore = run(directory, "git", ["rev-parse", "HEAD"]).stdout;
+
+  const externalDirectory = await mkdtemp(path.join(os.tmpdir(), "ethan-albums-root-target-"));
+  const externalFile = path.join(externalDirectory, "private.md");
+  const sentinel = "private external album data\n";
+  await writeFile(externalFile, sentinel);
+  await rm(albumsRoot, { recursive: true });
+  await symlink(externalDirectory, albumsRoot, "dir");
+  run(directory, "git", ["add", "-A"]);
+  const stagedNames = run(directory, "git", ["diff", "--cached", "--name-status"]).stdout;
+  assert.match(stagedNames, /A\s+content\/albums$/m);
+  assert.match(stagedNames, /D\s+content\/albums\/first\.md/);
+  assert.match(stagedNames, /D\s+content\/albums\/second\.md/);
+  const stagedBefore = run(directory, "git", ["diff", "--cached", "--binary"]).stdout;
+
+  const commit = run(directory, "git", ["commit", "-m", "blog: replace albums root"], { OBSIDIAN_GIT: "1" });
+
+  assert.notEqual(commit.status, 0);
+  assert.match(commit.stderr, /content\/albums must be a regular directory inside the repository/i);
+  assert.equal(run(directory, "git", ["rev-parse", "HEAD"]).stdout, headBefore);
+  assert.equal(run(directory, "git", ["diff", "--cached", "--binary"]).stdout, stagedBefore);
+  assert.deepEqual(await readdir(externalDirectory), ["private.md"]);
+  assert.equal(await readFile(externalFile, "utf8"), sentinel);
+});
+
 test("Obsidian rejects an album cover that traverses outside content assets", async () => {
   const directory = await fixture();
   await writeFile(

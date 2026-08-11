@@ -46,10 +46,18 @@ root = Path(git("rev-parse", "--show-toplevel").stdout.strip()).resolve()
 published_root = (root / "content" / "published").resolve()
 drafts_root = (root / "content" / "drafts").resolve()
 assets_root = root / "content" / "assets"
+albums_root = root / "content" / "albums"
 withdrawals_root = root / "content" / ".lifecycle" / "withdrawals"
 referenced_assets: set[str] = set()
 validated_albums: set[str] = set()
 errors: list[str] = []
+
+try:
+    albums_root_mode = albums_root.lstat().st_mode
+except FileNotFoundError:
+    albums_root_mode = None
+if albums_root_mode is not None and not stat.S_ISDIR(albums_root_mode):
+    reject(["content/albums must be a regular directory inside the repository"])
 
 published_ids = {
     path.stem
