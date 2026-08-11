@@ -159,6 +159,30 @@ test("rejects unsupported authored kinds and casts", () => {
   );
 });
 
+test("rejects an explicitly empty authored kind", () => {
+  assert.throws(
+    () => parsePost({
+      filename: "2026-08-11-120020.md",
+      source: '---\nkind: ""\n---\n正文',
+    }),
+    /kind.*2026-08-11-120020\.md/i,
+  );
+});
+
+test("rejects an explicitly empty album cover_cast", (t) => {
+  const { albumsDir, publishedDir } = contentFixture(t);
+  writeMarkdown(
+    albumsDir,
+    "空角色.md",
+    '---\nkind: album\nslug: empty-cast\ncover_cast: ""\n---\n# 空角色',
+  );
+
+  assert.throws(
+    () => loadBlog({ publishedDir, albumsDir }),
+    /cover_cast.*空角色\.md/i,
+  );
+});
+
 test("loads albums by stable basename and derives routed post collections", (t) => {
   const { albumsDir, publishedDir } = contentFixture(t);
   writeMarkdown(albumsDir, "内容系统.md", `---

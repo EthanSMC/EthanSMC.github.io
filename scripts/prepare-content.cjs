@@ -238,7 +238,9 @@ function parsePost({ filename, source }) {
     ? "Essay"
     : "Note";
   const legacyType = directives.has("essay") ? "Essay" : directives.has("note") ? "Note" : automaticType;
-  const kind = attributes.kind || (legacyType === "Essay" ? "article" : "note");
+  const kind = Object.hasOwn(attributes, "kind")
+    ? attributes.kind
+    : (legacyType === "Essay" ? "article" : "note");
   if (!ALLOWED_KINDS.has(kind) || kind === "album") {
     throw new Error(`Unsupported published kind in ${filename}: ${kind}`);
   }

@@ -35,7 +35,7 @@ function albumRecord(filename, source) {
   if (typeof attributes.slug !== "string" || !attributes.slug.trim()) {
     contentError(filename, "Album slug must not be empty");
   }
-  if (attributes.cover_cast && !ALLOWED_CASTS.has(attributes.cover_cast)) {
+  if (Object.hasOwn(attributes, "cover_cast") && !ALLOWED_CASTS.has(attributes.cover_cast)) {
     contentError(filename, `Unsupported album cover_cast ${attributes.cover_cast}`);
   }
   return {
