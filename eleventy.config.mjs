@@ -27,13 +27,14 @@ export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy("i18n.js");
   eleventyConfig.addPassthroughCopy("writing-carousel.js");
   eleventyConfig.addWatchTarget("content/published");
+  eleventyConfig.addWatchTarget("content/albums");
   eleventyConfig.addWatchTarget("content/assets");
 
   eleventyConfig.on("eleventy.before", ({ directories }) => {
     const { attachments } = loadBlog();
     for (const relativePath of attachments) {
-      const source = path.join("content", "assets", relativePath);
-      const destination = path.join(directories.output, "blog", "assets", relativePath);
+      const source = path.resolve("content", "assets", relativePath);
+      const destination = path.resolve(directories.output, "blog", "assets", relativePath);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.copyFileSync(source, destination);
     }

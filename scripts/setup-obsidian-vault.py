@@ -30,6 +30,9 @@ vault = Path(sys.argv[1]).expanduser().resolve()
 config = vault / ".obsidian"
 plugin_target = config / "plugins" / "obsidian-git"
 
+for directory in ("albums", "assets", "drafts", "published"):
+    (vault / directory).mkdir(parents=True, exist_ok=True)
+
 source_candidates = []
 if os.environ.get("OBSIDIAN_GIT_PLUGIN_SOURCE"):
     source_candidates.append(Path(os.environ["OBSIDIAN_GIT_PLUGIN_SOURCE"]).expanduser())
@@ -100,4 +103,4 @@ if plugin_target.is_dir():
 else:
     print("Obsidian Git plugin files not found; install the Git community plugin in this vault")
 
-print("Vault defaults: drafts/, assets/, relative Markdown links")
+print("Vault defaults: drafts/, albums/, assets/, published/, relative Markdown links")

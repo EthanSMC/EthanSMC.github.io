@@ -371,7 +371,10 @@ function loadBlog({ publishedDir = PUBLISHED_DIR, albumsDir = ALBUMS_DIR } = {})
     smallTalks,
     tags,
     tagPages,
-    attachments: [...new Set(posts.flatMap((post) => post.attachments))],
+    attachments: [...new Set([
+      ...posts.flatMap((post) => post.attachments),
+      ...albums.map((album) => album.coverAsset).filter(Boolean),
+    ])],
     latestEssay: posts.find((post) => post.type === "Essay") || null,
     latestNotes: posts.filter((post) => post.type === "Note").slice(0, 2),
     latestDate: posts[0]?.date || new Date("2026-07-28T00:00:00+08:00"),

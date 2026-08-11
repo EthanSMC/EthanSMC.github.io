@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import Eleventy from "@11ty/eleventy";
 import configureEleventy from "../eleventy.config.mjs";
 
 const require = createRequire(import.meta.url);
@@ -23,10 +24,12 @@ function contentFixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ethan-writing-content-"));
   const publishedDir = path.join(root, "published");
   const albumsDir = path.join(root, "albums");
+  const assetsDir = path.join(root, "assets");
   fs.mkdirSync(publishedDir);
   fs.mkdirSync(albumsDir);
+  fs.mkdirSync(assetsDir);
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  return { albumsDir, publishedDir };
+  return { albumsDir, assetsDir, publishedDir, root };
 }
 
 function writeMarkdown(directory, filename, source) {
@@ -340,6 +343,133 @@ cast: molly
   assert.equal(blog.latestNotes[0].kind, "note");
 });
 
+test("publishes a validated album cover at a stable album URL", (t) => {
+  const { albumsDir, assetsDir, publishedDir } = contentFixture(t);
+  const coverDirectory = path.join(assetsDir, "albums", "ai-native-content-system");
+  fs.mkdirSync(coverDirectory, { recursive: true });
+  fs.writeFileSync(path.join(coverDirectory, "cover.png"), "static cover fixture\n");
+  writeMarkdown(albumsDir, "AI原生个人内容系统.md", `---
+kind: album
+slug: ai-native-content-system
+status: ongoing
+featured: true
+order: 1
+cover: "[[assets/albums/ai-native-content-system/cover.png]]"
+cover_alt: AI 原生个人内容系统专辑封面
+cover_cast: mochi
+description: 从 Obsidian 出发搭建内容系统。
+---
+# AI 原生个人内容系统`);
+
+  const blog = loadBlog({ publishedDir, albumsDir });
+  const [album] = blog.albums;
+
+  assert.equal(album.url, "/blog/albums/ai-native-content-system/");
+  assert.equal(album.outputPath, "blog/albums/ai-native-content-system/index.html");
+  assert.equal(album.cover, "/blog/assets/albums/ai-native-content-system/cover.png");
+  assert.equal(album.coverAlt, "AI 原生个人内容系统专辑封面");
+  assert.equal(album.status, "ongoing");
+  assert.ok(blog.attachments.includes("albums/ai-native-content-system/cover.png"));
+});
+
+test("rejects album covers that are malformed, missing, or leave content assets", (t) => {
+  const invalidCovers = [
+    ["远程封面.md", "https://example.com/cover.png", /cover.*wikilink.*远程封面\.md/i],
+    ["穿越封面.md", "[[assets/../private.png]]", /cover.*inside.*穿越封面\.md/i],
+    ["缺失封面.md", "[[assets/albums/missing.png]]", /missing album cover.*缺失封面\.md/i],
+  ];
+
+  for (const [index, [filename, cover, expectedError]] of invalidCovers.entries()) {
+    const { albumsDir, publishedDir } = contentFixture(t);
+    writeMarkdown(
+      albumsDir,
+      filename,
+      `---\nkind: album\nslug: invalid-${index}\ncover: "${cover}"\n---\n# Invalid`,
+    );
+    assert.throws(() => loadBlog({ publishedDir, albumsDir }), expectedError, filename);
+  }
+});
+
+test("rejects a symlinked album cover", (t) => {
+  const { albumsDir, assetsDir, publishedDir, root } = contentFixture(t);
+  const coverDirectory = path.join(assetsDir, "albums", "unsafe");
+  fs.mkdirSync(coverDirectory, { recursive: true });
+  const externalCover = path.join(root, "private-cover.png");
+  fs.writeFileSync(externalCover, "private fixture\n");
+  fs.symlinkSync(externalCover, path.join(coverDirectory, "cover.png"));
+  writeMarkdown(
+    albumsDir,
+    "不安全封面.md",
+    '---\nkind: album\nslug: unsafe\ncover: "[[assets/albums/unsafe/cover.png]]"\n---\n# Unsafe',
+  );
+
+  assert.throws(
+    () => loadBlog({ publishedDir, albumsDir }),
+    /cover.*regular file.*不安全封面\.md/i,
+  );
+});
+
+test("renders ordered and empty album pages through Eleventy", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ethan-album-page-"));
+  const input = path.join(root, "input");
+  const output = path.join(root, "output");
+  const template = path.join(ROOT, "blog", "album.njk");
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  assert.equal(fs.existsSync(template), true, "album page template should exist");
+
+  fs.mkdirSync(path.join(input, "blog"), { recursive: true });
+  fs.mkdirSync(path.join(input, "_includes", "layouts"), { recursive: true });
+  fs.copyFileSync(template, path.join(input, "blog", "album.njk"));
+  fs.writeFileSync(
+    path.join(input, "_includes", "layouts", "blog-shell.njk"),
+    "<!doctype html><main>{{ content | safe }}</main>",
+  );
+  const albums = [
+    {
+      basename: "有序专辑",
+      slug: "ordered",
+      status: "ongoing",
+      description: "按轨道阅读。",
+      cover: "/blog/assets/albums/ordered/cover.png",
+      coverAlt: "有序专辑封面",
+      coverCast: "molly",
+      outputPath: "blog/albums/ordered/index.html",
+      tracks: [
+        { track: 1, title: "第一轨", url: "/blog/first/" },
+        { track: 2, title: "第二轨", url: "/blog/second/" },
+        { track: 3, title: "第三轨", url: "/blog/third/" },
+      ],
+    },
+    {
+      basename: "空专辑",
+      slug: "empty",
+      status: "planned",
+      description: "先装订封面。",
+      cover: null,
+      coverAlt: null,
+      coverCast: "auto",
+      outputPath: "blog/albums/empty/index.html",
+      tracks: [],
+    },
+  ];
+  const eleventy = new Eleventy(input, output, {
+    configPath: false,
+    quietMode: true,
+    config(eleventyConfig) {
+      eleventyConfig.addGlobalData("blog", { albums });
+    },
+  });
+  await eleventy.write();
+
+  const orderedPage = fs.readFileSync(path.join(output, albums[0].outputPath), "utf8");
+  const emptyPage = fs.readFileSync(path.join(output, albums[1].outputPath), "utf8");
+  assert.match(orderedPage, /按轨道阅读。/);
+  assert.match(orderedPage, /ongoing/);
+  assert.match(orderedPage, /alt="有序专辑封面"/);
+  assert.match(orderedPage, /01.*第一轨.*02.*第二轨.*03.*第三轨/s);
+  assert.match(emptyPage, /文章正在装订中/);
+});
+
 test("allows an article without album metadata but rejects an unresolved explicit album", (t) => {
   const { albumsDir, publishedDir } = contentFixture(t);
   writeMarkdown(publishedDir, "2026-08-11-120008.md", "---\nkind: article\n---\n# 独立文章");
@@ -392,6 +522,7 @@ test("renders the shared album, independent writing, and Small Talks showcase", 
       {
         basename: "AI 原生内容系统",
         slug: "ai-native-content-system",
+        url: "/blog/albums/ai-native-content-system/",
         order: 2,
         featured: true,
         cover: "/assets/albums/content-system.png",
@@ -419,6 +550,7 @@ test("renders the shared album, independent writing, and Small Talks showcase", 
   assert.match(html, />独立文章</);
   assert.match(html, />碎碎念</);
   assert.match(html, /第一轨/);
+  assert.match(html, /href="\/blog\/albums\/ai-native-content-system\/"/);
   assert.match(html, /一篇独立文章/);
   assert.match(html, /一则碎碎念/);
 });
@@ -603,6 +735,12 @@ test("rejects invalid album inventory and track metadata", (t) => {
       albums: [["甲.md", "kind: album"]],
       posts: [],
       error: /album slug.*甲\.md/i,
+    },
+    {
+      label: "unsafe slug",
+      albums: [["甲.md", "kind: album\nslug: ../escape"]],
+      posts: [],
+      error: /album slug.*safe URL segment.*甲\.md/i,
     },
     {
       label: "duplicate slug",

@@ -10,6 +10,58 @@ function contentError(filename, message) {
   throw new Error(`${message}: ${filename}`);
 }
 
+function publicAssetUrl(relativePath) {
+  return `/blog/assets/${relativePath.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function albumCoverRecord(reference, filename, assetsDir) {
+  if (reference === undefined) {
+    return { cover: null, coverAsset: null, coverReference: null };
+  }
+  const match = typeof reference === "string"
+    ? reference.match(/^\[\[assets\/([^\[\]|#]+)\]\]$/)
+    : null;
+  if (!match) {
+    contentError(filename, "Album cover must be an exact [[assets/...]] wikilink");
+  }
+
+  const relativePath = match[1];
+  const segments = relativePath.split("/");
+  if (
+    relativePath.trim() !== relativePath
+    || relativePath.includes("\\")
+    || segments.some((segment) => !segment || segment === "." || segment === "..")
+    || path.posix.normalize(relativePath) !== relativePath
+  ) {
+    contentError(filename, "Album cover must stay inside content/assets");
+  }
+
+  let current = assetsDir;
+  try {
+    const assetsStats = fs.lstatSync(current);
+    if (!assetsStats.isDirectory() || assetsStats.isSymbolicLink()) {
+      contentError(filename, "Album cover must be a regular file inside content/assets");
+    }
+    for (const [index, segment] of segments.entries()) {
+      current = path.join(current, segment);
+      const stats = fs.lstatSync(current);
+      const isCover = index === segments.length - 1;
+      if (stats.isSymbolicLink() || (isCover ? !stats.isFile() : !stats.isDirectory())) {
+        contentError(filename, "Album cover must be a regular file inside content/assets");
+      }
+    }
+  } catch (error) {
+    if (error?.code === "ENOENT") contentError(filename, "Missing album cover");
+    throw error;
+  }
+
+  return {
+    cover: publicAssetUrl(relativePath),
+    coverAsset: relativePath,
+    coverReference: reference,
+  };
+}
+
 function resolveAlbumReference(reference, albums, filename = "unknown article") {
   const match = typeof reference === "string"
     ? reference.match(/^\[\[([^\[\]|#]+)\]\]$/)
@@ -25,7 +77,7 @@ function resolveAlbumReference(reference, albums, filename = "unknown article") 
   return album;
 }
 
-function albumRecord(filename, source) {
+function albumRecord(filename, source, assetsDir) {
   const basename = path.basename(filename, path.extname(filename));
   const { attributes, bodySource, hasFrontmatter } = parseFrontmatter(source, filename);
   if (!hasFrontmatter || attributes.kind !== "album") {
@@ -35,31 +87,38 @@ function albumRecord(filename, source) {
   if (typeof attributes.slug !== "string" || !attributes.slug.trim()) {
     contentError(filename, "Album slug must not be empty");
   }
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(attributes.slug)) {
+    contentError(filename, "Album slug must be a safe URL segment");
+  }
   if (Object.hasOwn(attributes, "cover_cast") && !ALLOWED_CASTS.has(attributes.cover_cast)) {
     contentError(filename, `Unsupported album cover_cast ${attributes.cover_cast}`);
   }
+  const cover = albumCoverRecord(attributes.cover, filename, assetsDir);
   return {
     ...attributes,
+    ...cover,
     basename,
     filename,
     bodySource,
     order: attributes.order ?? null,
     featured: attributes.featured ?? false,
-    cover: attributes.cover ?? null,
     coverAlt: attributes.cover_alt ?? null,
     coverCast: attributes.cover_cast ?? "auto",
     description: attributes.description ?? "",
+    url: `/blog/albums/${attributes.slug}/`,
+    outputPath: `blog/albums/${attributes.slug}/index.html`,
     tracks: [],
   };
 }
 
-function loadAlbums({ albumsDir, posts = [] }) {
+function loadAlbums({ albumsDir, assetsDir = path.join(path.dirname(albumsDir), "assets"), posts = [] }) {
   const filenames = fs.existsSync(albumsDir)
     ? fs.readdirSync(albumsDir).filter((filename) => filename.endsWith(".md")).sort()
     : [];
   const albums = filenames.map((filename) => albumRecord(
     filename,
     fs.readFileSync(path.join(albumsDir, filename), "utf8"),
+    assetsDir,
   ));
 
   const basenameOwners = new Map();

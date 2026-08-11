@@ -65,12 +65,15 @@ function renderAlbumSlide(album, index, selectedIndex) {
     ? `<ol class="album-track-list">${tracks.map(renderAlbumTrack).join("")}
                 </ol>`
     : `<p class="album-slide__empty" data-i18n="writing.albumTracksEmpty">文章正在装订中。</p>`;
+  const albumTitle = album.url
+    ? `<a href="${escapeHtml(album.url)}">${authored(title)}</a>`
+    : authored(title);
 
   return `
             <article class="album-slide" data-album-slide="${escapeHtml(album.slug)}" aria-current="${isSelected}" tabindex="${isSelected ? "0" : "-1"}" style="--album-offset: ${index - selectedIndex}; --album-depth: ${Math.abs(index - selectedIndex)};" data-album-title="${escapeHtml(title)}"${isSelected ? "" : " inert"}>
               <div class="album-cover" data-album-cast="${escapeHtml(album.coverCast || "auto")}">${cover}</div>
               <div class="album-slide__copy">
-                <h3>${authored(title)}</h3>
+                <h3>${albumTitle}</h3>
                 ${album.description ? `<p class="album-slide__description">${authored(album.description)}</p>` : ""}
                 ${trackList}
               </div>

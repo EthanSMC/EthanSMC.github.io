@@ -1,6 +1,6 @@
 # Obsidian Writing 发布与撤回说明
 
-你只负责写作和移动文件。标题、日期、摘要、类型、Tag、阅读时间、URL、RSS、网页和公众号草稿均由后续流程生成。
+你只负责写作和移动文件。标题、日期、摘要、类型、Tag、阅读时间、URL、RSS、网页和公众号草稿均由后续流程生成。专辑的元数据和封面由 `content/albums/` 中的 Album MD 声明。
 
 ## 1. 每台设备都要初始化
 
@@ -63,6 +63,39 @@ Obsidian Git 应保持：启动时拉取、每 2 分钟自动 commit-and-sync、
 ```
 
 类型会自动判断：包含二级标题或正文超过 600 个可见字符的是 Essay，否则是 Note。需要覆盖时可以添加 `#essay` 或 `#note`，但不能同时添加。
+
+### 专辑
+
+专辑文件放在 `content/albums/`，使用稳定、可读的文件名，不会被转换为时间戳。示例：
+
+```markdown
+---
+kind: album
+slug: ai-native-content-system
+status: ongoing
+featured: true
+order: 1
+cover: "[[assets/albums/ai-native-content-system/cover.jpg]]"
+cover_alt: 白猫 Mochi 趴在床上望向镜头
+cover_cast: mochi
+description: 从 Obsidian 出发，逐步搭建属于自己的 AI 原生个人内容系统。
+---
+# AI 原生个人内容系统
+```
+
+封面必须是 `content/assets/` 内的普通文件，并通过严格的 `[[assets/...]]` 链接声明；远程地址、路径穿越、symlink 和缺失文件都会被拒绝。专辑可以先保持空状态。
+
+文章加入专辑时只需在文章 frontmatter 中引用 Album MD 的精确文件 basename，并给出唯一的正整数轨道号；不要在 Album MD 中重复维护文章列表：
+
+```markdown
+---
+kind: article
+album: "[[AI原生个人内容系统]]"
+track: 1
+---
+```
+
+专辑页固定发布到 `/blog/albums/<slug>/`。修改专辑只会重建网站视图，不会重写旧文章正文或改变旧文章 URL。
 
 ## 4. 私密草稿与精确撤回
 
@@ -155,7 +188,9 @@ pnpm wechat:publisher:resolve POST_ID -- --still-published
 自动提交只允许：
 
 - `content/published/` 中的 Markdown；普通文件名会先转换为时间戳 ID。
-- 被这些 Markdown 实际引用的 `content/assets/` 附件。
+- `content/albums/` 中的 Album MD；文件名保持稳定，不会分配时间戳。
+- 被 `content/published/` Markdown 正文实际引用的 `content/assets/` 附件。
+- 被 Album MD 的 `cover` frontmatter 实际引用且通过安全验证的 `content/assets/` 封面。
 - 当前精确移动生成的无正文撤回标记。
 
 Obsidian Git 会先暂存整个仓库，保护脚本再移除网站代码，只提交允许的内容。网站开发改动仍留在工作区，但原有暂存选择可能被自动同步重排。
