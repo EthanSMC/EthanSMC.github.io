@@ -199,3 +199,75 @@ Expected: exit 0.
 git add scripts/wechat-mac-agent.cjs scripts/wechat-publish.cjs config/wechat.env.example docs/wechat-draft-sync.md docs/obsidian-publishing.md package.json tests/wechat-mac-agent.test.mjs tests/wechat-publisher.test.mjs
 git commit -m "test: verify automatic WeChat publish and withdrawal"
 ```
+
+### Task 5: Controlled live article and small-talk acceptance with cleanup
+
+**Files:**
+- Create: `scripts/wechat-live-e2e.cjs`
+- Create: `tests/wechat-live-e2e.test.mjs`
+- Modify: `package.json`
+- Modify: `docs/wechat-draft-sync.md`
+
+**Interfaces:**
+- Adds command `pnpm wechat:e2e:live -- --confirm-live`.
+- Produces a private run record containing `runId`, two test post IDs, draft IDs, published URLs, withdrawal verification, cleanup inventory, and retained lifecycle state path.
+- Test titles are exactly prefixed with `[E2E-DELETE][<runId>]`.
+
+- [ ] **Step 1: Add failing safety and cleanup tests**
+
+```js
+assert.throws(() => parseLiveArguments([]), /--confirm-live/);
+assert.equal(run.posts.length, 2);
+assert.deepEqual(run.posts.map((post) => post.kind), ["article", "note"]);
+assert.ok(run.posts.every((post) => post.title.startsWith(`[E2E-DELETE][${run.runId}]`)));
+assert.deepEqual(cleanup.remainingTestSources, []);
+assert.deepEqual(cleanup.remainingTestAssets, []);
+assert.deepEqual(cleanup.remainingGeneratedPosters, []);
+```
+
+- [ ] **Step 2: Run and confirm RED**
+
+Run: `node --test tests/wechat-live-e2e.test.mjs`
+Expected: FAIL because the guarded live runner does not exist.
+
+- [ ] **Step 3: Implement an allowlisted, dedicated-state runner**
+
+The runner must refuse to start unless `--confirm-live`, API credentials, an authenticated browser profile, automatic publish, and automatic withdrawal are all explicitly configured. It creates a dedicated state file and arms it before creating sources. Every mutation is restricted to the two generated IDs and the `[E2E-DELETE][<runId>]` title prefix.
+
+The generated article uses `kind: article`; the generated small talk uses `kind: note`, `wechat: true`, and `cast: auto`. Both contain a machine-readable `wechat-live-e2e:<runId>` sentinel. The runner calls the same sync and lifecycle functions used by the Mac agent rather than alternate test-only publication functions.
+
+- [ ] **Step 4: Implement publish, withdrawal, verification, and cleanup phases**
+
+```text
+arm dedicated state
+→ create two sources
+→ build website locally
+→ sync two drafts
+→ auto-publish and verify both
+→ remove sources and create strict withdrawal markers
+→ sync desiredLocation=drafts
+→ auto-withdraw and verify both public URLs unavailable
+→ remove Markdown, test assets, markers, and generated poster directories
+→ retain private lifecycle run/state record
+```
+
+Use a `finally` block to remove test Markdown and test assets even when a later phase fails. If remote withdrawal is not verified, retain the strict marker and private state so a retry can finish withdrawal; do not declare cleanup complete until the remote records are withdrawn.
+
+- [ ] **Step 5: Prove the guard cannot touch real content**
+
+Tests inject fake sync/lifecycle/build functions and assert that any post ID or title outside the two generated allowlisted records aborts the run before browser or API mutation. A second cleanup run is idempotent.
+
+Run: `node --test tests/wechat-live-e2e.test.mjs`
+Expected: PASS without external network or real browser access.
+
+- [ ] **Step 6: Commit the runner before live execution**
+
+```bash
+git add scripts/wechat-live-e2e.cjs tests/wechat-live-e2e.test.mjs package.json docs/wechat-draft-sync.md
+git commit -m "test: add guarded live WeChat lifecycle acceptance"
+```
+
+- [ ] **Step 7: Run the controlled live acceptance and inspect cleanup**
+
+Run: `pnpm wechat:e2e:live -- --confirm-live`
+Expected: two drafts, two verified publications, two verified withdrawals, zero remaining test Markdown/assets/posters, and a retained private lifecycle record. If credentials or the authenticated session are unavailable, report the exact prerequisite instead of weakening the guard or substituting a mock result.

@@ -29,3 +29,9 @@ Production published-list discovery must wait for loading to settle and exhaust 
 At plan creation, `pnpm test` passed 161 of 162 tests. The sole failure was the semantic browser fixture test because the installed Chrome process was terminated with `SIGABRT` and the test only classified a missing executable as skippable. The E2E repair must separate browser-environment unavailability from application assertions and make the CI/browser selection explicit.
 
 The audit also found two application-level root causes: `livePublishedListReadiness()` rejects every paginated real account before candidate search, and the `published + list absent` withdrawal branch bypasses the existing public URL verification. Both receive failing regression tests before implementation changes.
+
+## Controlled live acceptance
+
+After all local suites pass, one explicit opt-in live acceptance creates exactly two uniquely named temporary sources: one `kind: article` and one `kind: note`. A dedicated state file is armed before the sources are created so every real pre-existing post is baseline and ineligible. The titles include `[E2E-DELETE]` plus a unique run ID.
+
+The acceptance syncs both drafts, automatically publishes and verifies them, creates strict source-absent withdrawal markers, automatically withdraws them, verifies their public URLs are unavailable, and then removes both Markdown files, any test assets, markers, and disposable generated posters. The dedicated private lifecycle record is retained as the audit trail and duplicate-publication guard. A failure never targets, edits, publishes, withdraws, or deletes a non-test record.
