@@ -188,7 +188,7 @@ async function livePublishedListReadiness({ page }) {
   if (!totalMatch) return { kind: "partial" };
   const expectedCount = Number(totalMatch[1]);
   const records = await visibleLocators(
-    contents[0].locator(":scope > .weui-desktop-block"),
+    contents[0].locator(".weui-desktop-block"),
   );
   return records.length === expectedCount ? { kind: "complete" } : { kind: "partial" };
 }

@@ -594,9 +594,11 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
         <main class="publish_history_page">
           <header>发表记录 <span>全部 3</span></header>
           <section class="publish_content publish_record_history">
-            <article class="weui-desktop-block">第一篇</article>
-            <article class="weui-desktop-block">第二篇</article>
-            <article class="weui-desktop-block">第三篇</article>
+            <div class="publish-list">
+              <article class="weui-desktop-block">第一篇</article>
+              <article class="weui-desktop-block">第二篇</article>
+              <article class="weui-desktop-block">第三篇</article>
+            </div>
           </section>
         </main>
       `);
