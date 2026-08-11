@@ -183,13 +183,24 @@ test("English is the final fallback when browser and IP inference are unavailabl
 test("localizes the writing showcase categories and view-all link", async () => {
   const english = await loadBrowserI18n({ query: "?lang=en" });
   assert.equal(english.siteI18n.t("writing.albums"), "Albums");
+  assert.equal(english.siteI18n.t("writing.albumStatusLabel"), "Status");
+  assert.equal(english.siteI18n.t("writing.albumStatusOngoing"), "Ongoing");
+  assert.equal(english.siteI18n.t("writing.albumTracks"), "Contents");
   assert.equal(english.siteI18n.t("writing.independent"), "Independent writing");
   assert.equal(english.siteI18n.t("writing.smallTalks"), "Small Talks");
   assert.equal(english.siteI18n.t("writing.viewAll"), "View all writing");
 
   const chinese = await loadBrowserI18n({ query: "?lang=zh" });
   assert.equal(chinese.siteI18n.t("writing.albums"), "专辑");
+  assert.equal(chinese.siteI18n.t("writing.albumStatusLabel"), "状态");
+  assert.equal(chinese.siteI18n.t("writing.albumStatusOngoing"), "连载中");
+  assert.equal(chinese.siteI18n.t("writing.albumTracks"), "目录");
   assert.equal(chinese.siteI18n.t("writing.independent"), "独立文章");
   assert.equal(chinese.siteI18n.t("writing.smallTalks"), "碎碎念");
   assert.equal(chinese.siteI18n.t("writing.viewAll"), "查看全部写作");
+
+  const japanese = await loadBrowserI18n({ query: "?lang=ja" });
+  assert.equal(japanese.siteI18n.t("writing.albumStatusLabel"), "ステータス");
+  assert.equal(japanese.siteI18n.t("writing.albumStatusOngoing"), "連載中");
+  assert.equal(japanese.siteI18n.t("writing.albumTracks"), "目次");
 });

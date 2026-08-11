@@ -464,7 +464,10 @@ test("renders ordered and empty album pages through Eleventy", async (t) => {
   const orderedPage = fs.readFileSync(path.join(output, albums[0].outputPath), "utf8");
   const emptyPage = fs.readFileSync(path.join(output, albums[1].outputPath), "utf8");
   assert.match(orderedPage, /按轨道阅读。/);
-  assert.match(orderedPage, /ongoing/);
+  assert.match(orderedPage, /data-i18n="writing\.albumStatusLabel">状态/);
+  assert.match(orderedPage, /data-i18n="writing\.albumStatusOngoing">连载中/);
+  assert.match(orderedPage, /data-i18n="writing\.albumTracks">目录/);
+  assert.doesNotMatch(orderedPage, />ongoing</);
   assert.match(orderedPage, /alt="有序专辑封面"/);
   assert.match(orderedPage, /01.*第一轨.*02.*第二轨.*03.*第三轨/s);
   assert.match(emptyPage, /文章正在装订中/);
