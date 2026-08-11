@@ -18,6 +18,7 @@ const { selectNoteCast } = require("../scripts/wechat/note-cast.cjs");
 const {
   NOTE_POSTER_HEIGHT,
   NOTE_POSTER_WIDTH,
+  noteRenderInputHash,
   paginateNote,
   renderNotePosters,
 } = require("../scripts/wechat/note-poster.cjs");
@@ -386,6 +387,65 @@ test("changes render hash when the renderer fingerprint changes", async (t) => {
   });
 
   assert.notEqual(first.renderHash, second.renderHash);
+});
+
+test("preflight render input hash changes with renderer, config, cast, and character asset", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-preflight-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const assetA = path.join(root, "a.jpg");
+  const assetB = path.join(root, "b.jpg");
+  fs.writeFileSync(assetA, Buffer.from([0xff, 0xd8, 0xff, 0x01]));
+  fs.writeFileSync(assetB, Buffer.from([0xff, 0xd8, 0xff, 0x02]));
+  const note = notePost({ frontmatter: "kind: note\ncast: molly" });
+  const baseOptions = {
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    rendererFingerprint: "renderer-a",
+    assetPaths: { mochi: assetA, molly: assetA },
+  };
+
+  const base = await noteRenderInputHash(note, baseOptions);
+  const rendererChanged = await noteRenderInputHash(note, {
+    ...baseOptions,
+    rendererFingerprint: "renderer-b",
+  });
+  const configChanged = await noteRenderInputHash(note, {
+    ...baseOptions,
+    author: "Another author",
+  });
+  const castChanged = await noteRenderInputHash(
+    notePost({ frontmatter: "kind: note\ncast: mochi" }),
+    baseOptions,
+  );
+  const assetChanged = await noteRenderInputHash(note, {
+    ...baseOptions,
+    assetPaths: { mochi: assetA, molly: assetB },
+  });
+
+  assert.equal(base.cast, "molly");
+  for (const changed of [rendererChanged, configChanged, castChanged, assetChanged]) {
+    assert.notEqual(changed.renderInputHash, base.renderInputHash);
+  }
+});
+
+test("renders with the preflight cast without classifying a second time", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-resolved-cast-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  let classifierCalls = 0;
+
+  const rendered = await renderNotePosters(notePost(), {
+    outputDir: root,
+    resolvedCast: "mochi",
+    classify: async () => {
+      classifierCalls += 1;
+      return { cast: "molly", confidence: 1 };
+    },
+    measureBlock: () => 50,
+    capture: async () => {},
+  });
+
+  assert.equal(rendered.cast, "mochi");
+  assert.equal(classifierCalls, 0);
 });
 
 test("closes a launched browser exactly once when poster browser initialization fails", async (t) => {

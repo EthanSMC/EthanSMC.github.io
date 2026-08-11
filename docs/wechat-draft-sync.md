@@ -27,7 +27,7 @@ Agent 内部传给生命周期命令的 `--automatic` 只表示“这是后台�
 - `kind: article` 使用 `news` 草稿：第一次同步时使用 `draft/add`，未发表文章发生变化时使用 `draft/update`；正文图片先转换为微信 CDN URL，封面继续使用永久图片素材。
 - `kind: note` 使用原生 `newspic` 草稿。正文先渲染成一至四张 1080×1440 PNG，再按页码顺序通过永久图片素材接口上传；第一页即封面，草稿 payload 只包含本轮有效页面的 media ID。
 - 碎碎念默认同步公众号；`wechat: false` 明确关闭该篇的渲染、上传和草稿 mutation。若它曾处于自动待发布状态，会先降为 `draft_only`，避免浏览器发表旧草稿。重新启用后只在草稿重新验证或更新成功时恢复资格。
-- 每篇记录保存原始 Markdown bytes 的 `sourceMd5`、Task 4 海报渲染器返回的 `renderHash`、`draftKind` 和 `generatedImages`。海报缓存只位于 `.wechat-sync/generated/<post-id>/`；两个 hash、状态 inventory、实际文件名和文件内容 hash 必须全部一致才可复用，多余或缺失页面会使整组缓存失效。
+- 每篇记录保存原始 Markdown bytes 的 `sourceMd5`、无需启动 Chrome 即可计算的 `renderInputHash`、Task 4 海报渲染器返回的 `renderHash`、已选角色 `renderCast`、`draftKind` 和 `generatedImages`。海报缓存只位于 `.wechat-sync/generated/<post-id>/`；source/input hash、状态 inventory、实际文件名和文件内容 hash 必须全部一致才可复用，多余或缺失页面会使整组缓存失效。普通非 `--force` 同步命中完整缓存时不会再次分类、启动 Chrome、重绘或调用微信 API；旧状态只需重绘一次来迁移 input hash。`--dry-run` 例外，它始终完整渲染以验证分页和 payload。
 - 未发表的碎碎念源 MD5 或 renderer/font/character asset 发生变化时，会重新生成并更新同一个草稿 media ID；只有微信明确报告原草稿缺失时才重新 `draft/add`。一旦 `everPublished` 为真，后续源文件变化只更新网站观察状态，绝不重新绘图、上传或修改微信草稿。
 - 单篇碎碎念失败时，根记录中的 `syncError` 保存错误码、消息和时间；其他文章和碎碎念继续同步。未同步成功的旧待发布草稿会变成 `draft_only`，下一次成功同步后再恢复。
 - 建立发布基线后才会产生自动发布候选。基线内的旧文章永不自动补发。

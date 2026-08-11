@@ -505,6 +505,29 @@ function castAsset(cast, assetPaths) {
   return { data: data.toString("base64"), hash: hash(data) };
 }
 
+async function noteRenderInputHash(post, options = {}) {
+  const cast = options.resolvedCast || await selectNoteCast(post, {
+    classify: options.classify,
+    confidenceThreshold: options.confidenceThreshold,
+    timeoutMs: options.classificationTimeoutMs,
+  });
+  const assetPaths = { ...DEFAULT_CAST_ASSETS, ...(options.assetPaths || {}) };
+  const asset = castAsset(cast, assetPaths);
+  const renderInputHash = hash(JSON.stringify({
+    template: NOTE_POSTER_TEMPLATE_VERSION,
+    rendererFingerprint: options.rendererFingerprint ?? DEFAULT_RENDERER_FINGERPRINT,
+    font: NOTE_FONT_IDENTITY,
+    dimensions: [NOTE_POSTER_WIDTH, NOTE_POSTER_HEIGHT],
+    contentHeight: options.contentHeight ?? NOTE_CONTENT_HEIGHT,
+    blockGap: options.blockGap ?? NOTE_BLOCK_GAP,
+    author: String(options.author || "").trim(),
+    site: siteLabel(options.siteUrl),
+    cast,
+    castAssetHash: asset.hash,
+  }));
+  return { renderInputHash, cast };
+}
+
 async function renderNotePosters(post, options = {}) {
   const contentHeight = options.contentHeight ?? NOTE_CONTENT_HEIGHT;
   const blockGap = options.blockGap ?? NOTE_BLOCK_GAP;
@@ -516,7 +539,7 @@ async function renderNotePosters(post, options = {}) {
   };
 
   try {
-    const cast = await selectNoteCast(post, {
+    const cast = options.resolvedCast || await selectNoteCast(post, {
       classify: options.classify,
       confidenceThreshold: options.confidenceThreshold,
       timeoutMs: options.classificationTimeoutMs,
@@ -599,6 +622,7 @@ async function renderNotePosters(post, options = {}) {
 module.exports = {
   NOTE_POSTER_HEIGHT,
   NOTE_POSTER_WIDTH,
+  noteRenderInputHash,
   paginateNote,
   renderNotePosters,
 };

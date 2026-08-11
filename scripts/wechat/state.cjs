@@ -57,6 +57,12 @@ function normalizedPostMetadata(metadata) {
     renderHash: typeof metadata.renderHash === "string" && metadata.renderHash
       ? metadata.renderHash
       : null,
+    renderInputHash: typeof metadata.renderInputHash === "string" && metadata.renderInputHash
+      ? metadata.renderInputHash
+      : null,
+    renderCast: ["mochi", "molly", "none"].includes(metadata.renderCast)
+      ? metadata.renderCast
+      : null,
     generatedImages: normalizedGeneratedImages(metadata.generatedImages),
     draftKind: metadata.draftKind === "newspic" ? "newspic" : "news",
   };

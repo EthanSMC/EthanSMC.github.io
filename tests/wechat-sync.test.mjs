@@ -10,6 +10,7 @@ import { execFileSync } from "node:child_process";
 const require = createRequire(import.meta.url);
 const { changedPostSelection, syncWechatDrafts } = require("../scripts/wechat/sync.cjs");
 const { WechatApiError } = require("../scripts/wechat/client.cjs");
+const { noteRenderInputHash } = require("../scripts/wechat/note-poster.cjs");
 const { runLifecycle } = require("../scripts/wechat/publisher.cjs");
 const { desiredLocation, loadWithdrawalMarkers } = require("../scripts/wechat/lifecycle-intent.cjs");
 const { emptyPublication } = require("../scripts/wechat/lifecycle-state.cjs");
@@ -225,6 +226,8 @@ test("normalizes native draft metadata while preserving legacy publication ident
       note: {
         sourceMd5: "0123456789abcdef0123456789abcdef",
         renderHash: "render-v1",
+        renderInputHash: "input-v1",
+        renderCast: "molly",
         draftKind: "newspic",
         generatedImages: [
           { filename: "page-01.png", hash: "page-hash", mediaId: "image-media" },
@@ -238,6 +241,8 @@ test("normalizes native draft metadata while preserving legacy publication ident
   assert.equal(state.version, 2);
   assert.equal(state.posts.legacy.sourceMd5, null);
   assert.equal(state.posts.legacy.renderHash, null);
+  assert.equal(state.posts.legacy.renderInputHash, null);
+  assert.equal(state.posts.legacy.renderCast, null);
   assert.equal(state.posts.legacy.draftKind, "news");
   assert.deepEqual(state.posts.legacy.generatedImages, []);
   assert.equal(state.posts.legacy.publication.everPublished, true);
@@ -245,6 +250,8 @@ test("normalizes native draft metadata while preserving legacy publication ident
   assert.deepEqual(state.posts.note.generatedImages, [
     { filename: "page-01.png", hash: "page-hash", mediaId: "image-media" },
   ]);
+  assert.equal(state.posts.note.renderInputHash, "input-v1");
+  assert.equal(state.posts.note.renderCast, "molly");
 });
 
 test("loads album metadata only from the supplied temporary root", async () => {
@@ -320,6 +327,93 @@ test("stores the raw Markdown MD5 for a native note and skips an unchanged draft
 
   assert.equal(second.results[0].action, "skipped");
   assert.equal(client.calls.length, callsAfterFirstSync);
+});
+
+test("a valid preflight cache skips rendering, classification, browser, and API work", async () => {
+  const { root, id } = noteFixture();
+  const client = fakeClient();
+  let classifierCalls = 0;
+  const noteRenderInput = async (_post, options) => {
+    const cast = options.resolvedCast || (() => {
+      classifierCalls += 1;
+      return "molly";
+    })();
+    return { renderInputHash: `input-v1-${cast}`, cast };
+  };
+  await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    noteRenderInput,
+    renderNote: fakeNoteRenderer(),
+    logger: () => {},
+  });
+  client.calls.length = 0;
+  classifierCalls = 0;
+  let renderCalls = 0;
+
+  const result = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    noteRenderInput,
+    renderNote: async () => {
+      renderCalls += 1;
+      throw new Error("valid cache must bypass renderer");
+    },
+    logger: () => {},
+  });
+  const saved = loadState(config(root).stateFile).posts[id];
+
+  assert.equal(result.results[0].action, "skipped");
+  assert.equal(saved.renderInputHash, "input-v1-molly");
+  assert.equal(saved.renderCast, "molly");
+  assert.equal(classifierCalls, 0);
+  assert.equal(renderCalls, 0);
+  assert.deepEqual(client.calls, []);
+});
+
+test("migrates a legacy note cache once before future preflight skips", async () => {
+  const { root, id } = noteFixture();
+  const client = fakeClient();
+  const noteRenderInput = async () => ({ renderInputHash: "input-v1", cast: "molly" });
+  await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    noteRenderInput,
+    renderNote: fakeNoteRenderer({ renderHash: "poster-v1" }),
+    logger: () => {},
+  });
+  const legacyState = loadState(config(root).stateFile);
+  legacyState.posts[id].renderInputHash = null;
+  legacyState.posts[id].renderCast = null;
+  saveState(config(root).stateFile, legacyState);
+  client.calls.length = 0;
+  const migrationRenderer = fakeNoteRenderer({ renderHash: "poster-v1" });
+
+  const migrated = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    noteRenderInput,
+    renderNote: migrationRenderer,
+    logger: () => {},
+  });
+  const skipped = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    noteRenderInput,
+    renderNote: async () => { throw new Error("migrated cache must skip rendering"); },
+    logger: () => {},
+  });
+
+  assert.equal(migrated.results[0].action, "skipped");
+  assert.equal(skipped.results[0].action, "skipped");
+  assert.equal(migrationRenderer.calls.length, 1);
+  assert.equal(loadState(config(root).stateFile).posts[id].renderInputHash, "input-v1");
+  assert.deepEqual(client.calls, []);
 });
 
 test("keeps a note with wechat false on the website without rendering or API calls", async () => {
@@ -496,6 +590,7 @@ test("updates the same native note draft after source and renderer changes", asy
     root,
     config: config(root),
     client,
+    noteRenderInput: async () => ({ renderInputHash: "input-v1", cast: "molly" }),
     renderNote: fakeNoteRenderer({ renderHash: "poster-v1" }),
     logger: () => {},
   });
@@ -508,6 +603,7 @@ test("updates the same native note draft after source and renderer changes", asy
     root,
     config: config(root),
     client,
+    noteRenderInput: async () => ({ renderInputHash: "input-v2", cast: "molly" }),
     renderNote: fakeNoteRenderer({ renderHash: "poster-v2" }),
     logger: () => {},
   });
@@ -516,6 +612,7 @@ test("updates the same native note draft after source and renderer changes", asy
     root,
     config: config(root),
     client,
+    noteRenderInput: async () => ({ renderInputHash: "input-v3", cast: "molly" }),
     renderNote: fakeNoteRenderer({ renderHash: "poster-v3" }),
     logger: () => {},
   });
@@ -528,6 +625,44 @@ test("updates the same native note draft after source and renderer changes", asy
   assert.ok(client.calls.filter(([name]) => name === "updateDraft").every((call) => call[1] === "draft-media"));
   assert.equal(saved.sourceMd5, crypto.createHash("md5").update(sameSource).digest("hex"));
   assert.equal(saved.renderHash, "poster-v3");
+});
+
+test("rerenders and updates the same note draft when its selected character asset changes", async (t) => {
+  const { root } = noteFixture({ frontmatter: "kind: note\ncast: molly" });
+  const asset = path.join(root, "molly.jpg");
+  fs.writeFileSync(asset, Buffer.from([0xff, 0xd8, 0xff, 0x01]));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const client = fakeClient();
+  const noteRenderInput = (post, options) => noteRenderInputHash(post, {
+    ...options,
+    rendererFingerprint: "renderer-v1",
+    assetPaths: { molly: asset },
+  });
+
+  await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    noteRenderInput,
+    renderNote: fakeNoteRenderer({ renderHash: "poster-v1" }),
+    logger: () => {},
+  });
+  fs.writeFileSync(asset, Buffer.from([0xff, 0xd8, 0xff, 0x02]));
+  client.calls.length = 0;
+  const changedRenderer = fakeNoteRenderer({ renderHash: "poster-v2" });
+
+  const changed = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    noteRenderInput,
+    renderNote: changedRenderer,
+    logger: () => {},
+  });
+
+  assert.equal(changed.results[0].action, "update");
+  assert.equal(changedRenderer.calls.length, 1);
+  assert.deepEqual(client.calls.map(([name]) => name), ["uploadNewspicImage", "updateDraft"]);
 });
 
 test("adds a replacement note draft only when WeChat reports the stored draft missing", async () => {
@@ -597,6 +732,42 @@ test("rejects an incomplete cache inventory and excludes stale pages from the ne
   assert.equal(client.draftPayloads.update.at(-1).article.image_info.image_list.length, 4);
   assert.equal(client.calls.filter(([name]) => name === "uploadNewspicImage").length, 4);
 });
+
+for (const unsafeLayer of [".wechat-sync", "generated", "post cache"]) {
+  test(`rejects a symlinked ${unsafeLayer} before touching external cache data`, async () => {
+    const { root, id } = noteFixture();
+    const external = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-cache-external-"));
+    const sentinel = path.join(external, "sentinel.txt");
+    fs.writeFileSync(sentinel, "must stay unchanged");
+    const wechatRoot = path.join(root, ".wechat-sync");
+    const generatedRoot = path.join(wechatRoot, "generated");
+    if (unsafeLayer === ".wechat-sync") {
+      fs.symlinkSync(external, wechatRoot, "dir");
+    } else if (unsafeLayer === "generated") {
+      fs.mkdirSync(wechatRoot);
+      fs.symlinkSync(external, generatedRoot, "dir");
+    } else {
+      fs.mkdirSync(generatedRoot, { recursive: true });
+      fs.symlinkSync(external, path.join(generatedRoot, id), "dir");
+    }
+    const client = fakeClient();
+
+    await assert.rejects(
+      syncWechatDrafts({
+        root,
+        config: { ...config(root), stateFile: path.join(root, "state.json") },
+        client,
+        renderNote: fakeNoteRenderer(),
+        logger: () => {},
+      }),
+      /Unsafe note cache path/,
+    );
+
+    assert.equal(fs.readFileSync(sentinel, "utf8"), "must stay unchanged");
+    assert.deepEqual(fs.readdirSync(external), ["sentinel.txt"]);
+    assert.deepEqual(client.calls, []);
+  });
+}
 
 test("never redraws or mutates a native draft after it has ever been published", async () => {
   const { root, id } = noteFixture();
