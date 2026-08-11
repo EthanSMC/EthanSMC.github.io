@@ -1087,17 +1087,21 @@
   .writing { padding-bottom: 52px; }
   .writing-showcase { gap: 32px; }
   .writing-showcase--index { padding-inline: 18px; }
-  .album-stage { min-height: 500px; overflow: clip; touch-action: pan-y; }
+  .album-stage { min-height: 760px; overflow: clip; touch-action: pan-y; }
   .album-slide {
     inset-inline: 3%;
-    grid-template-columns: minmax(112px, 0.68fr) minmax(150px, 1fr);
-    gap: 15px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
     width: 94%;
-    min-height: 445px;
+    min-height: 700px;
     padding: 15px;
     transform: translateX(calc(var(--album-offset) * 76%)) rotateY(calc(var(--album-offset) * -22deg));
   }
-  .album-cover { min-height: 320px; }
+  .album-cover {
+    min-height: 0;
+    aspect-ratio: 4 / 5;
+  }
+  .album-slide__copy { align-self: start; }
   .album-slide__copy h3 { font-size: clamp(1.45rem, 7vw, 2rem); }
   .album-slide__description { font-size: 0.84rem; }
   .album-track-list { margin-top: 14px; }

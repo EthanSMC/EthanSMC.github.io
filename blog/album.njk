@@ -16,7 +16,16 @@ eleventyComputed:
     <p class="post-ledger"><a href="/blog/" data-i18n="writing.title">写作</a> / <span data-i18n="writing.albums">专辑</span></p>
     <h1 data-i18n-authored="{{ album.basename | escape }}">{{ album.basename | escape }}</h1>
     {% if album.description %}<p class="post-deck" data-i18n-authored="{{ album.description | escape }}">{{ album.description | escape }}</p>{% endif %}
-    {% if album.status %}<p class="album-page__status"><span data-i18n="writing.albumStatusLabel">状态</span> · <span data-album-status-value>{{ album.status | escape }}</span></p>{% endif %}
+    {% if album.status %}
+      <p class="album-page__status">
+        <span data-i18n="writing.albumStatusLabel">状态</span> ·
+        {% if album.status == "ongoing" %}
+          <span data-album-status-value data-i18n="writing.albumStatusOngoing">连载中</span>
+        {% else %}
+          <span data-album-status-value data-i18n-authored="{{ album.status | escape }}">{{ album.status | escape }}</span>
+        {% endif %}
+      </p>
+    {% endif %}
   </header>
 
   {% if album.cover %}

@@ -4,9 +4,8 @@ slug: ai-native-content-system
 status: ongoing
 featured: true
 order: 1
-cover: "[[assets/albums/ai-native-content-system/cover.jpg]]"
-cover_alt: 白猫 Mochi 趴在床上望向镜头
-cover_cast: mochi
+cover: "[[assets/albums/ai-native-content-system/cover-v2.jpg]]"
+cover_alt: Ethan 与 Mochi、Molly 一起连接博客、内容中心和公众号草稿箱
 description: 从 Obsidian 出发，逐步搭建属于自己的 AI 原生个人内容系统。
 ---
 # AI 原生个人内容系统
