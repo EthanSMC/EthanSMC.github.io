@@ -416,6 +416,23 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
       });
     });
 
+    await t.test("expands the content-management menu before validating dashboard navigation", async () => {
+      await page.goto(`${fixtureServer.baseUrl}/dashboard-collapsed.html`);
+
+      assert.deepEqual(await adapter.checkSession(), { authenticated: true });
+      assert.equal(
+        await page.getByRole("button", { name: "内容管理", exact: true }).getAttribute("aria-expanded"),
+        "true",
+      );
+
+      const candidate = await adapter.findDraftCandidate(draftPost);
+      assert.deepEqual(candidate, {
+        kind: "exact",
+        title: draftPost.title,
+        href: `${fixtureServer.baseUrl}/drafts.html?content_source_url=https%3A%2F%2Fethansmc.com%2Fposts%2Fdraft%2F&appmsgid=wx-draft-1#editor`,
+      });
+    });
+
     await t.test("rejects zero, duplicate, and conflicting exact draft candidates distinctly", async () => {
       await page.goto(`${fixtureServer.baseUrl}/drafts.html`);
       await assert.rejects(

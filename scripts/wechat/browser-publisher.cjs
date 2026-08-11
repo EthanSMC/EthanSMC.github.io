@@ -1,4 +1,5 @@
 const LABELS = Object.freeze({
+  contentManagement: "内容管理",
   drafts: "草稿箱",
   published: "发表记录",
   publish: "发表",
@@ -121,6 +122,40 @@ async function assertNoGlobalBlocker(page) {
   }
 }
 
+async function contentNavigationLinks(page) {
+  return {
+    drafts: await visibleLocators(
+      page.getByRole("link", { name: LABELS.drafts, exact: true }),
+    ),
+    published: await visibleLocators(
+      page.getByRole("link", { name: LABELS.published, exact: true }),
+    ),
+  };
+}
+
+async function revealContentNavigation(page, errorCode) {
+  let links = await contentNavigationLinks(page);
+  if (links.drafts.length === 1 && links.published.length === 1) return links;
+
+  const triggers = await visibleLocators(
+    page.getByText(LABELS.contentManagement, { exact: true }),
+  );
+  if (triggers.length !== 1) return links;
+
+  await assertNoGlobalBlocker(page);
+  try {
+    await triggers[0].click();
+    await page.getByRole("link", { name: LABELS.drafts, exact: true })
+      .waitFor({ state: "visible", timeout: 5_000 });
+    await page.getByRole("link", { name: LABELS.published, exact: true })
+      .waitFor({ state: "visible", timeout: 5_000 });
+  } catch {
+    throw browserError(errorCode, "无法展开微信内容管理菜单，已停止操作。");
+  }
+  links = await contentNavigationLinks(page);
+  return links;
+}
+
 function normalizedUrl(value) {
   if (!value) return null;
   try {
@@ -224,13 +259,11 @@ class WechatBrowserAdapter {
     const blocker = await detectGlobalBlocker(this.page);
     if (blocker) return { authenticated: false, blocker: blocker.kind };
 
-    const draftLinks = await visibleLocators(
-      this.page.getByRole("link", { name: LABELS.drafts, exact: true }),
+    const links = await revealContentNavigation(
+      this.page,
+      BROWSER_ERROR_CODES.PAGE_UNRECOGNIZED,
     );
-    const publishedLinks = await visibleLocators(
-      this.page.getByRole("link", { name: LABELS.published, exact: true }),
-    );
-    if (draftLinks.length === 1 && publishedLinks.length === 1) {
+    if (links.drafts.length === 1 && links.published.length === 1) {
       return { authenticated: true };
     }
     throw browserError(
@@ -241,6 +274,10 @@ class WechatBrowserAdapter {
 
   async navigateTo(label) {
     await assertNoGlobalBlocker(this.page);
+    await revealContentNavigation(
+      this.page,
+      BROWSER_ERROR_CODES.NAVIGATION_ENTRY_CHANGED,
+    );
     const link = await oneVisible(
       this.page.getByRole("link", { name: label, exact: true }),
       {

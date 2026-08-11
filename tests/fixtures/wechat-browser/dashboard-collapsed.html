@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>微信公众平台</title></head>
+<body>
+  <header><h1>公众号后台</h1></header>
+  <button type="button" aria-expanded="false" aria-controls="content-management-menu">
+    内容管理
+  </button>
+  <nav id="content-management-menu" aria-label="内容管理" hidden>
+    <a href="/drafts.html">草稿箱</a>
+    <a href="/published.html">发表记录</a>
+  </nav>
+  <main><p>欢迎回来</p></main>
+  <script>
+    const trigger = document.querySelector('[aria-controls="content-management-menu"]');
+    const menu = document.querySelector('#content-management-menu');
+    trigger.addEventListener('click', () => {
+      trigger.setAttribute('aria-expanded', 'true');
+      menu.hidden = false;
+    });
+  </script>
+</body>
+</html>
