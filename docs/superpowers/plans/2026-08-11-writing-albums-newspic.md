@@ -328,3 +328,65 @@ Expected: exit 0.
 git add scripts/wechat/client.cjs scripts/wechat/sync.cjs scripts/wechat/state.cjs docs/wechat-draft-sync.md tests/wechat-client.test.mjs tests/wechat-sync.test.mjs
 git commit -m "feat: sync md5-aware native note drafts"
 ```
+
+### Task 6: Retire background publication and stop at the draft box
+
+**Scope amendment (2026-08-11):** The owner canceled automatic publication and withdrawal as insufficiently stable. The supported unattended workflow must end after a verified draft add/update. Existing lifecycle source and historical state may remain for compatibility, but no supported background or package entry point may invoke it.
+
+**Files:**
+- Modify: `scripts/wechat-mac-agent.cjs`
+- Modify: `scripts/wechat-sync.cjs`
+- Modify: `scripts/wechat/sync.cjs`
+- Modify: `package.json`
+- Modify: `docs/wechat-draft-sync.md`
+- Modify: `docs/obsidian-publishing.md`
+- Test: `tests/wechat-mac-agent.test.mjs`
+- Test: `tests/wechat-sync.test.mjs`
+
+**Interfaces:**
+- `runAgent()` invokes exactly one child: `wechat-sync.cjs --automatic` plus optional `--dry-run` or `--force`.
+- Legacy `WECHAT_AUTO_PUBLISH`, `WECHAT_AUTO_WITHDRAW`, and browser-session settings never authorize an Agent browser or publisher child.
+- Draft sync runs in draft-only mode: never-published records cannot become `pending`; legacy publisher arming is cleared without erasing historical published identity.
+- Supported `package.json` commands expose draft sync/Agent only, not publisher login/arm/run/resolve.
+
+- [x] **Step 1: Add failing draft-only Agent and state tests**
+
+```js
+process.env.WECHAT_AUTO_PUBLISH = "1";
+process.env.WECHAT_AUTO_WITHDRAW = "1";
+runAgent({ commandRunner });
+assert.deepEqual(childNames, ["wechat-sync.cjs"]);
+assert.equal(saved.posts[id].publication.status, "draft_only");
+assert.equal(saved.publisher.armedAt, null);
+assert.equal(Object.keys(pkg.scripts).some((name) => name.startsWith("wechat:publisher:")), false);
+```
+
+- [x] **Step 2: Run focused tests and confirm RED**
+
+Run: `node --test tests/wechat-mac-agent.test.mjs tests/wechat-sync.test.mjs`
+Expected: FAIL because the Agent still invokes `wechat-publish.cjs`, templates still advertise browser flags, armed draft sync still creates `pending`, and publisher package commands remain exposed.
+
+- [x] **Step 3: Remove the background publisher boundary**
+
+Delete the publisher child invocation from `runAgent()`. Do not condition it on environment flags: the Agent must ignore legacy values, including `1`. Remove automatic publication/browser fields from newly created private environment templates and status suggestions. Preserve API draft credentials, the process lock, dedicated checkout, polling, dry-run, force, logs, and last-run state.
+
+- [x] **Step 4: Make sync state explicitly draft-only**
+
+Draft synchronization must clear publisher arming metadata and downgrade never-published `pending` or publish-blocked records to a non-eligible manual/draft-only status before any API work. New or updated drafts remain non-eligible. Preserve `everPublished`, public URLs, platform IDs, and reconciliation history for old records; do not reinterpret a historical published record.
+
+- [x] **Step 5: Remove supported publisher commands and rewrite operator docs**
+
+Remove `wechat:publisher:*` scripts from `package.json`. Documentation must show only Markdown/Obsidian → website → WeChat draft box → manual review/publish. Remove instructions to log in, arm, enable, retry, resolve, or automatically withdraw. Explicitly state that moving/deleting a Markdown file never mutates a published WeChat item.
+
+- [x] **Step 6: Verify and commit**
+
+Run: `node --test tests/wechat-mac-agent.test.mjs tests/wechat-sync.test.mjs tests/wechat-content.test.mjs tests/wechat-client.test.mjs`
+Expected: PASS.
+
+Run: `pnpm build`
+Expected: exit 0.
+
+```bash
+git add scripts/wechat-mac-agent.cjs scripts/wechat-sync.cjs scripts/wechat/sync.cjs package.json docs/wechat-draft-sync.md docs/obsidian-publishing.md tests/wechat-mac-agent.test.mjs tests/wechat-sync.test.mjs docs/superpowers/plans/2026-08-11-writing-albums-newspic.md
+git commit -m "refactor: stop WeChat automation at drafts"
+```

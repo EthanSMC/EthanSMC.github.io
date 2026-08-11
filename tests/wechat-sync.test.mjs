@@ -469,7 +469,7 @@ test("keeps a note with wechat false on the website without rendering or API cal
   assert.equal(fs.existsSync(path.join(root, ".wechat-sync", "generated", id)), false);
 });
 
-test("wechat false disarms an existing never-published pending draft", async () => {
+test("wechat false keeps an existing never-published draft non-eligible", async () => {
   const { root, id } = noteFixture();
   const client = fakeClient();
   writeLifecycleState(root, (state) => {
@@ -483,7 +483,7 @@ test("wechat false disarms an existing never-published pending draft", async () 
     renderNote: fakeNoteRenderer(),
     logger: () => {},
   });
-  assert.equal(loadState(config(root).stateFile).posts[id].publication.status, "pending");
+  assert.equal(loadState(config(root).stateFile).posts[id].publication.status, "draft_only");
   fs.writeFileSync(
     path.join(root, "content", "published", `${id}.md`),
     "---\nkind: note\nwechat: false\n---\n仍然只发布到网站。\n",
@@ -526,7 +526,7 @@ test("records one note render failure and continues syncing later notes", async 
   assert.equal(client.calls.filter(([name]) => name === "addDraft").length, 1);
 });
 
-test("a failed note refresh disarms its stale pending draft until sync recovers", async () => {
+test("a failed note refresh remains draft-only after sync recovers", async () => {
   const { root, id } = noteFixture();
   const client = fakeClient();
   writeLifecycleState(root, (state) => {
@@ -564,7 +564,7 @@ test("a failed note refresh disarms its stale pending draft until sync recovers"
   });
   record = loadState(config(root).stateFile).posts[id];
   assert.equal(recovered.results[0].action, "update");
-  assert.equal(record.publication.status, "pending");
+  assert.equal(record.publication.status, "draft_only");
   assert.equal(record.syncError, undefined);
 });
 
@@ -952,7 +952,7 @@ test("adds once, skips unchanged content, and updates the same draft after edits
   assert.equal(state.posts[POST_ID].renderHash, state.posts[POST_ID].fingerprint);
   assert.deepEqual(state.posts[POST_ID].generatedImages, []);
   assert.equal(state.posts[POST_ID].draftKind, "news");
-  assert.equal(state.posts[POST_ID].publication.status, "manual");
+  assert.equal(state.posts[POST_ID].publication.status, "draft_only");
 });
 
 test("backfills MD5-aware metadata on an unchanged legacy article without mutating its draft", async () => {
@@ -978,7 +978,7 @@ test("backfills MD5-aware metadata on an unchanged legacy article without mutati
   assert.deepEqual(client.calls, []);
 });
 
-test("makes an armed new post pending only after draft creation succeeds", async () => {
+test("keeps an armed legacy new post draft-only after draft creation succeeds", async () => {
   const root = fixture();
   const client = fakeClient();
   writeLifecycleState(root, (state) => {
@@ -990,10 +990,11 @@ test("makes an armed new post pending only after draft creation succeeds", async
   const record = loadState(config(root).stateFile).posts[POST_ID];
 
   assert.equal(result.results[0].action, "add");
-  assert.equal(record.publication.status, "pending");
+  assert.equal(record.publication.status, "draft_only");
   assert.equal(record.publication.desiredLocation, "published");
   assert.equal(record.publication.draftFingerprint, record.fingerprint);
-  assert.ok(Number.isFinite(Date.parse(record.publication.eligibleAt)));
+  assert.equal(record.publication.eligibleAt, null);
+  assert.equal(loadState(config(root).stateFile).publisher.armedAt, null);
 });
 
 test("does not make an armed new post pending when draft creation fails", async () => {
@@ -1016,7 +1017,7 @@ test("does not make an armed new post pending when draft creation fails", async 
   assert.equal(loadState(config(root).stateFile).posts[POST_ID], undefined);
 });
 
-test("restores a canceled non-baseline post to pending only after draft update succeeds", async () => {
+test("updates a restored non-baseline post while keeping it draft-only", async () => {
   const root = fixture();
   const client = fakeClient();
   writeLifecycleState(root, (state) => {
@@ -1037,13 +1038,13 @@ test("restores a canceled non-baseline post to pending only after draft update s
   const record = loadState(config(root).stateFile).posts[POST_ID];
 
   assert.equal(result.results[0].action, "update");
-  assert.equal(record.publication.status, "pending");
+  assert.equal(record.publication.status, "draft_only");
   assert.equal(record.publication.desiredLocation, "published");
   assert.equal(record.publication.draftFingerprint, record.fingerprint);
   assert.equal(client.calls.filter(([name]) => name === "updateDraft").length, 1);
 });
 
-test("restores an unchanged canceled non-baseline article without updating its existing draft", async () => {
+test("skips an unchanged canceled non-baseline article and keeps it draft-only", async () => {
   const root = fixture();
   const client = fakeClient();
   await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
@@ -1060,15 +1061,15 @@ test("restores an unchanged canceled non-baseline article without updating its e
   const result = await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
   const restored = loadState(config(root).stateFile).posts[POST_ID];
 
-  assert.equal(result.results[0].action, "restored");
-  assert.equal(restored.publication.status, "pending");
+  assert.equal(result.results[0].action, "skipped");
+  assert.equal(restored.publication.status, "draft_only");
   assert.equal(restored.publication.desiredLocation, "published");
   assert.equal(restored.publication.draftFingerprint, restored.fingerprint);
   assert.equal(restored.sourceDeletedAt, undefined);
   assert.deepEqual(client.calls, []);
 });
 
-test("restores an unchanged canceled article with no stored media ID through the normal add flow", async () => {
+test("recreates an unchanged canceled article with no stored media ID as draft-only", async () => {
   const root = fixture();
   const client = fakeClient();
   await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
@@ -1087,7 +1088,7 @@ test("restores an unchanged canceled article with no stored media ID through the
 
   assert.equal(result.results[0].action, "add");
   assert.equal(restored.mediaId, "draft-media");
-  assert.equal(restored.publication.status, "pending");
+  assert.equal(restored.publication.status, "draft_only");
   assert.deepEqual(client.calls.map(([name]) => name), ["addDraft"]);
 });
 
@@ -1121,7 +1122,7 @@ test("keeps a canceled post draft-only when draft update fails", async () => {
   assert.equal(publication.desiredLocation, "published");
 });
 
-test("keeps baseline posts manual after successful draft creation", async () => {
+test("keeps baseline posts draft-only after successful draft creation", async () => {
   const root = fixture();
   const client = fakeClient();
   writeLifecycleState(root, (state) => {
@@ -1133,8 +1134,8 @@ test("keeps baseline posts manual after successful draft creation", async () => 
   await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
 
   const publication = loadState(config(root).stateFile).posts[POST_ID].publication;
-  assert.equal(publication.status, "manual");
-  assert.equal(publication.draftFingerprint, null);
+  assert.equal(publication.status, "draft_only");
+  assert.ok(publication.draftFingerprint);
 });
 
 test("an inactive historical marker does not cancel a currently published source", async () => {
@@ -1149,12 +1150,12 @@ test("an inactive historical marker does not cancel a currently published source
   await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
 
   const publication = loadState(config(root).stateFile).posts[POST_ID].publication;
-  assert.equal(publication.status, "pending");
+  assert.equal(publication.status, "draft_only");
   assert.equal(publication.desiredLocation, "published");
   assert.equal(client.calls.filter(([name]) => name === "addDraft").length, 1);
 });
 
-test("a consumed cancellation marker cannot reactivate after restore, publish, and later plain deletion", async () => {
+test("a consumed cancellation marker cannot reactivate browser automation after draft-only migration", async () => {
   const root = fixture();
   const client = fakeClient();
   const stateFile = config(root).stateFile;
@@ -1178,7 +1179,7 @@ test("a consumed cancellation marker cannot reactivate after restore, publish, a
   client.calls.length = 0;
   await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
   publication = loadState(stateFile).posts[POST_ID].publication;
-  assert.equal(publication.status, "pending");
+  assert.equal(publication.status, "draft_only");
   assert.equal(publication.desiredLocation, "published");
   assert.deepEqual(client.calls, []);
 
@@ -1210,8 +1211,8 @@ test("a consumed cancellation marker cannot reactivate after restore, publish, a
     autoWithdraw: true,
     now: () => "2026-08-07T02:00:00.000Z",
   });
-  assert.equal(publishClicks, 1);
-  assert.equal(loadState(stateFile).posts[POST_ID].publication.status, "published");
+  assert.equal(publishClicks, 0);
+  assert.equal(loadState(stateFile).posts[POST_ID].publication.status, "draft_only");
 
   fs.unlinkSync(sourcePath);
   await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
@@ -1236,7 +1237,7 @@ test("a consumed cancellation marker cannot reactivate after restore, publish, a
   });
 
   publication = loadState(stateFile).posts[POST_ID].publication;
-  assert.equal(publication.status, "published");
+  assert.equal(publication.status, "draft_only");
   assert.equal(publication.desiredLocation, "published");
   assert.equal(withdrawClicks, 0);
 });
@@ -1307,7 +1308,7 @@ test("a marker superseded by restore cannot authorize a later plain deletion", a
   assert.equal(withdrawClicks, 0);
 });
 
-test("restore canonicalizes an equivalent marker before only a newer marker can authorize", async () => {
+test("restore canonicalizes markers without authorizing browser withdrawal", async () => {
   const root = fixture();
   const client = fakeClient();
   const stateFile = config(root).stateFile;
@@ -1385,9 +1386,9 @@ test("restore canonicalizes an equivalent marker before only a newer marker can 
   });
 
   publication = loadState(stateFile).posts[POST_ID].publication;
-  assert.equal(publication.status, "withdrawn");
+  assert.equal(publication.status, "published");
   assert.equal(publication.withdrawRequestedAt, "2026-08-07T02:00:00.000Z");
-  assert.equal(withdrawClicks, 1);
+  assert.equal(withdrawClicks, 0);
 });
 
 test("active markers cancel safe publication states before any WeChat API call", async () => {

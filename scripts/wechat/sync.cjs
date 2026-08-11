@@ -279,6 +279,58 @@ function recordNoteFailure({ dryRun, error, logger, post, state, stateFile }) {
   return { action: "failed", post, error: diagnostic };
 }
 
+function draftOnlyPublication(state, postId) {
+  const publication = publicationForNewPost(state, postId, new Date().toISOString());
+  if (
+    !publication.everPublished
+    && (
+      publication.status === "manual"
+      || publication.status === "draft_only"
+      || publication.status === "pending"
+      || (publication.status === "blocked" && publication.blockedOperation === "publish")
+    )
+  ) {
+    publication.status = "draft_only";
+    publication.eligibleAt = null;
+    publication.publishStartedAt = null;
+    publication.blockedOperation = null;
+    publication.lastError = null;
+  }
+  return publication;
+}
+
+function enforceDraftOnlyLifecycle(state) {
+  let changed = false;
+  const disabledPublisher = {
+    armedAt: null,
+    baselineCaptured: false,
+    baselinePostIds: [],
+    browserSessionCheckedAt: null,
+  };
+  if (JSON.stringify(state.publisher) !== JSON.stringify(disabledPublisher)) {
+    state.publisher = disabledPublisher;
+    changed = true;
+  }
+  for (const record of Object.values(state.posts)) {
+    const publication = record.publication;
+    if (
+      !publication?.everPublished
+      && (
+        publication?.status === "pending"
+        || (publication?.status === "blocked" && publication.blockedOperation === "publish")
+      )
+    ) {
+      publication.status = "draft_only";
+      publication.eligibleAt = null;
+      publication.publishStartedAt = null;
+      publication.blockedOperation = null;
+      publication.lastError = null;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function disableWechatPost(postId, state, stateFile, dryRun) {
   const publication = state.posts[postId]?.publication;
   if (
@@ -307,11 +359,6 @@ function reuseCachedNote({
   stateFile,
 }) {
   if (!cached || !previous?.mediaId) return null;
-  const restoredPublication = previous.publication?.status === "draft_only"
-    && previous.publication.desiredLocation === "published"
-    ? publicationForNewPost(state, post.id, new Date().toISOString())
-    : null;
-  const canRestore = restoredPublication?.status === "pending";
   let changed = false;
   if (previous.renderInputHash !== renderInputHash) {
     previous.renderInputHash = renderInputHash;
@@ -329,16 +376,9 @@ function reuseCachedNote({
     delete previous.sourceDeletedAt;
     changed = true;
   }
-  if (canRestore) {
-    previous.publication = {
-      ...restoredPublication,
-      draftFingerprint: previous.renderHash,
-    };
-    changed = true;
-  }
   if (changed) saveState(stateFile, state);
-  logger(`${canRestore ? "已恢复公众号待发布状态" : "跳过未变化文章"}：${post.title}`);
-  return { action: canRestore ? "restored" : "skipped", post, mediaId: previous.mediaId };
+  logger(`跳过未变化文章：${post.title}`);
+  return { action: "skipped", post, mediaId: previous.mediaId };
 }
 
 async function syncNotePost({
@@ -454,8 +494,8 @@ async function syncNotePost({
     if (!mediaId) mediaId = await getClient().addDraft(article);
 
     const generatedImages = renderedNoteManifest(files, imageMediaIds);
-    const publication = publicationForNewPost(state, post.id, new Date().toISOString());
-    if (publication.status === "pending") publication.draftFingerprint = rendered.renderHash;
+    const publication = draftOnlyPublication(state, post.id);
+    publication.draftFingerprint = rendered.renderHash;
     const record = {
       ...(previous || {}),
       fingerprint: rendered.renderHash,
@@ -495,26 +535,10 @@ async function syncOnePost({ getClient, config, dryRun, force, logger, post, pre
     logger(`公众号已发布一次，本次修改仅更新网站：${post.title}`);
     return { action: "website-only", post, mediaId: previous.mediaId };
   }
-  const restoredPublication = previous?.publication?.status === "draft_only"
-    && previous.publication.desiredLocation === "published"
-    ? publicationForNewPost(state, post.id, new Date().toISOString())
-    : null;
-  const canRestore = restoredPublication?.status === "pending";
-  if (!dryRun && !force && previous?.fingerprint === prepared.fingerprint && canRestore && previous.mediaId) {
-    backfillArticleMetadata(previous, prepared);
-    previous.publication = {
-      ...restoredPublication,
-      draftFingerprint: prepared.fingerprint,
-    };
-    delete previous.sourceDeletedAt;
-    saveState(stateFile, state);
-    logger(`已恢复公众号待发布状态：${post.title}`);
-    return { action: "restored", post, mediaId: previous.mediaId };
-  }
   if (
     !force
     && previous?.fingerprint === prepared.fingerprint
-    && !(canRestore && !previous.mediaId)
+    && previous.mediaId
   ) {
     let changed = false;
     if (!dryRun) changed = backfillArticleMetadata(previous, prepared);
@@ -557,10 +581,8 @@ async function syncOnePost({ getClient, config, dryRun, force, logger, post, pre
   }
   if (!mediaId) mediaId = await client.addDraft(article);
 
-  const publication = publicationForNewPost(state, post.id, new Date().toISOString());
-  if (publication.status === "pending") {
-    publication.draftFingerprint = prepared.fingerprint;
-  }
+  const publication = draftOnlyPublication(state, post.id);
+  publication.draftFingerprint = prepared.fingerprint;
   const record = {
     ...(previous || {}),
     fingerprint: prepared.fingerprint,
@@ -601,7 +623,7 @@ async function syncWechatDrafts({
   const markers = loadWithdrawalMarkers(root);
   const stateFile = config.stateFile || path.join(root, ".wechat-sync", "state.json");
   const state = loadState(stateFile);
-  let stateChanged = false;
+  let stateChanged = enforceDraftOnlyLifecycle(state);
   for (const [postId, record] of Object.entries(state.posts)) {
     const location = desiredLocation(postId, publishedIds, markers, record.publication);
     if (!location) continue;
