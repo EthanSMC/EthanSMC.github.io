@@ -2,12 +2,7 @@
 layout: layouts/blog-shell.njk
 pageTitle: 写作｜申名翀 Ethan
 pageDescription: 产品现场、AI 实验和一些暂时没有答案的问题——趁它们还热，先写下来。
-pagination:
-  data: blog.posts
-  size: 20
-  alias: pagePosts
-  generatePageOnEmptyData: true
-permalink: "blog/{% if pagination.pageNumber > 0 %}page/{{ pagination.pageNumber | plus(1) }}/{% endif %}index.html"
+permalink: "blog/index.html"
 ---
 <section class="writing-hero" aria-labelledby="writing-title">
   <div>
@@ -15,40 +10,6 @@ permalink: "blog/{% if pagination.pageNumber > 0 %}page/{{ pagination.pageNumber
     <h1 id="writing-title" data-i18n="writing.title">写作</h1>
     <p data-i18n="writing.description">产品现场、AI 实验和一些暂时没有答案的问题——趁它们还热，先写下来。</p>
   </div>
-  <aside class="writing-index-note" aria-label="写作类型说明" data-i18n-aria-label="blog.legendAria">
-    <span><i class="legend-dot legend-dot--essay"></i><b data-i18n="blog.essayLegend">长文 · 展开的判断</b></span>
-    <span><i class="legend-dot legend-dot--note"></i><b data-i18n="blog.noteLegend">随记 · 当下的片段</b></span>
-  </aside>
 </section>
 
-{% if blog.tags.length %}
-  <nav class="tag-filter" aria-label="按标签筛选文章" data-i18n-aria-label="blog.filterAria" data-tag-filter-nav>
-    <a class="active" href="/blog/" data-tag-filter="all" aria-current="page"><b data-i18n="blog.all">全部</b> <span>{{ blog.posts.length }}</span></a>
-    {% for tag in blog.tags %}
-      <a href="{{ tag.url }}" data-tag-filter="{{ tag.normalized }}">#<b data-i18n-authored="{{ tag.label | escape }}">{{ tag.label }}</b> <span>{{ tag.count }}</span></a>
-    {% endfor %}
-  </nav>
-{% endif %}
-
-<section class="field-log" aria-label="写作时间线" data-i18n-aria-label="blog.timelineAria" data-field-log>
-  {% if pagePosts.length %}
-    {% for postItem in pagePosts %}
-      {% set entry = postItem %}
-      {% include "partials/blog-entry.njk" %}
-    {% endfor %}
-  {% else %}
-    <div class="writing-empty">
-      <span aria-hidden="true">✎</span>
-      <h2 data-i18n="blog.emptyTitle">第一篇还在纸上。</h2>
-      <p data-i18n="blog.emptyBody">文章发布后，会自动出现在这条时间线上。</p>
-    </div>
-  {% endif %}
-</section>
-
-{% if pagination.pages.length > 1 %}
-  <nav class="blog-pagination" aria-label="文章分页" data-i18n-aria-label="blog.pagesAria">
-    {% if pagination.href.previous %}<a href="{{ pagination.href.previous }}" data-i18n="blog.newer">← 更新的记录</a>{% else %}<span></span>{% endif %}
-    <span>{{ pagination.pageNumber | plus(1) }} / {{ pagination.pages.length }}</span>
-    {% if pagination.href.next %}<a href="{{ pagination.href.next }}" data-i18n="blog.older">更早的记录 →</a>{% endif %}
-  </nav>
-{% endif %}
+{{ blog | writingShowcase("index") | safe }}

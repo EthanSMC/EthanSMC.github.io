@@ -12,6 +12,12 @@ const { cleanSourceAndExtractTags, loadBlog, parsePost, parseTimestamp } = requi
 const { parseFrontmatter } = require("../scripts/content/frontmatter.cjs");
 const { injectHomeWriting } = require("../scripts/render-home-writing.cjs");
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const WRITING_SHOWCASE_RENDERER = path.join(ROOT, "scripts", "render-writing-showcase.cjs");
+
+function renderWritingShowcase(...args) {
+  if (!fs.existsSync(WRITING_SHOWCASE_RENDERER)) return "";
+  return require(WRITING_SHOWCASE_RENDERER).renderWritingShowcase(...args);
+}
 
 function contentFixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ethan-writing-content-"));
@@ -25,6 +31,90 @@ function contentFixture(t) {
 
 function writeMarkdown(directory, filename, source) {
   fs.writeFileSync(path.join(directory, filename), source, "utf8");
+}
+
+class CarouselTestElement {
+  constructor(attributes = {}) {
+    this.attributes = new Map(Object.entries(attributes));
+    this.disabled = false;
+    this.listeners = new Map();
+    this.styleValues = new Map();
+    this.style = {
+      setProperty: (name, value) => this.styleValues.set(name, String(value)),
+      getPropertyValue: (name) => this.styleValues.get(name) || "",
+    };
+    this.tabIndex = Number(attributes.tabindex ?? -1);
+    this.textContent = "";
+    this.focused = false;
+  }
+
+  addEventListener(type, listener) {
+    if (!this.listeners.has(type)) this.listeners.set(type, []);
+    this.listeners.get(type).push(listener);
+  }
+
+  dispatch(type, values = {}) {
+    const event = {
+      button: 0,
+      pointerId: 1,
+      preventDefault() { this.defaultPrevented = true; },
+      ...values,
+      currentTarget: this,
+    };
+    for (const listener of this.listeners.get(type) || []) listener(event);
+    return event;
+  }
+
+  focus() { this.focused = true; }
+  getAttribute(name) { return this.attributes.get(name) ?? null; }
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  setPointerCapture() {}
+}
+
+function createCarouselFixture({ active = 0, albumQuery = "" } = {}) {
+  const labels = ["First album", "Second album", "Third album"];
+  const slides = labels.map((label, index) => new CarouselTestElement({
+    "aria-current": String(index === active),
+    "data-album-slide": ["first", "second", "third"][index],
+    "data-album-title": label,
+    tabindex: index === active ? "0" : "-1",
+  }));
+  const previous = new CarouselTestElement();
+  const next = new CarouselTestElement();
+  const status = new CarouselTestElement();
+  status.textContent = `${active + 1} / 3 · ${labels[active]}`;
+  const location = { href: `https://example.com/blog/?lang=en${albumQuery}` };
+  const historyCalls = [];
+  const view = {
+    history: {
+      state: { fixture: true },
+      replaceState(state, title, url) {
+        historyCalls.push({ state, title, url });
+        location.href = new URL(url, location.href).href;
+      },
+    },
+    location,
+    siteI18n: {
+      t(key, values) {
+        if (key !== "writing.albumStatus") return key;
+        return `Album ${values.current} of ${values.total}: ${values.title}`;
+      },
+    },
+  };
+  const root = new CarouselTestElement();
+  root.ownerDocument = { defaultView: view };
+  root.querySelectorAll = (selector) => selector === "[data-album-slide]" ? slides : [];
+  root.querySelector = (selector) => ({
+    "[data-album-prev]": previous,
+    "[data-album-next]": next,
+    "[data-album-status]": status,
+  }[selector] || null);
+  return { historyCalls, next, previous, root, slides, status, view };
+}
+
+function loadCarouselModule() {
+  const carouselPath = path.join(ROOT, "writing-carousel.js");
+  return fs.existsSync(carouselPath) ? require(carouselPath) : { createAlbumCarousel() {} };
 }
 
 test("keeps internal Markdown outside Eleventy's public build graph", () => {
@@ -46,6 +136,7 @@ test("keeps internal Markdown outside Eleventy's public build graph", () => {
   assert.ok(ignores.includes(".impeccable/**"));
   assert.ok(ignores.includes("assets/**/*.md"));
   assert.ok(passthrough.includes("assets/digital-ethan/*.png"));
+  assert.ok(passthrough.includes("writing-carousel.js"));
   assert.ok(!passthrough.includes("assets/digital-ethan"));
 });
 
@@ -268,6 +359,199 @@ track: 1
   );
 });
 
+test("renders the shared album, independent writing, and Small Talks showcase", () => {
+  const independent = parsePost({
+    filename: "2026-08-11-121000.md",
+    source: "---\nkind: article\n---\n# 一篇独立文章\n\n独立判断。",
+  });
+  const note = parsePost({
+    filename: "2026-08-11-121001.md",
+    source: "---\nkind: note\n---\n一则碎碎念。",
+  });
+  const albumTrack = parsePost({
+    filename: "2026-08-11-121002.md",
+    source: "---\nkind: article\nalbum: \"[[AI 原生内容系统]]\"\ntrack: 1\n---\n# 第一轨\n\n专辑正文。",
+  });
+  albumTrack.albumSlug = "ai-native-content-system";
+
+  const html = renderWritingShowcase({
+    posts: [albumTrack, independent, note],
+    albums: [
+      {
+        basename: "产品判断",
+        slug: "product-judgment",
+        order: 1,
+        featured: false,
+        cover: null,
+        coverAlt: null,
+        coverCast: "auto",
+        description: "判断如何形成",
+        tracks: [],
+      },
+      {
+        basename: "AI 原生内容系统",
+        slug: "ai-native-content-system",
+        order: 2,
+        featured: true,
+        cover: "/assets/albums/content-system.png",
+        coverAlt: "内容系统专辑封面",
+        coverCast: "mochi",
+        description: "从写作到分发",
+        tracks: [albumTrack],
+      },
+    ],
+    independentArticles: [independent],
+    smallTalks: [note],
+  }, { context: "home" });
+
+  assert.match(html, /data-album-carousel/);
+  assert.match(html, /data-album-slide="ai-native-content-system"[^>]*aria-current="true"/);
+  assert.match(html, /data-album-slide="product-judgment"[^>]*aria-current="false"/);
+  assert.match(html, /data-album-prev/);
+  assert.match(html, /data-album-next/);
+  assert.match(html, /data-album-status[^>]*aria-live="polite"/);
+  assert.match(html, />专辑</);
+  assert.match(html, />独立文章</);
+  assert.match(html, />碎碎念</);
+  assert.match(html, /第一轨/);
+  assert.match(html, /一篇独立文章/);
+  assert.match(html, /一则碎碎念/);
+});
+
+test("chooses the smallest album order when no album is featured", () => {
+  const html = renderWritingShowcase({
+    posts: [],
+    albums: [
+      { basename: "较晚", slug: "later", order: 8, tracks: [] },
+      { basename: "最先", slug: "first", order: 2, tracks: [] },
+    ],
+    independentArticles: [],
+    smallTalks: [],
+  });
+
+  assert.match(html, /data-album-slide="first"[^>]*aria-current="true"/);
+  assert.match(html, /data-album-slide="later"[^>]*aria-current="false"/);
+});
+
+test("escapes authored album and post text in every showcase region", () => {
+  const unsafePost = {
+    title: '<img src=x onerror="alert(1)">',
+    summary: "A & B <script>alert(1)</script>",
+    url: '/blog/?q="bad"&x=<tag>',
+    display: "2026.08.11",
+    readingMinutes: 1,
+    tags: [{ label: '<svg onload="alert(1)">' }],
+  };
+  const html = renderWritingShowcase({
+    posts: [unsafePost],
+    albums: [{
+      basename: '<Album & "friends">',
+      slug: "safe-slug",
+      order: 1,
+      featured: true,
+      description: "<b>unsafe</b>",
+      tracks: [unsafePost],
+    }],
+    independentArticles: [unsafePost],
+    smallTalks: [{ ...unsafePost, title: "<em>note</em>" }],
+  });
+
+  assert.doesNotMatch(html, /<script>|<img src=x|<svg onload|<b>unsafe|<em>note/);
+  assert.match(html, /&lt;Album &amp; &quot;friends&quot;&gt;/);
+  assert.match(html, /A &amp; B &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(html, /href="\/blog\/\?q=&quot;bad&quot;&amp;x=&lt;tag&gt;"/);
+});
+
+test("keeps empty albums and legacy post-only blog data usable", () => {
+  const legacyPost = parsePost({
+    filename: "2026-07-28-121003.md",
+    source: "# 旧文章仍然可见\n\n旧文章摘要。\n\n#essay",
+  });
+  const emptyHtml = renderWritingShowcase({ posts: [], albums: [], independentArticles: [], smallTalks: [] });
+  const legacyHtml = renderWritingShowcase({ posts: [legacyPost] });
+
+  assert.match(emptyHtml, /data-album-carousel/);
+  assert.match(emptyHtml, /data-i18n="writing\.albumsEmpty"/);
+  assert.match(emptyHtml, /data-i18n="writing\.independentEmpty"/);
+  assert.match(emptyHtml, /data-i18n="writing\.smallTalksEmpty"/);
+  assert.match(legacyHtml, /旧文章仍然可见/);
+});
+
+test("limits homepage rows while the writing index renders the full collections", () => {
+  const articles = Array.from({ length: 5 }, (_, index) => ({
+    title: `独立文章 ${index + 1}`,
+    summary: `摘要 ${index + 1}`,
+    url: `/blog/article-${index + 1}/`,
+    display: "2026.08.11",
+    readingMinutes: 1,
+    tags: [],
+    kind: "article",
+    albumSlug: null,
+  }));
+  const notes = Array.from({ length: 5 }, (_, index) => ({
+    title: `碎碎念 ${index + 1}`,
+    summary: `片段 ${index + 1}`,
+    url: `/blog/note-${index + 1}/`,
+    display: "2026.08.11",
+    kind: "note",
+  }));
+
+  const home = renderWritingShowcase({ posts: [...articles, ...notes], albums: [], independentArticles: articles, smallTalks: notes }, { context: "home" });
+  const index = renderWritingShowcase({ posts: [...articles, ...notes], albums: [], independentArticles: articles, smallTalks: notes }, { context: "index" });
+
+  assert.doesNotMatch(home, /独立文章 5|碎碎念 5/);
+  assert.match(index, /独立文章 5/);
+  assert.match(index, /碎碎念 5/);
+});
+
+test("album carousel keyboard selection updates ARIA, offsets, status, focus, and URL", () => {
+  const { createAlbumCarousel } = loadCarouselModule();
+  const fixture = createCarouselFixture();
+  createAlbumCarousel(fixture.root);
+
+  const right = fixture.root.dispatch("keydown", { key: "ArrowRight" });
+  assert.equal(right.defaultPrevented, true);
+  assert.equal(fixture.slides[0].getAttribute("aria-current"), "false");
+  assert.equal(fixture.slides[1].getAttribute("aria-current"), "true");
+  assert.equal(fixture.slides[0].tabIndex, -1);
+  assert.equal(fixture.slides[1].tabIndex, 0);
+  assert.equal(fixture.slides[0].style.getPropertyValue("--album-offset"), "-1");
+  assert.equal(fixture.slides[1].style.getPropertyValue("--album-offset"), "0");
+  assert.equal(fixture.slides[2].style.getPropertyValue("--album-offset"), "1");
+  assert.equal(fixture.status.textContent, "Album 2 of 3: Second album");
+  assert.equal(fixture.slides[1].focused, true);
+  assert.equal(new URL(fixture.view.location.href).searchParams.get("album"), "second");
+  assert.equal(new URL(fixture.view.location.href).searchParams.get("lang"), "en");
+  assert.equal(fixture.historyCalls.length, 1);
+
+  fixture.root.dispatch("keydown", { key: "End" });
+  assert.equal(fixture.slides[2].getAttribute("aria-current"), "true");
+  fixture.root.dispatch("keydown", { key: "Home" });
+  assert.equal(fixture.slides[0].getAttribute("aria-current"), "true");
+});
+
+test("album carousel honors the album query and changes one slide per horizontal gesture", () => {
+  const { createAlbumCarousel } = loadCarouselModule();
+  const fixture = createCarouselFixture({ albumQuery: "&album=third" });
+  createAlbumCarousel(fixture.root);
+
+  assert.equal(fixture.slides[2].getAttribute("aria-current"), "true");
+  assert.equal(fixture.historyCalls.length, 0);
+
+  fixture.root.dispatch("pointerdown", { button: 0, clientX: 45, clientY: 20, pointerId: 7 });
+  fixture.root.dispatch("pointerup", { clientX: 120, clientY: 24, pointerId: 7 });
+  assert.equal(fixture.slides[1].getAttribute("aria-current"), "true");
+
+  fixture.root.dispatch("pointerdown", { button: 0, clientX: 45, clientY: 24, pointerId: 8 });
+  fixture.root.dispatch("pointerup", { clientX: 50, clientY: 100, pointerId: 8 });
+  assert.equal(fixture.slides[1].getAttribute("aria-current"), "true");
+
+  fixture.next.dispatch("click");
+  assert.equal(fixture.slides[2].getAttribute("aria-current"), "true");
+  fixture.previous.dispatch("click");
+  assert.equal(fixture.slides[1].getAttribute("aria-current"), "true");
+});
+
 test("accepts only exact album basename wikilinks", (t) => {
   const invalidReferences = [
     "内容系统",
@@ -450,7 +734,16 @@ test("keeps the source homepage readable without exposing build templates", () =
   assert.doesNotMatch(source, /{%|{{/);
   assert.match(source, /第一篇还在纸上。/);
   assert.match(source, /href="https:\/\/ethansmc-personal-page\.vercel\.app\/blog\/" data-site-href="\/blog\/"/);
+  assert.match(source, />查看全部写作<\/a>/);
   assert.doesNotMatch(source, /location\.replace|ethansmc\.github\.io/);
+});
+
+test("loads the shared manual album carousel from both page shells", () => {
+  const homepage = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  const blogLayout = fs.readFileSync(path.join(ROOT, "_includes/layouts/blog-shell.njk"), "utf8");
+
+  assert.match(homepage, /<script type="module" src="\/writing-carousel\.js"><\/script>/);
+  assert.match(blogLayout, /<script type="module" src="\/writing-carousel\.js"><\/script>/);
 });
 
 test("places writing before experience and projects on the homepage", () => {
