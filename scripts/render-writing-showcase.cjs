@@ -67,10 +67,9 @@ function renderAlbumSlide(album, index, selectedIndex) {
     : `<p class="album-slide__empty" data-i18n="writing.albumTracksEmpty">文章正在装订中。</p>`;
 
   return `
-            <article class="album-slide" data-album-slide="${escapeHtml(album.slug)}" aria-current="${isSelected}" tabindex="${isSelected ? "0" : "-1"}" style="--album-offset: ${index - selectedIndex}; --album-depth: ${Math.abs(index - selectedIndex)};" data-album-title="${escapeHtml(title)}">
+            <article class="album-slide" data-album-slide="${escapeHtml(album.slug)}" aria-current="${isSelected}" tabindex="${isSelected ? "0" : "-1"}" style="--album-offset: ${index - selectedIndex}; --album-depth: ${Math.abs(index - selectedIndex)};" data-album-title="${escapeHtml(title)}"${isSelected ? "" : " inert"}>
               <div class="album-cover" data-album-cast="${escapeHtml(album.coverCast || "auto")}">${cover}</div>
               <div class="album-slide__copy">
-                <p class="album-slide__sequence">ALBUM ${String(index + 1).padStart(2, "0")}</p>
                 <h3>${authored(title)}</h3>
                 ${album.description ? `<p class="album-slide__description">${authored(album.description)}</p>` : ""}
                 ${trackList}
@@ -92,7 +91,6 @@ function renderAlbumRail(albums) {
   return `
       <section class="writing-region writing-albums" aria-labelledby="writing-albums-title">
         <div class="writing-region__heading">
-          <p class="writing-region__kicker">COLLECTIONS</p>
           <h2 id="writing-albums-title" data-i18n="writing.albums">专辑</h2>
         </div>
         <div class="album-carousel" data-album-carousel tabindex="-1" aria-roledescription="carousel" aria-labelledby="writing-albums-title">
@@ -128,7 +126,6 @@ function renderIndependentArticles(articles, context) {
   return `
       <section class="writing-region writing-independent" aria-labelledby="writing-independent-title">
         <div class="writing-region__heading">
-          <p class="writing-region__kicker">ESSAYS</p>
           <h2 id="writing-independent-title" data-i18n="writing.independent">独立文章</h2>
         </div>
         ${content}
@@ -153,7 +150,6 @@ function renderSmallTalks(notes, context) {
   return `
       <section class="writing-region writing-small-talks" aria-labelledby="writing-small-talks-title">
         <div class="writing-region__heading">
-          <p class="writing-region__kicker">MARGINALIA</p>
           <h2 id="writing-small-talks-title" data-i18n="writing.smallTalks">碎碎念</h2>
         </div>
         ${content}

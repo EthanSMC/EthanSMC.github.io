@@ -38,6 +38,7 @@
         const offset = slideIndex - selectedIndex;
         slide.setAttribute("aria-current", String(selected));
         slide.tabIndex = selected ? 0 : -1;
+        slide.inert = !selected;
         slide.style.setProperty("--album-offset", offset);
         slide.style.setProperty("--album-depth", Math.abs(offset));
       });

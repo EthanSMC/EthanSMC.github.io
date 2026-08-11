@@ -43,6 +43,7 @@ class CarouselTestElement {
       setProperty: (name, value) => this.styleValues.set(name, String(value)),
       getPropertyValue: (name) => this.styleValues.get(name) || "",
     };
+    this.inert = false;
     this.tabIndex = Number(attributes.tabindex ?? -1);
     this.textContent = "";
     this.focused = false;
@@ -407,6 +408,10 @@ test("renders the shared album, independent writing, and Small Talks showcase", 
   assert.match(html, /data-album-carousel/);
   assert.match(html, /data-album-slide="ai-native-content-system"[^>]*aria-current="true"/);
   assert.match(html, /data-album-slide="product-judgment"[^>]*aria-current="false"/);
+  const selectedSlide = html.match(/<article[^>]*data-album-slide="ai-native-content-system"[^>]*>/)?.[0] || "";
+  const inactiveSlide = html.match(/<article[^>]*data-album-slide="product-judgment"[^>]*>/)?.[0] || "";
+  assert.doesNotMatch(selectedSlide, /\sinert(?:\s|>)/);
+  assert.match(inactiveSlide, /\sinert(?:\s|>)/);
   assert.match(html, /data-album-prev/);
   assert.match(html, /data-album-next/);
   assert.match(html, /data-album-status[^>]*aria-live="polite"/);
@@ -416,6 +421,17 @@ test("renders the shared album, independent writing, and Small Talks showcase", 
   assert.match(html, /第一轨/);
   assert.match(html, /一篇独立文章/);
   assert.match(html, /一则碎碎念/);
+});
+
+test("does not expose untranslated English labels in the Chinese writing showcase", () => {
+  const html = renderWritingShowcase({
+    posts: [],
+    albums: [{ basename: "中文专辑", slug: "chinese-album", order: 1, tracks: [] }],
+    independentArticles: [],
+    smallTalks: [],
+  });
+
+  assert.doesNotMatch(html, />\s*(?:ALBUM\s+\d+|COLLECTIONS|ESSAYS|MARGINALIA)\s*</);
 });
 
 test("chooses the smallest album order when no album is featured", () => {
@@ -515,6 +531,9 @@ test("album carousel keyboard selection updates ARIA, offsets, status, focus, an
   assert.equal(fixture.slides[1].getAttribute("aria-current"), "true");
   assert.equal(fixture.slides[0].tabIndex, -1);
   assert.equal(fixture.slides[1].tabIndex, 0);
+  assert.equal(fixture.slides[0].inert, true);
+  assert.equal(fixture.slides[1].inert, false);
+  assert.equal(fixture.slides[2].inert, true);
   assert.equal(fixture.slides[0].style.getPropertyValue("--album-offset"), "-1");
   assert.equal(fixture.slides[1].style.getPropertyValue("--album-offset"), "0");
   assert.equal(fixture.slides[2].style.getPropertyValue("--album-offset"), "1");
