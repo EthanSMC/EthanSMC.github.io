@@ -27,5 +27,6 @@ The owner canceled automatic WeChat publication and withdrawal. The supported pi
 - Focused draft sync tests: 48/48 passed.
 - Mac Agent tests: 12/12 passed.
 - `pnpm build`: passed; 20 Eleventy outputs.
-- Full `pnpm test`: 246/247 passed. The single failure is the pre-existing real Chrome fixture launch under the Codex macOS sandbox (`SIGABRT` plus kill `EPERM`) before adapter assertions; the retired browser publisher is not invoked by the supported workflow.
+- Full `pnpm test` outside the Codex sandbox: 274/274 passed, including the local semantic Chrome fixtures. The same suite inside the sandbox had one pre-existing Chrome launch `SIGABRT`/kill `EPERM` before adapter assertions, confirming an environment restriction rather than a product failure.
+- Real-content `pnpm wechat:sync -- --dry-run`: generated one native note preview and three article previews, called no WeChat API, wrote no sync state, and left no generated-image cache.
 - No real WeChat network, publish, withdrawal, or live-browser acceptance action was performed.
