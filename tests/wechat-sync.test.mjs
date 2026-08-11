@@ -231,7 +231,18 @@ test("normalizes native draft metadata while preserving legacy publication ident
         draftKind: "newspic",
         generatedImages: [
           { filename: "page-01.png", hash: "page-hash", mediaId: "image-media" },
-          { filename: "../escape.png", hash: "bad", mediaId: "bad-media" },
+        ],
+        publication: emptyPublication("manual"),
+      },
+      invalidManifest: {
+        sourceMd5: "0123456789abcdef0123456789abcdef",
+        renderHash: "render-v1",
+        renderInputHash: "input-v1",
+        renderCast: "molly",
+        draftKind: "newspic",
+        generatedImages: [
+          { filename: "page-01.png", hash: "page-1", mediaId: "image-1" },
+          { filename: "page-03.png", hash: "page-3", mediaId: "image-3" },
         ],
         publication: emptyPublication("manual"),
       },
@@ -252,6 +263,7 @@ test("normalizes native draft metadata while preserving legacy publication ident
   ]);
   assert.equal(state.posts.note.renderInputHash, "input-v1");
   assert.equal(state.posts.note.renderCast, "molly");
+  assert.deepEqual(state.posts.invalidManifest.generatedImages, []);
 });
 
 test("loads album metadata only from the supplied temporary root", async () => {
@@ -327,6 +339,26 @@ test("stores the raw Markdown MD5 for a native note and skips an unchanged draft
 
   assert.equal(second.results[0].action, "skipped");
   assert.equal(client.calls.length, callsAfterFirstSync);
+});
+
+test("keeps rendered note PNGs temporary and persists only their strict manifest", async () => {
+  const { root, id } = noteFixture();
+  const client = fakeClient();
+  const renderNote = fakeNoteRenderer({ pages: 2 });
+
+  const result = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote,
+    logger: () => {},
+  });
+  const saved = loadState(config(root).stateFile).posts[id];
+
+  assert.equal(result.results[0].action, "add");
+  assert.deepEqual(saved.generatedImages.map(({ filename }) => filename), ["page-01.png", "page-02.png"]);
+  assert.equal(fs.existsSync(path.join(root, ".wechat-sync", "generated")), false);
+  assert.equal(fs.existsSync(renderNote.calls[0].outputDir), false);
 });
 
 test("a valid preflight cache skips rendering, classification, browser, and API work", async () => {
@@ -716,34 +748,65 @@ test("keeps four poster pages in upload and newspic payload order", async () => 
   );
 });
 
-test("rejects an incomplete cache inventory and excludes stale pages from the next payload", async () => {
+test("rejects an incomplete state manifest and replaces it with only the current payload pages", async () => {
   const { root, id } = noteFixture();
   const client = fakeClient();
   const renderNote = fakeNoteRenderer({ pages: 4 });
   await syncWechatDrafts({ root, config: config(root), client, renderNote, logger: () => {} });
-  const cacheDir = path.join(root, ".wechat-sync", "generated", id);
-  fs.writeFileSync(path.join(cacheDir, "page-05.png"), "stale page");
+  const state = loadState(config(root).stateFile);
+  state.posts[id].generatedImages = [
+    state.posts[id].generatedImages[0],
+    state.posts[id].generatedImages[2],
+  ];
+  saveState(config(root).stateFile, state);
   client.calls.length = 0;
 
   const result = await syncWechatDrafts({ root, config: config(root), client, renderNote, logger: () => {} });
+  const saved = loadState(config(root).stateFile).posts[id];
 
   assert.equal(result.results[0].action, "update");
-  assert.deepEqual(fs.readdirSync(cacheDir), ["page-01.png", "page-02.png", "page-03.png", "page-04.png"]);
+  assert.deepEqual(
+    saved.generatedImages.map(({ filename }) => filename),
+    ["page-01.png", "page-02.png", "page-03.png", "page-04.png"],
+  );
   assert.equal(client.draftPayloads.update.at(-1).article.image_info.image_list.length, 4);
   assert.equal(client.calls.filter(([name]) => name === "uploadNewspicImage").length, 4);
+  assert.equal(fs.existsSync(path.join(root, ".wechat-sync", "generated")), false);
 });
 
-for (const unsafeLayer of [".wechat-sync", "generated", "post cache"]) {
-  test(`rejects a symlinked ${unsafeLayer} before touching external cache data`, async () => {
+test("rejects a symlinked .wechat-sync before touching external state data", async () => {
+  const { root } = noteFixture();
+  const external = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-state-external-"));
+  const sentinel = path.join(external, "sentinel.txt");
+  fs.writeFileSync(sentinel, "must stay unchanged");
+  fs.symlinkSync(external, path.join(root, ".wechat-sync"), "dir");
+  const client = fakeClient();
+
+  await assert.rejects(
+    syncWechatDrafts({
+      root,
+      config: { ...config(root), stateFile: path.join(root, "state.json") },
+      client,
+      renderNote: fakeNoteRenderer(),
+      logger: () => {},
+    }),
+    /Unsafe sync state path/,
+  );
+
+  assert.equal(fs.readFileSync(sentinel, "utf8"), "must stay unchanged");
+  assert.deepEqual(fs.readdirSync(external), ["sentinel.txt"]);
+  assert.deepEqual(client.calls, []);
+});
+
+for (const legacyLayer of ["generated", "post cache"]) {
+  test(`ignores a symlinked legacy ${legacyLayer} tree without touching external data`, async () => {
     const { root, id } = noteFixture();
     const external = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-cache-external-"));
     const sentinel = path.join(external, "sentinel.txt");
     fs.writeFileSync(sentinel, "must stay unchanged");
     const wechatRoot = path.join(root, ".wechat-sync");
     const generatedRoot = path.join(wechatRoot, "generated");
-    if (unsafeLayer === ".wechat-sync") {
-      fs.symlinkSync(external, wechatRoot, "dir");
-    } else if (unsafeLayer === "generated") {
+    if (legacyLayer === "generated") {
       fs.mkdirSync(wechatRoot);
       fs.symlinkSync(external, generatedRoot, "dir");
     } else {
@@ -752,20 +815,18 @@ for (const unsafeLayer of [".wechat-sync", "generated", "post cache"]) {
     }
     const client = fakeClient();
 
-    await assert.rejects(
-      syncWechatDrafts({
-        root,
-        config: { ...config(root), stateFile: path.join(root, "state.json") },
-        client,
-        renderNote: fakeNoteRenderer(),
-        logger: () => {},
-      }),
-      /Unsafe note cache path/,
-    );
+    const result = await syncWechatDrafts({
+      root,
+      config: config(root),
+      client,
+      renderNote: fakeNoteRenderer(),
+      logger: () => {},
+    });
 
+    assert.equal(result.results[0].action, "add");
     assert.equal(fs.readFileSync(sentinel, "utf8"), "must stay unchanged");
     assert.deepEqual(fs.readdirSync(external), ["sentinel.txt"]);
-    assert.deepEqual(client.calls, []);
+    assert.equal(client.calls.filter(([name]) => name === "addDraft").length, 1);
   });
 }
 
@@ -836,11 +897,6 @@ test("dry-run revalidates an unchanged cached note payload without touching cach
   const renderNote = fakeNoteRenderer({ pages: 4 });
   await syncWechatDrafts({ root, config: config(root), client, renderNote, logger: () => {} });
   const stateBefore = fs.readFileSync(config(root).stateFile);
-  const cacheDir = path.join(root, ".wechat-sync", "generated", id);
-  const cacheBefore = fs.readdirSync(cacheDir).map((filename) => [
-    filename,
-    fs.readFileSync(path.join(cacheDir, filename), "utf8"),
-  ]);
   client.calls.length = 0;
 
   const result = await syncWechatDrafts({
@@ -856,10 +912,7 @@ test("dry-run revalidates an unchanged cached note payload without touching cach
   assert.equal(result.results[0].article.image_info.image_list.length, 4);
   assert.deepEqual(client.calls, []);
   assert.deepEqual(fs.readFileSync(config(root).stateFile), stateBefore);
-  assert.deepEqual(
-    fs.readdirSync(cacheDir).map((filename) => [filename, fs.readFileSync(path.join(cacheDir, filename), "utf8")]),
-    cacheBefore,
-  );
+  assert.equal(fs.existsSync(path.join(root, ".wechat-sync", "generated")), false);
 });
 
 test("adds once, skips unchanged content, and updates the same draft after edits", async () => {

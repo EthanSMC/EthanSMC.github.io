@@ -1,5 +1,6 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const MarkdownIt = require("markdown-it");
 
@@ -23,7 +24,24 @@ const DEFAULT_CAST_ASSETS = {
   mochi: path.resolve(__dirname, "..", "..", "assets", "writing", "mochi-note.jpg"),
   molly: path.resolve(__dirname, "..", "..", "assets", "writing", "molly-note.jpg"),
 };
-const DEFAULT_RENDERER_FINGERPRINT = hash(fs.readFileSync(__filename));
+const DEFAULT_FONT_PATHS = [
+  "/System/Library/Fonts/PingFang.ttc",
+  "/System/Library/Fonts/PingFangUI.ttc",
+  "/System/Library/Fonts/Hiragino Sans GB.ttc",
+  "/System/Library/Fonts/Menlo.ttc",
+  "/System/Library/Fonts/Supplemental/Arial.ttf",
+  "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+];
+const DEFAULT_RENDERER_FINGERPRINT = filesFingerprint([
+  __filename,
+  path.resolve(__dirname, "note-cast.cjs"),
+]);
+const DEFAULT_FONT_FINGERPRINT = filesFingerprint(DEFAULT_FONT_PATHS);
+const DEFAULT_RUNTIME_FINGERPRINT = hash(JSON.stringify({
+  node: process.versions.node,
+  markdownIt: packageVersion("markdown-it"),
+  playwrightCore: packageVersion("playwright-core"),
+}));
 
 const BLOCK_CSS = `
 .note-block {
@@ -495,6 +513,36 @@ function hash(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+function filesFingerprint(filenames) {
+  return hash(JSON.stringify(filenames.map((filename) => {
+    try {
+      return { filename, hash: hash(fs.readFileSync(filename)) };
+    } catch (error) {
+      if (error?.code === "ENOENT") return { filename, missing: true };
+      throw error;
+    }
+  })));
+}
+
+function packageVersion(packageName) {
+  try {
+    const packageFilename = require.resolve(`${packageName}/package.json`);
+    const packageMetadata = JSON.parse(fs.readFileSync(packageFilename, "utf8"));
+    return typeof packageMetadata.version === "string" ? packageMetadata.version : "unknown";
+  } catch (error) {
+    if (error?.code === "MODULE_NOT_FOUND" || error?.code === "ERR_PACKAGE_PATH_NOT_EXPORTED") return "missing";
+    throw error;
+  }
+}
+
+function renderEnvironmentFingerprints(options) {
+  return {
+    fontFingerprint: options.fontFingerprint
+      ?? (options.fontPaths ? filesFingerprint(options.fontPaths) : DEFAULT_FONT_FINGERPRINT),
+    runtimeFingerprint: options.runtimeFingerprint ?? DEFAULT_RUNTIME_FINGERPRINT,
+  };
+}
+
 function castAsset(cast, assetPaths) {
   if (cast === "none") return { data: null, hash: null };
   const assetPath = assetPaths[cast];
@@ -513,10 +561,13 @@ async function noteRenderInputHash(post, options = {}) {
   });
   const assetPaths = { ...DEFAULT_CAST_ASSETS, ...(options.assetPaths || {}) };
   const asset = castAsset(cast, assetPaths);
+  const environment = renderEnvironmentFingerprints(options);
   const renderInputHash = hash(JSON.stringify({
     template: NOTE_POSTER_TEMPLATE_VERSION,
     rendererFingerprint: options.rendererFingerprint ?? DEFAULT_RENDERER_FINGERPRINT,
     font: NOTE_FONT_IDENTITY,
+    fontFingerprint: environment.fontFingerprint,
+    runtimeFingerprint: environment.runtimeFingerprint,
     dimensions: [NOTE_POSTER_WIDTH, NOTE_POSTER_HEIGHT],
     contentHeight: options.contentHeight ?? NOTE_CONTENT_HEIGHT,
     blockGap: options.blockGap ?? NOTE_BLOCK_GAP,
@@ -562,10 +613,13 @@ async function renderNotePosters(post, options = {}) {
     const title = posterTitle(post);
     const author = String(options.author || "").trim();
     const site = siteLabel(options.siteUrl);
+    const environment = renderEnvironmentFingerprints(options);
     const renderHash = hash(JSON.stringify({
       template: NOTE_POSTER_TEMPLATE_VERSION,
       rendererFingerprint: options.rendererFingerprint ?? DEFAULT_RENDERER_FINGERPRINT,
       font: NOTE_FONT_IDENTITY,
+      fontFingerprint: environment.fontFingerprint,
+      runtimeFingerprint: environment.runtimeFingerprint,
       dimensions: [NOTE_POSTER_WIDTH, NOTE_POSTER_HEIGHT],
       contentHeight,
       blockGap,
@@ -577,10 +631,9 @@ async function renderNotePosters(post, options = {}) {
       castAssetHash: asset.hash,
       pages: pages.map((page) => page.blocks.map(({ type, text }) => ({ type, text }))),
     }));
-    const outputDir = path.resolve(
-      options.outputDir
-      || path.join(options.root || process.cwd(), ".wechat-sync", "generated", String(post.id)),
-    );
+    const outputDir = options.outputDir
+      ? path.resolve(options.outputDir)
+      : fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-poster-"));
     fs.mkdirSync(outputDir, { recursive: true });
     const capture = options.capture || (await ensureSession()).capture;
     const files = [];

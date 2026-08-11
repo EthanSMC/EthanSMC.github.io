@@ -23,8 +23,7 @@ const { noteRenderInputHash, renderNotePosters } = require("./note-poster.cjs");
 const { loadState, saveState } = require("./state.cjs");
 
 const MISSING_DRAFT_ERROR_CODES = new Set([40007]);
-const POST_ID_PATTERN = /^\d{4}-\d{2}-\d{2}-\d{6}$/u;
-const UNSAFE_NOTE_CACHE_CODE = "unsafe_note_cache_path";
+const UNSAFE_SYNC_STATE_CODE = "unsafe_sync_state_path";
 
 function runGit(root, args) {
   const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
@@ -142,40 +141,30 @@ function isMissingDraft(error) {
   return error instanceof WechatApiError && MISSING_DRAFT_ERROR_CODES.has(error.code);
 }
 
-function unsafeNoteCachePath(target) {
-  const error = new Error(`Unsafe note cache path: ${target}`);
-  error.code = UNSAFE_NOTE_CACHE_CODE;
+function unsafeSyncStatePath(target) {
+  const error = new Error(`Unsafe sync state path: ${target}`);
+  error.code = UNSAFE_SYNC_STATE_CODE;
   return error;
 }
 
-function verifiedCacheDirectory(target, create) {
+function verifySyncStateDirectory(root) {
+  const resolvedRoot = path.resolve(root);
+  let rootStat;
+  try {
+    rootStat = fs.lstatSync(resolvedRoot);
+  } catch {
+    throw unsafeSyncStatePath(resolvedRoot);
+  }
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw unsafeSyncStatePath(resolvedRoot);
+  const syncRoot = path.join(resolvedRoot, ".wechat-sync");
   let stat;
   try {
-    stat = fs.lstatSync(target);
+    stat = fs.lstatSync(syncRoot);
   } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-    if (!create) return false;
-    try {
-      fs.mkdirSync(target, { mode: 0o700 });
-    } catch (mkdirError) {
-      if (mkdirError?.code !== "EEXIST") throw mkdirError;
-    }
-    stat = fs.lstatSync(target);
+    if (error?.code === "ENOENT") return;
+    throw error;
   }
-  if (!stat.isDirectory() || stat.isSymbolicLink()) throw unsafeNoteCachePath(target);
-  return true;
-}
-
-function noteCacheDirectory(root, postId, { create = false } = {}) {
-  if (!POST_ID_PATTERN.test(postId)) throw unsafeNoteCachePath(postId);
-  const resolvedRoot = path.resolve(root);
-  if (!verifiedCacheDirectory(resolvedRoot, false)) throw unsafeNoteCachePath(resolvedRoot);
-  let current = resolvedRoot;
-  for (const segment of [".wechat-sync", "generated", postId]) {
-    current = path.join(current, segment);
-    if (!verifiedCacheDirectory(current, create)) return null;
-  }
-  return current;
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw unsafeSyncStatePath(syncRoot);
 }
 
 function backfillArticleMetadata(record, prepared) {
@@ -198,40 +187,25 @@ function backfillArticleMetadata(record, prepared) {
   return changed;
 }
 
-function cachedNoteImages(root, postId, previous, expected) {
+function validNoteManifest(value) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 4) return false;
+  return value.every((image, index) => (
+    image
+    && image.filename === `page-${String(index + 1).padStart(2, "0")}.png`
+    && typeof image.hash === "string"
+    && image.hash.length > 0
+    && typeof image.mediaId === "string"
+    && image.mediaId.length > 0
+  ));
+}
+
+function cachedNoteManifest(previous, expected) {
   if (
     previous?.sourceMd5 !== expected.sourceMd5
     || (expected.renderHash !== undefined && previous?.renderHash !== expected.renderHash)
     || (expected.renderInputHash !== undefined && previous?.renderInputHash !== expected.renderInputHash)
-    || !Array.isArray(previous.generatedImages)
-    || previous.generatedImages.length < 1
-    || previous.generatedImages.length > 4
+    || !validNoteManifest(previous.generatedImages)
   ) return null;
-
-  const cacheDir = noteCacheDirectory(root, postId);
-  if (!cacheDir) return null;
-  let filenames;
-  try {
-    filenames = fs.readdirSync(cacheDir).sort();
-  } catch {
-    return null;
-  }
-  const expectedFilenames = previous.generatedImages.map((image) => image.filename);
-  if (new Set(expectedFilenames).size !== expectedFilenames.length || filenames.length !== expectedFilenames.length) return null;
-  if (!filenames.every((filename, index) => filename === expectedFilenames[index])) return null;
-
-  for (const image of previous.generatedImages) {
-    if (!image.mediaId || !image.hash || !/^page-\d{2}\.png$/u.test(image.filename)) return null;
-    const filename = path.join(cacheDir, image.filename);
-    let stat;
-    try {
-      stat = fs.lstatSync(filename);
-    } catch {
-      return null;
-    }
-    if (!stat.isFile() || stat.isSymbolicLink()) return null;
-    if (hashBuffer(fs.readFileSync(filename)) !== image.hash) return null;
-  }
   return previous.generatedImages;
 }
 
@@ -257,24 +231,20 @@ function validatedRenderedFiles(rendered) {
   });
 }
 
-function replaceNoteCache(root, postId, files, mediaIds) {
-  const cacheDir = noteCacheDirectory(root, postId, { create: true });
-  for (const entry of fs.readdirSync(cacheDir)) {
-    const target = path.join(cacheDir, entry);
-    const stat = fs.lstatSync(target);
-    if (!stat.isFile() || stat.isSymbolicLink()) throw unsafeNoteCachePath(target);
-    fs.unlinkSync(target);
-  }
+function renderedNoteManifest(files, mediaIds) {
   return files.map((source, index) => {
     const filename = `page-${String(index + 1).padStart(2, "0")}.png`;
-    const target = path.join(cacheDir, filename);
-    fs.copyFileSync(source, target);
     return {
       filename,
-      hash: hashBuffer(fs.readFileSync(target)),
+      hash: hashBuffer(fs.readFileSync(source)),
       mediaId: mediaIds[index],
     };
   });
+}
+
+function renderedFilesMatchManifest(files, manifest) {
+  if (!validNoteManifest(manifest) || files.length !== manifest.length) return false;
+  return files.every((filename, index) => hashBuffer(fs.readFileSync(filename)) === manifest[index].hash);
 }
 
 function recordNoteFailure({ dryRun, error, logger, post, state, stateFile }) {
@@ -409,7 +379,7 @@ async function syncNotePost({
     throw new Error("Note render preflight must produce a render input hash and cast");
   }
   if (!dryRun && !force) {
-    const preflightCached = cachedNoteImages(root, post.id, previous, {
+    const preflightCached = cachedNoteManifest(previous, {
       sourceMd5: prepared.sourceMd5,
       renderInputHash: renderInput.renderInputHash,
     });
@@ -438,12 +408,12 @@ async function syncNotePost({
     const files = validatedRenderedFiles(rendered);
 
     if (!dryRun && !force && previous?.renderInputHash === null) {
-      const legacyCached = cachedNoteImages(root, post.id, previous, {
+      const legacyCached = cachedNoteManifest(previous, {
         sourceMd5: prepared.sourceMd5,
         renderHash: rendered.renderHash,
       });
       const reused = reuseCachedNote({
-        cached: legacyCached,
+        cached: renderedFilesMatchManifest(files, legacyCached) ? legacyCached : null,
         logger,
         post,
         previous,
@@ -483,7 +453,7 @@ async function syncNotePost({
     }
     if (!mediaId) mediaId = await getClient().addDraft(article);
 
-    const generatedImages = replaceNoteCache(root, post.id, files, imageMediaIds);
+    const generatedImages = renderedNoteManifest(files, imageMediaIds);
     const publication = publicationForNewPost(state, post.id, new Date().toISOString());
     if (publication.status === "pending") publication.draftFingerprint = rendered.renderHash;
     const record = {
@@ -626,9 +596,7 @@ async function syncWechatDrafts({
     publishedDir: path.join(root, "content", "published"),
     albumsDir: path.join(root, "content", "albums"),
   });
-  for (const post of blog.posts) {
-    if (post.kind === "note") noteCacheDirectory(root, post.id);
-  }
+  if (blog.posts.some((post) => post.kind === "note")) verifySyncStateDirectory(root);
   const publishedIds = new Set(blog.posts.map((post) => post.id));
   const markers = loadWithdrawalMarkers(root);
   const stateFile = config.stateFile || path.join(root, ".wechat-sync", "state.json");
@@ -731,7 +699,7 @@ async function syncWechatDrafts({
       try {
         results.push(await syncNotePost({ ...input, noteRenderInput, renderNote, root }));
       } catch (error) {
-        if (error?.code === UNSAFE_NOTE_CACHE_CODE) throw error;
+        if (error?.code === UNSAFE_SYNC_STATE_CODE) throw error;
         results.push(recordNoteFailure({ dryRun, error, logger, post, state, stateFile }));
       }
     } else {

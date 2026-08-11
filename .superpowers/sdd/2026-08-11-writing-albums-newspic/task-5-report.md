@@ -95,3 +95,47 @@ No dependency or lockfile changed. The worktree's pre-existing untracked `node_m
 
 - `renderInputHash` is intentionally a preflight invalidation key, not a replacement for the authoritative page-level `renderHash`; legacy records therefore need one renderer run to migrate safely.
 - The previously classified full-suite Chrome sandbox failure remains environment-specific and was not rerun for this focused security/cache review. No business assertion was skipped.
+
+## Review fix round 2/5
+
+### Findings addressed
+
+- Removed every persistent PNG cache read/list/delete/copy/create path from draft sync. Rendered PNGs now exist only under an OS temporary directory and are removed by the sync `finally` block after upload or failure.
+- The renderer's standalone default output also uses an OS temporary directory; it no longer falls back to `.wechat-sync/generated/<post-id>/`.
+- Existing `.wechat-sync/generated` trees, including symlinked `generated` or post directories, are never read, listed, deleted, written, or migrated. The separate `.wechat-sync` state-directory symlink guard remains fail-closed because state itself is persistent.
+- State is the sole cache authority and keeps only a strict one-to-four-page manifest: filenames must be the continuous ordered sequence `page-01.png` through the final page, with a non-empty content hash and permanent media ID for every page. One invalid, missing, or out-of-order entry rejects the whole manifest.
+- Current records reuse only when raw source MD5, preflight input hash, selected cast, and the strict manifest are valid. Cache hits still perform zero renderer, classifier, browser, or API work.
+- Legacy records without `renderInputHash` render once in the temporary directory and compare those temporary page hashes directly with the state manifest. No legacy generated directory participates in migration.
+- Preflight and authoritative render hashes now include the actual contents of available macOS Chinese/Western/code font candidates, including Hiragino Sans GB, Arial/Arial Unicode, Menlo, and available PingFang candidates.
+- The renderer fingerprint now covers both poster and cast-selection source. The runtime fingerprint includes the active Node, `playwright-core`, and `markdown-it` versions. `fontPaths`, `fontFingerprint`, and `runtimeFingerprint` are injectable for deterministic tests.
+- Scope remains WeChat draft-box synchronization only. No real network, WeChat, live Chrome, publisher, or lifecycle operation was used or modified.
+
+### TDD evidence
+
+- RED: five new regressions failed together: font/runtime changes left the key unchanged; a gapped manifest was accepted; sync created `.wechat-sync/generated`; and generated/post-cache symlinks were inspected and rejected instead of ignored.
+- GREEN: all five pass. Temporary pages are cleaned, strict manifests normalize fail-closed, and both legacy symlink layers remain untouched while the draft is added normally.
+- RED: the renderer's missing-`outputDir` fallback created the repository-local generated directory.
+- GREEN: the fallback returns files from a uniquely created OS temporary directory and leaves the repository without a generated tree.
+- The pre-existing cache-hit regression remains green with renderer/classifier/browser/API call counts all zero.
+
+### Verification
+
+- `node --check scripts/wechat/note-poster.cjs scripts/wechat/sync.cjs scripts/wechat/state.cjs` — PASS.
+- `node --test tests/wechat-client.test.mjs tests/wechat-sync.test.mjs tests/wechat-content.test.mjs tests/wechat-state.test.mjs` — PASS, 95/95, 0 skipped.
+- `pnpm build` — PASS; Eleventy wrote 20 files.
+- `git diff --check` — PASS for the five implementation/test files and this report.
+- No dependency or lockfile changed. Task 6's concurrent documentation, package, Mac Agent, plan, and Mac Agent test changes were deliberately left unstaged.
+
+### Files
+
+- `scripts/wechat/note-poster.cjs`
+- `scripts/wechat/state.cjs`
+- `scripts/wechat/sync.cjs`
+- `tests/wechat-content.test.mjs`
+- `tests/wechat-sync.test.mjs`
+- `.superpowers/sdd/2026-08-11-writing-albums-newspic/task-5-report.md`
+
+### Remaining concerns
+
+- Successful standalone calls to `renderNotePosters()` without `outputDir` return files in a unique OS temporary directory; the caller owns those returned files. Task 5 sync always supplies and cleans its own enclosing temporary directory.
+- The previously classified full-suite Chrome sandbox failure was not rerun because this review used injected capture/render functions and the requested focused suites. No business assertion was skipped.

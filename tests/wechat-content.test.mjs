@@ -428,6 +428,32 @@ test("preflight render input hash changes with renderer, config, cast, and chara
   }
 });
 
+test("preflight render input hash changes with font bytes and renderer runtime fingerprint", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-font-fingerprint-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const font = path.join(root, "test-font.ttf");
+  fs.writeFileSync(font, "font-v1");
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+  const options = {
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    rendererFingerprint: "renderer-v1",
+    fontPaths: [font],
+    runtimeFingerprint: "node+playwright+markdown-v1",
+  };
+
+  const first = await noteRenderInputHash(note, options);
+  fs.writeFileSync(font, "font-v2");
+  const fontChanged = await noteRenderInputHash(note, options);
+  const runtimeChanged = await noteRenderInputHash(note, {
+    ...options,
+    runtimeFingerprint: "node+playwright+markdown-v2",
+  });
+
+  assert.notEqual(fontChanged.renderInputHash, first.renderInputHash);
+  assert.notEqual(runtimeChanged.renderInputHash, fontChanged.renderInputHash);
+});
+
 test("renders with the preflight cast without classifying a second time", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-resolved-cast-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -446,6 +472,25 @@ test("renders with the preflight cast without classifying a second time", async 
 
   assert.equal(rendered.cast, "mochi");
   assert.equal(classifierCalls, 0);
+});
+
+test("uses an OS temporary directory when no poster output directory is supplied", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-default-output-root-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const rendered = await renderNotePosters(
+    notePost({ frontmatter: "kind: note\ncast: none" }),
+    {
+      root,
+      measureBlock: () => 50,
+      capture: async ({ outputPath }) => fs.writeFileSync(outputPath, "png"),
+    },
+  );
+  t.after(() => fs.rmSync(path.dirname(rendered.files[0]), { recursive: true, force: true }));
+
+  assert.ok(rendered.files.every((filename) => path.basename(path.dirname(filename)).startsWith("wechat-note-poster-")));
+  assert.ok(rendered.files.every((filename) => path.relative(root, filename).startsWith("..")));
+  assert.equal(fs.existsSync(path.join(root, ".wechat-sync", "generated")), false);
 });
 
 test("closes a launched browser exactly once when poster browser initialization fails", async (t) => {

@@ -34,17 +34,22 @@ function emptyState() {
 }
 
 function normalizedGeneratedImages(value) {
-  if (!Array.isArray(value)) return [];
-  return value.filter((image) => (
-    image
-    && typeof image === "object"
-    && !Array.isArray(image)
-    && /^page-0[1-4]\.png$/u.test(image.filename)
-    && typeof image.hash === "string"
-    && image.hash.length > 0
-    && typeof image.mediaId === "string"
-    && image.mediaId.length > 0
-  )).map(({ filename, hash, mediaId }) => ({ filename, hash, mediaId }));
+  if (!Array.isArray(value) || value.length < 1 || value.length > 4) return [];
+  const normalized = value.map((image, index) => {
+    const filename = `page-${String(index + 1).padStart(2, "0")}.png`;
+    if (
+      !image
+      || typeof image !== "object"
+      || Array.isArray(image)
+      || image.filename !== filename
+      || typeof image.hash !== "string"
+      || image.hash.length === 0
+      || typeof image.mediaId !== "string"
+      || image.mediaId.length === 0
+    ) return null;
+    return { filename, hash: image.hash, mediaId: image.mediaId };
+  });
+  return normalized.includes(null) ? [] : normalized;
 }
 
 function normalizedPostMetadata(metadata) {
