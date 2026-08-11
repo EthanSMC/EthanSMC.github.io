@@ -1,16 +1,19 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
 
 const require = createRequire(import.meta.url);
-const { syncWechatDrafts } = require("../scripts/wechat/sync.cjs");
+const { changedPostSelection, syncWechatDrafts } = require("../scripts/wechat/sync.cjs");
+const { WechatApiError } = require("../scripts/wechat/client.cjs");
 const { runLifecycle } = require("../scripts/wechat/publisher.cjs");
 const { desiredLocation, loadWithdrawalMarkers } = require("../scripts/wechat/lifecycle-intent.cjs");
 const { emptyPublication } = require("../scripts/wechat/lifecycle-state.cjs");
-const { emptyState, loadState, saveState } = require("../scripts/wechat/state.cjs");
+const { emptyState, loadState, normalizeState, saveState } = require("../scripts/wechat/state.cjs");
 const { parseArguments } = require("../scripts/wechat-sync.cjs");
 
 const POST_ID = "2026-08-04-120000";
@@ -22,15 +25,52 @@ function fixture() {
   fs.writeFileSync(path.join(root, "content", "assets", "cover.png"), "png fixture");
   fs.writeFileSync(
     path.join(root, "content", "published", "2026-08-04-120000.md"),
-    "# 第一版\n\n正文。\n\n![封面](../assets/cover.png)\n",
+    "---\nkind: article\n---\n# 第一版\n\n正文。\n\n![封面](../assets/cover.png)\n",
   );
   return root;
 }
 
+function noteFixture({
+  id = POST_ID,
+  body = "今天把一个小想法变成了可以工作的东西。",
+  frontmatter = "kind: note",
+} = {}) {
+  const root = fixture();
+  fs.rmSync(path.join(root, "content", "published", `${POST_ID}.md`));
+  const source = `---\n${frontmatter}\n---\n${body}\n`;
+  fs.writeFileSync(path.join(root, "content", "published", `${id}.md`), source);
+  return { root, id, source };
+}
+
+function fakeNoteRenderer({ pages = 1, renderHash = "poster-v1", failFor = null } = {}) {
+  const calls = [];
+  const render = async (post, options) => {
+    calls.push({ postId: post.id, outputDir: options.outputDir });
+    if (post.id === failFor) throw new Error(`render failed for ${post.id}`);
+    fs.mkdirSync(options.outputDir, { recursive: true });
+    const files = [];
+    for (let index = 0; index < pages; index += 1) {
+      const filename = path.join(options.outputDir, `page-${String(index + 1).padStart(2, "0")}.png`);
+      fs.writeFileSync(filename, `PNG:${post.id}:${renderHash}:${index + 1}`);
+      files.push(filename);
+    }
+    return {
+      pages: Array.from({ length: pages }, (_, index) => ({ number: index + 1, total: pages })),
+      files,
+      renderHash,
+      cast: post.cast,
+    };
+  };
+  render.calls = calls;
+  return render;
+}
+
 function fakeClient() {
   const calls = [];
+  const draftPayloads = { add: [], update: [] };
   return {
     calls,
+    draftPayloads,
     async uploadArticleImage(filename) {
       calls.push(["uploadArticleImage", path.basename(filename)]);
       return "https://mmbiz.qpic.cn/uploaded";
@@ -39,12 +79,18 @@ function fakeClient() {
       calls.push(["uploadPermanentImage", path.basename(filename)]);
       return "cover-media";
     },
+    async uploadNewspicImage(filename) {
+      calls.push(["uploadNewspicImage", path.basename(filename)]);
+      return `newspic-${path.basename(filename)}`;
+    },
     async addDraft(article) {
       calls.push(["addDraft", article.title]);
+      draftPayloads.add.push(article);
       return "draft-media";
     },
     async updateDraft(mediaId, article) {
       calls.push(["updateDraft", mediaId, article.title]);
+      draftPayloads.update.push({ mediaId, article });
     },
     async deleteDraft(mediaId) {
       calls.push(["deleteDraft", mediaId]);
@@ -164,6 +210,487 @@ test("accepts pnpm's argument separator", () => {
   });
 });
 
+test("normalizes native draft metadata while preserving legacy publication identity", () => {
+  const state = normalizeState({
+    version: 2,
+    posts: {
+      legacy: {
+        mediaId: "legacy-draft",
+        publication: {
+          ...emptyPublication("published"),
+          everPublished: true,
+          publishedUrl: "https://mp.weixin.qq.com/s/legacy",
+        },
+      },
+      note: {
+        sourceMd5: "0123456789abcdef0123456789abcdef",
+        renderHash: "render-v1",
+        draftKind: "newspic",
+        generatedImages: [
+          { filename: "page-01.png", hash: "page-hash", mediaId: "image-media" },
+          { filename: "../escape.png", hash: "bad", mediaId: "bad-media" },
+        ],
+        publication: emptyPublication("manual"),
+      },
+    },
+  });
+
+  assert.equal(state.version, 2);
+  assert.equal(state.posts.legacy.sourceMd5, null);
+  assert.equal(state.posts.legacy.renderHash, null);
+  assert.equal(state.posts.legacy.draftKind, "news");
+  assert.deepEqual(state.posts.legacy.generatedImages, []);
+  assert.equal(state.posts.legacy.publication.everPublished, true);
+  assert.equal(state.posts.legacy.publication.publishedUrl, "https://mp.weixin.qq.com/s/legacy");
+  assert.deepEqual(state.posts.note.generatedImages, [
+    { filename: "page-01.png", hash: "page-hash", mediaId: "image-media" },
+  ]);
+});
+
+test("loads album metadata only from the supplied temporary root", async () => {
+  const { root } = noteFixture();
+  fs.mkdirSync(path.join(root, "content", "albums"), { recursive: true });
+  fs.writeFileSync(path.join(root, "content", "albums", "invalid.md"), "# missing album frontmatter\n");
+  const client = fakeClient();
+
+  await assert.rejects(
+    syncWechatDrafts({
+      root,
+      config: config(root),
+      client,
+      renderNote: fakeNoteRenderer(),
+      logger: () => {},
+    }),
+    /Album file must declare kind: album/,
+  );
+  assert.deepEqual(client.calls, []);
+});
+
+test("changed selection ignores album metadata but includes changed note source", () => {
+  const { root, id } = noteFixture();
+  fs.mkdirSync(path.join(root, "content", "albums"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "content", "albums", "Collection.md"),
+    "---\nkind: album\nslug: collection\n---\n",
+  );
+  execFileSync("git", ["init", "-q"], { cwd: root });
+  execFileSync("git", ["add", "content"], { cwd: root });
+  execFileSync("git", [
+    "-c", "user.name=Test", "-c", "user.email=test@example.com",
+    "commit", "-qm", "fixture",
+  ], { cwd: root });
+  const posts = [{ filename: `${id}.md`, attachments: [] }];
+
+  fs.appendFileSync(path.join(root, "content", "albums", "Collection.md"), "description update\n");
+  assert.deepEqual(changedPostSelection(root, posts, "HEAD").posts, []);
+
+  fs.appendFileSync(path.join(root, "content", "published", `${id}.md`), "note update\n");
+  assert.deepEqual(changedPostSelection(root, posts, "HEAD").posts, posts);
+});
+
+test("stores the raw Markdown MD5 for a native note and skips an unchanged draft", async () => {
+  const { root, id, source } = noteFixture({ body: "原样保留 CRLF 前的正文。\r" });
+  const client = fakeClient();
+  const renderNote = fakeNoteRenderer();
+
+  const first = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote,
+    logger: () => {},
+  });
+  const saved = loadState(config(root).stateFile).posts[id];
+
+  assert.equal(first.results[0].action, "add");
+  assert.equal(saved.sourceMd5, crypto.createHash("md5").update(Buffer.from(source)).digest("hex"));
+  assert.equal(saved.renderHash, "poster-v1");
+  assert.equal(saved.draftKind, "newspic");
+  assert.deepEqual(saved.generatedImages.map(({ filename }) => filename), ["page-01.png"]);
+  assert.equal(client.draftPayloads.add[0].article_type, "newspic");
+
+  const callsAfterFirstSync = client.calls.length;
+  const second = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote,
+    logger: () => {},
+  });
+
+  assert.equal(second.results[0].action, "skipped");
+  assert.equal(client.calls.length, callsAfterFirstSync);
+});
+
+test("keeps a note with wechat false on the website without rendering or API calls", async () => {
+  const { root, id } = noteFixture({ frontmatter: "kind: note\nwechat: false" });
+  const client = fakeClient();
+  const renderNote = async () => {
+    throw new Error("opted-out note must not render");
+  };
+
+  const result = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote,
+    logger: () => {},
+  });
+
+  assert.equal(result.results[0].action, "wechat-disabled");
+  assert.deepEqual(client.calls, []);
+  assert.equal(loadState(config(root).stateFile).posts[id], undefined);
+  assert.equal(fs.existsSync(path.join(root, ".wechat-sync", "generated", id)), false);
+});
+
+test("wechat false disarms an existing never-published pending draft", async () => {
+  const { root, id } = noteFixture();
+  const client = fakeClient();
+  writeLifecycleState(root, (state) => {
+    state.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+    state.publisher.baselineCaptured = true;
+  });
+  await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote: fakeNoteRenderer(),
+    logger: () => {},
+  });
+  assert.equal(loadState(config(root).stateFile).posts[id].publication.status, "pending");
+  fs.writeFileSync(
+    path.join(root, "content", "published", `${id}.md`),
+    "---\nkind: note\nwechat: false\n---\n仍然只发布到网站。\n",
+  );
+  client.calls.length = 0;
+
+  const result = await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  const publication = loadState(config(root).stateFile).posts[id].publication;
+
+  assert.equal(result.results[0].action, "wechat-disabled");
+  assert.equal(publication.status, "draft_only");
+  assert.deepEqual(client.calls, []);
+});
+
+test("records one note render failure and continues syncing later notes", async () => {
+  const failedId = "2026-08-05-120000";
+  const successfulId = "2026-08-04-120000";
+  const { root } = noteFixture({ id: successfulId, body: "这一篇应该继续同步。" });
+  fs.writeFileSync(
+    path.join(root, "content", "published", `${failedId}.md`),
+    "---\nkind: note\n---\n这一篇渲染失败。\n",
+  );
+  const client = fakeClient();
+  const renderNote = fakeNoteRenderer({ failFor: failedId });
+
+  const result = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote,
+    logger: () => {},
+  });
+  const state = loadState(config(root).stateFile);
+
+  assert.deepEqual(result.results.map(({ action }) => action), ["failed", "add"]);
+  assert.equal(state.posts[failedId].syncError.code, "sync_failed");
+  assert.match(state.posts[failedId].syncError.message, /render failed/);
+  assert.equal(state.posts[failedId].draftKind, "newspic");
+  assert.equal(state.posts[successfulId].mediaId, "draft-media");
+  assert.equal(client.calls.filter(([name]) => name === "addDraft").length, 1);
+});
+
+test("a failed note refresh disarms its stale pending draft until sync recovers", async () => {
+  const { root, id } = noteFixture();
+  const client = fakeClient();
+  writeLifecycleState(root, (state) => {
+    state.publisher.armedAt = "2026-08-07T00:00:00.000Z";
+    state.publisher.baselineCaptured = true;
+  });
+  await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote: fakeNoteRenderer(),
+    logger: () => {},
+  });
+  fs.appendFileSync(path.join(root, "content", "published", `${id}.md`), "需要重新渲染。\n");
+
+  const failed = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote: async () => { throw new Error("renderer unavailable"); },
+    logger: () => {},
+  });
+  let record = loadState(config(root).stateFile).posts[id];
+
+  assert.equal(failed.results[0].action, "failed");
+  assert.equal(record.publication.status, "draft_only");
+  assert.equal(record.publication.desiredLocation, "published");
+
+  const recovered = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote: fakeNoteRenderer({ renderHash: "poster-v2" }),
+    logger: () => {},
+  });
+  record = loadState(config(root).stateFile).posts[id];
+  assert.equal(recovered.results[0].action, "update");
+  assert.equal(record.publication.status, "pending");
+  assert.equal(record.syncError, undefined);
+});
+
+test("records note upload and draft API failures without blocking unrelated notes", async () => {
+  for (const failureStage of ["upload", "draft"]) {
+    const failedId = "2026-08-05-120000";
+    const successfulId = "2026-08-04-120000";
+    const { root } = noteFixture({ id: successfulId, body: "后续正常正文。" });
+    fs.writeFileSync(
+      path.join(root, "content", "published", `${failedId}.md`),
+      `---\nkind: note\n---\n${failureStage} 失败正文。\n`,
+    );
+    const client = fakeClient();
+    if (failureStage === "upload") {
+      const upload = client.uploadNewspicImage;
+      client.uploadNewspicImage = async (filename) => {
+        if (filename.includes(failedId)) {
+          const error = new Error("poster upload failed");
+          error.code = "upload_failed";
+          throw error;
+        }
+        return upload(filename);
+      };
+    } else {
+      const add = client.addDraft;
+      client.addDraft = async (article) => {
+        if (article.content.includes("draft 失败")) {
+          const error = new Error("draft API failed");
+          error.code = "draft_failed";
+          throw error;
+        }
+        return add(article);
+      };
+    }
+
+    const result = await syncWechatDrafts({
+      root,
+      config: config(root),
+      client,
+      renderNote: fakeNoteRenderer(),
+      logger: () => {},
+    });
+    const state = loadState(config(root).stateFile);
+
+    assert.deepEqual(result.results.map(({ action }) => action), ["failed", "add"]);
+    assert.equal(state.posts[failedId].syncError.code, `${failureStage}_failed`);
+    assert.equal(state.posts[successfulId].mediaId, "draft-media");
+  }
+});
+
+test("updates the same native note draft after source and renderer changes", async () => {
+  const { root, id } = noteFixture();
+  const client = fakeClient();
+  await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote: fakeNoteRenderer({ renderHash: "poster-v1" }),
+    logger: () => {},
+  });
+
+  fs.writeFileSync(
+    path.join(root, "content", "published", `${id}.md`),
+    "---\nkind: note\n---\n正文已经改变。\n",
+  );
+  const sourceChanged = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote: fakeNoteRenderer({ renderHash: "poster-v2" }),
+    logger: () => {},
+  });
+  const sameSource = fs.readFileSync(path.join(root, "content", "published", `${id}.md`));
+  const rendererChanged = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote: fakeNoteRenderer({ renderHash: "poster-v3" }),
+    logger: () => {},
+  });
+  const saved = loadState(config(root).stateFile).posts[id];
+
+  assert.equal(sourceChanged.results[0].action, "update");
+  assert.equal(rendererChanged.results[0].action, "update");
+  assert.equal(client.calls.filter(([name]) => name === "addDraft").length, 1);
+  assert.equal(client.calls.filter(([name]) => name === "updateDraft").length, 2);
+  assert.ok(client.calls.filter(([name]) => name === "updateDraft").every((call) => call[1] === "draft-media"));
+  assert.equal(saved.sourceMd5, crypto.createHash("md5").update(sameSource).digest("hex"));
+  assert.equal(saved.renderHash, "poster-v3");
+});
+
+test("adds a replacement note draft only when WeChat reports the stored draft missing", async () => {
+  const { root, id } = noteFixture();
+  const client = fakeClient();
+  await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote: fakeNoteRenderer({ renderHash: "poster-v1" }),
+    logger: () => {},
+  });
+  fs.appendFileSync(path.join(root, "content", "published", `${id}.md`), "更新。\n");
+  client.updateDraft = async (mediaId, article) => {
+    client.calls.push(["updateDraft", mediaId, article.title]);
+    throw new WechatApiError("update draft", 40007, "invalid media_id");
+  };
+
+  const result = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote: fakeNoteRenderer({ renderHash: "poster-v2" }),
+    logger: () => {},
+  });
+
+  assert.equal(result.results[0].action, "add");
+  assert.equal(client.calls.filter(([name]) => name === "updateDraft").length, 1);
+  assert.equal(client.calls.filter(([name]) => name === "addDraft").length, 2);
+});
+
+test("keeps four poster pages in upload and newspic payload order", async () => {
+  const { root } = noteFixture();
+  const client = fakeClient();
+
+  await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote: fakeNoteRenderer({ pages: 4 }),
+    logger: () => {},
+  });
+
+  assert.deepEqual(
+    client.calls.filter(([name]) => name === "uploadNewspicImage").map((call) => call[1]),
+    ["page-01.png", "page-02.png", "page-03.png", "page-04.png"],
+  );
+  assert.deepEqual(
+    client.draftPayloads.add[0].image_info.image_list,
+    [1, 2, 3, 4].map((number) => ({ image_media_id: `newspic-page-0${number}.png` })),
+  );
+});
+
+test("rejects an incomplete cache inventory and excludes stale pages from the next payload", async () => {
+  const { root, id } = noteFixture();
+  const client = fakeClient();
+  const renderNote = fakeNoteRenderer({ pages: 4 });
+  await syncWechatDrafts({ root, config: config(root), client, renderNote, logger: () => {} });
+  const cacheDir = path.join(root, ".wechat-sync", "generated", id);
+  fs.writeFileSync(path.join(cacheDir, "page-05.png"), "stale page");
+  client.calls.length = 0;
+
+  const result = await syncWechatDrafts({ root, config: config(root), client, renderNote, logger: () => {} });
+
+  assert.equal(result.results[0].action, "update");
+  assert.deepEqual(fs.readdirSync(cacheDir), ["page-01.png", "page-02.png", "page-03.png", "page-04.png"]);
+  assert.equal(client.draftPayloads.update.at(-1).article.image_info.image_list.length, 4);
+  assert.equal(client.calls.filter(([name]) => name === "uploadNewspicImage").length, 4);
+});
+
+test("never redraws or mutates a native draft after it has ever been published", async () => {
+  const { root, id } = noteFixture();
+  const client = fakeClient();
+  await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    renderNote: fakeNoteRenderer({ renderHash: "published-render" }),
+    logger: () => {},
+  });
+  const state = loadState(config(root).stateFile);
+  state.posts[id].publication.everPublished = true;
+  state.posts[id].publication.status = "published";
+  saveState(config(root).stateFile, state);
+  const previousImages = state.posts[id].generatedImages;
+  client.calls.length = 0;
+  fs.writeFileSync(
+    path.join(root, "content", "published", `${id}.md`),
+    "---\nkind: note\n---\n网站上的正文继续变化。\n",
+  );
+
+  const result = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    force: true,
+    renderNote: async () => { throw new Error("published note must not redraw"); },
+    logger: () => {},
+  });
+  const saved = loadState(config(root).stateFile).posts[id];
+
+  assert.equal(result.results[0].action, "website-only");
+  assert.equal(saved.renderHash, "published-render");
+  assert.deepEqual(saved.generatedImages, previousImages);
+  assert.deepEqual(client.calls, []);
+});
+
+test("dry-run validates all note pages and payload without API, state, or persistent cache writes", async () => {
+  const { root } = noteFixture();
+  const client = fakeClient();
+  const renderNote = fakeNoteRenderer({ pages: 4 });
+
+  const result = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    dryRun: true,
+    renderNote,
+    logger: () => {},
+  });
+
+  assert.equal(result.results[0].action, "dry-run-add");
+  assert.equal(result.results[0].article.article_type, "newspic");
+  assert.equal(result.results[0].article.image_info.image_list.length, 4);
+  assert.equal(renderNote.calls.length, 1);
+  assert.deepEqual(client.calls, []);
+  assert.equal(fs.existsSync(config(root).stateFile), false);
+  assert.equal(fs.existsSync(path.join(root, ".wechat-sync", "generated")), false);
+  assert.equal(fs.existsSync(renderNote.calls[0].outputDir), false);
+});
+
+test("dry-run revalidates an unchanged cached note payload without touching cache or state", async () => {
+  const { root, id } = noteFixture();
+  const client = fakeClient();
+  const renderNote = fakeNoteRenderer({ pages: 4 });
+  await syncWechatDrafts({ root, config: config(root), client, renderNote, logger: () => {} });
+  const stateBefore = fs.readFileSync(config(root).stateFile);
+  const cacheDir = path.join(root, ".wechat-sync", "generated", id);
+  const cacheBefore = fs.readdirSync(cacheDir).map((filename) => [
+    filename,
+    fs.readFileSync(path.join(cacheDir, filename), "utf8"),
+  ]);
+  client.calls.length = 0;
+
+  const result = await syncWechatDrafts({
+    root,
+    config: config(root),
+    client,
+    dryRun: true,
+    renderNote,
+    logger: () => {},
+  });
+
+  assert.equal(result.results[0].action, "dry-run-update");
+  assert.equal(result.results[0].article.image_info.image_list.length, 4);
+  assert.deepEqual(client.calls, []);
+  assert.deepEqual(fs.readFileSync(config(root).stateFile), stateBefore);
+  assert.deepEqual(
+    fs.readdirSync(cacheDir).map((filename) => [filename, fs.readFileSync(path.join(cacheDir, filename), "utf8")]),
+    cacheBefore,
+  );
+});
+
 test("adds once, skips unchanged content, and updates the same draft after edits", async () => {
   const root = fixture();
   const client = fakeClient();
@@ -183,7 +710,7 @@ test("adds once, skips unchanged content, and updates the same draft after edits
 
   fs.writeFileSync(
     path.join(root, "content", "published", "2026-08-04-120000.md"),
-    "# 第二版\n\n正文有变化。\n\n![封面](../assets/cover.png)\n",
+    "---\nkind: article\n---\n# 第二版\n\n正文有变化。\n\n![封面](../assets/cover.png)\n",
   );
   const third = await syncWechatDrafts({ root, config: config(root), client, logger: (line) => logs.push(line) });
   assert.equal(third.results[0].action, "update");
@@ -194,7 +721,37 @@ test("adds once, skips unchanged content, and updates the same draft after edits
   const state = loadState(config(root).stateFile);
   assert.equal(state.posts["2026-08-04-120000"].mediaId, "draft-media");
   assert.ok(state.posts["2026-08-04-120000"].fingerprint);
+  assert.equal(
+    state.posts[POST_ID].sourceMd5,
+    crypto.createHash("md5").update(fs.readFileSync(path.join(root, "content", "published", `${POST_ID}.md`))).digest("hex"),
+  );
+  assert.equal(state.posts[POST_ID].renderHash, state.posts[POST_ID].fingerprint);
+  assert.deepEqual(state.posts[POST_ID].generatedImages, []);
+  assert.equal(state.posts[POST_ID].draftKind, "news");
   assert.equal(state.posts[POST_ID].publication.status, "manual");
+});
+
+test("backfills MD5-aware metadata on an unchanged legacy article without mutating its draft", async () => {
+  const root = fixture();
+  const client = fakeClient();
+  await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  const state = loadState(config(root).stateFile);
+  state.posts[POST_ID].sourceMd5 = null;
+  state.posts[POST_ID].renderHash = null;
+  delete state.posts[POST_ID].draftKind;
+  delete state.posts[POST_ID].generatedImages;
+  saveState(config(root).stateFile, state);
+  client.calls.length = 0;
+
+  const result = await syncWechatDrafts({ root, config: config(root), client, logger: () => {} });
+  const saved = loadState(config(root).stateFile).posts[POST_ID];
+
+  assert.equal(result.results[0].action, "skipped");
+  assert.match(saved.sourceMd5, /^[a-f\d]{32}$/u);
+  assert.equal(saved.renderHash, saved.fingerprint);
+  assert.equal(saved.draftKind, "news");
+  assert.deepEqual(saved.generatedImages, []);
+  assert.deepEqual(client.calls, []);
 });
 
 test("makes an armed new post pending only after draft creation succeeds", async () => {

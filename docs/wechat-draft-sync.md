@@ -1,6 +1,8 @@
 # 微信公众号草稿与浏览器生命周期
 
-Mac Agent 现在在同一把进程锁内串行执行一条流程：更新后台专用仓库、同步公众号草稿，再处理浏览器发布或撤回生命周期。草稿同步失败时不会启动浏览器阶段；浏览器阶段失败时，已经保存的草稿和状态仍然保留。
+> **本次交付边界：只同步到微信公众号草稿箱。** `kind: article` 和 `kind: note` 的自动化都在草稿成功新增或更新后停止；不自动点击发表，也不自动撤回。`WECHAT_AUTO_PUBLISH=0` 与 `WECHAT_AUTO_WITHDRAW=0` 必须继续保持关闭，本次交付不包含真实发表、真实撤回或 live E2E 验收。
+
+Mac Agent 现在在同一把进程锁内串行执行一条流程：更新后台专用仓库、同步公众号草稿，再处理浏览器发布或撤回生命周期。文章草稿或全局同步失败时不会启动浏览器阶段；单篇碎碎念的海报渲染、上传或草稿 API 失败会写入该篇记录、撤销其旧草稿的待发布资格，并继续处理其他内容。浏览器阶段失败时，已经保存的草稿和状态仍然保留。
 
 ## 1. 完整流程
 
@@ -22,7 +24,12 @@ Agent 内部传给生命周期命令的 `--automatic` 只表示“这是后台�
 ## 2. 发布与撤回约定
 
 - `content/drafts/` 继续被 Git 忽略，草稿正文、标题、Tag、附件路径不会上传。
-- 文章第一次同步时使用 `draft/add`，未发表文章发生变化时使用 `draft/update`；正文图片先转换为微信 CDN URL。
+- `kind: article` 使用 `news` 草稿：第一次同步时使用 `draft/add`，未发表文章发生变化时使用 `draft/update`；正文图片先转换为微信 CDN URL，封面继续使用永久图片素材。
+- `kind: note` 使用原生 `newspic` 草稿。正文先渲染成一至四张 1080×1440 PNG，再按页码顺序通过永久图片素材接口上传；第一页即封面，草稿 payload 只包含本轮有效页面的 media ID。
+- 碎碎念默认同步公众号；`wechat: false` 明确关闭该篇的渲染、上传和草稿 mutation。若它曾处于自动待发布状态，会先降为 `draft_only`，避免浏览器发表旧草稿。重新启用后只在草稿重新验证或更新成功时恢复资格。
+- 每篇记录保存原始 Markdown bytes 的 `sourceMd5`、Task 4 海报渲染器返回的 `renderHash`、`draftKind` 和 `generatedImages`。海报缓存只位于 `.wechat-sync/generated/<post-id>/`；两个 hash、状态 inventory、实际文件名和文件内容 hash 必须全部一致才可复用，多余或缺失页面会使整组缓存失效。
+- 未发表的碎碎念源 MD5 或 renderer/font/character asset 发生变化时，会重新生成并更新同一个草稿 media ID；只有微信明确报告原草稿缺失时才重新 `draft/add`。一旦 `everPublished` 为真，后续源文件变化只更新网站观察状态，绝不重新绘图、上传或修改微信草稿。
+- 单篇碎碎念失败时，根记录中的 `syncError` 保存错误码、消息和时间；其他文章和碎碎念继续同步。未同步成功的旧待发布草稿会变成 `draft_only`，下一次成功同步后再恢复。
 - 建立发布基线后才会产生自动发布候选。基线内的旧文章永不自动补发。
 - 新文章只有在草稿成功保存后才会成为待发布状态。
 - 把 `published/<时间戳 ID>.md` 原样移回本机的 `drafts/`，更新后的 Git hook 才会生成同 ID、无正文的撤回标记。只有这种精确移动授权微信操作。
@@ -90,7 +97,7 @@ WECHAT_BROWSER_HEADLESS=0
 pnpm wechat:agent:status
 ```
 
-`WECHAT_AUTO_PUBLISH` 与 `WECHAT_AUTO_WITHDRAW` 必须分别完成真实验收后才可以改为 `1`。`WECHAT_BROWSER_HEADLESS` 默认保持 `0`；没有通过真实会话验收前不要启用无头模式。
+`WECHAT_AUTO_PUBLISH` 与 `WECHAT_AUTO_WITHDRAW` 本次必须保持 `0`；自动发表、自动撤回及其真实验收不属于本次交付。`WECHAT_BROWSER_HEADLESS` 默认也保持 `0`，不要为本次草稿箱同步启用浏览器自动化。
 
 ## 6. 登录、建立基线与无副作用验证
 
@@ -128,11 +135,13 @@ pnpm wechat:publisher:run -- --dry-run
 pnpm wechat:agent:run
 ```
 
-只做转换和状态预览、不访问 API 或 Chrome：
+只做转换和状态预览、不访问微信 API 或登录态浏览器：
 
 ```bash
 pnpm wechat:agent:run -- --dry-run
 ```
+
+`--dry-run` 仍会完整验证碎碎念分页和 `newspic` payload，因此本机海报渲染器可能启动一次无登录态的 headless Chrome。生成物使用临时目录和占位 media ID；它不调用微信 API、不写状态，也不会改动或留下持久海报缓存。
 
 强制重建尚未发表的草稿：
 

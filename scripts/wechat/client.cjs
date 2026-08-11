@@ -109,6 +109,17 @@ class WechatClient {
     return payload.media_id;
   }
 
+  async uploadNewspicImage(filename) {
+    const payload = await this.uploadImage(
+      "upload newspic image",
+      "/cgi-bin/material/add_material",
+      filename,
+      { type: "image" },
+    );
+    if (!payload.media_id) throw new Error("WeChat newspic image response did not include media_id");
+    return payload.media_id;
+  }
+
   async addDraft(article) {
     const payload = await this.jsonRequest("add draft", "/cgi-bin/draft/add", { articles: [article] });
     if (!payload.media_id) throw new Error("WeChat add draft response did not include media_id");

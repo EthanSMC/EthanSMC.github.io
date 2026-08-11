@@ -1,4 +1,6 @@
+const crypto = require("node:crypto");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
@@ -6,6 +8,7 @@ const { loadBlog } = require("../prepare-content.cjs");
 const { WechatApiError, WechatClient } = require("./client.cjs");
 const {
   buildArticle,
+  buildNewspic,
   collectPostAssets,
   hashBuffer,
   publicationFingerprint,
@@ -15,7 +18,8 @@ const {
   isCanonicalUtcTimestamp,
   loadWithdrawalMarkers,
 } = require("./lifecycle-intent.cjs");
-const { publicationForNewPost } = require("./lifecycle-state.cjs");
+const { emptyPublication, publicationForNewPost } = require("./lifecycle-state.cjs");
+const { renderNotePosters } = require("./note-poster.cjs");
 const { loadState, saveState } = require("./state.cjs");
 
 const MISSING_DRAFT_ERROR_CODES = new Set([40007]);
@@ -72,9 +76,16 @@ function resolveCover(root, assets, configuredCover) {
   };
 }
 
+function sourceMd5(source) {
+  return crypto.createHash("md5").update(source).digest("hex");
+}
+
 function preparePost(root, post, config) {
   const sourcePath = path.join(root, "content", "published", post.filename);
-  const source = fs.readFileSync(sourcePath, "utf8");
+  const sourceBytes = fs.readFileSync(sourcePath);
+  const source = sourceBytes.toString("utf8");
+  const md5 = sourceMd5(sourceBytes);
+  if (post.kind === "note") return { source, sourceMd5: md5 };
   const assets = collectPostAssets(root, post);
   const cover = resolveCover(root, assets, config.defaultCover);
   const fingerprint = publicationFingerprint({
@@ -84,7 +95,7 @@ function preparePost(root, post, config) {
     siteUrl: config.siteUrl,
     coverHash: cover.hash,
   });
-  return { source, assets, cover, fingerprint };
+  return { source, sourceMd5: md5, assets, cover, fingerprint };
 }
 
 async function uploadedArticleImages(client, state, stateFile, assets, dryRun) {
@@ -129,7 +140,270 @@ function isMissingDraft(error) {
   return error instanceof WechatApiError && MISSING_DRAFT_ERROR_CODES.has(error.code);
 }
 
-async function syncOnePost({ client, config, dryRun, force, logger, post, prepared, state, stateFile }) {
+function backfillArticleMetadata(record, prepared) {
+  let changed = false;
+  const expected = {
+    sourceMd5: prepared.sourceMd5,
+    renderHash: prepared.fingerprint,
+    draftKind: "news",
+  };
+  for (const [field, value] of Object.entries(expected)) {
+    if (record[field] !== value) {
+      record[field] = value;
+      changed = true;
+    }
+  }
+  if (!Array.isArray(record.generatedImages) || record.generatedImages.length !== 0) {
+    record.generatedImages = [];
+    changed = true;
+  }
+  return changed;
+}
+
+function cachedNoteImages(root, postId, previous, prepared, renderHash) {
+  if (
+    previous?.sourceMd5 !== prepared.sourceMd5
+    || previous?.renderHash !== renderHash
+    || !Array.isArray(previous.generatedImages)
+    || previous.generatedImages.length < 1
+    || previous.generatedImages.length > 4
+  ) return null;
+
+  const cacheDir = path.join(root, ".wechat-sync", "generated", postId);
+  let filenames;
+  try {
+    filenames = fs.readdirSync(cacheDir).sort();
+  } catch {
+    return null;
+  }
+  const expected = previous.generatedImages.map((image) => image.filename);
+  if (new Set(expected).size !== expected.length || filenames.length !== expected.length) return null;
+  if (!filenames.every((filename, index) => filename === expected[index])) return null;
+
+  for (const image of previous.generatedImages) {
+    if (!image.mediaId || !image.hash || !/^page-\d{2}\.png$/u.test(image.filename)) return null;
+    const filename = path.join(cacheDir, image.filename);
+    let stat;
+    try {
+      stat = fs.lstatSync(filename);
+    } catch {
+      return null;
+    }
+    if (!stat.isFile() || stat.isSymbolicLink()) return null;
+    if (hashBuffer(fs.readFileSync(filename)) !== image.hash) return null;
+  }
+  return previous.generatedImages;
+}
+
+function validatedRenderedFiles(rendered) {
+  if (
+    !rendered
+    || !Array.isArray(rendered.pages)
+    || !Array.isArray(rendered.files)
+    || rendered.pages.length < 1
+    || rendered.pages.length > 4
+    || rendered.files.length !== rendered.pages.length
+    || typeof rendered.renderHash !== "string"
+    || !rendered.renderHash
+  ) {
+    throw new Error("Note renderer must produce one to four files and a render hash");
+  }
+  return rendered.files.map((filename) => {
+    const stat = fs.lstatSync(filename);
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      throw new Error(`Note renderer output is not a regular file: ${filename}`);
+    }
+    return filename;
+  });
+}
+
+function replaceNoteCache(root, postId, files, mediaIds) {
+  const cacheDir = path.join(root, ".wechat-sync", "generated", postId);
+  fs.rmSync(cacheDir, { recursive: true, force: true });
+  fs.mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
+  return files.map((source, index) => {
+    const filename = `page-${String(index + 1).padStart(2, "0")}.png`;
+    const target = path.join(cacheDir, filename);
+    fs.copyFileSync(source, target);
+    return {
+      filename,
+      hash: hashBuffer(fs.readFileSync(target)),
+      mediaId: mediaIds[index],
+    };
+  });
+}
+
+function recordNoteFailure({ dryRun, error, logger, post, state, stateFile }) {
+  const diagnostic = {
+    code: typeof error?.code === "string" ? error.code : "sync_failed",
+    message: error instanceof Error ? error.message : "Unknown note sync failure",
+    at: new Date().toISOString(),
+  };
+  if (!dryRun) {
+    const previous = state.posts[post.id];
+    const publication = { ...(previous?.publication || emptyPublication("manual")) };
+    if (
+      !publication.everPublished
+      && (
+        publication.status === "pending"
+        || (publication.status === "blocked" && publication.blockedOperation === "publish")
+      )
+    ) {
+      publication.status = "draft_only";
+      publication.blockedOperation = null;
+    }
+    state.posts[post.id] = {
+      ...(previous || {}),
+      title: previous?.title || post.title,
+      draftKind: "newspic",
+      syncError: diagnostic,
+      publication,
+    };
+    saveState(stateFile, state);
+  }
+  logger(`公众号图片草稿同步失败，网站继续发布：${post.title}（${diagnostic.code}）`);
+  return { action: "failed", post, error: diagnostic };
+}
+
+function disableWechatPost(postId, state, stateFile, dryRun) {
+  const publication = state.posts[postId]?.publication;
+  if (
+    dryRun
+    || !publication
+    || publication.everPublished
+    || !(
+      publication.status === "pending"
+      || (publication.status === "blocked" && publication.blockedOperation === "publish")
+    )
+  ) return;
+  publication.status = "draft_only";
+  publication.blockedOperation = null;
+  publication.lastError = null;
+  saveState(stateFile, state);
+}
+
+async function syncNotePost({
+  getClient,
+  config,
+  dryRun,
+  force,
+  logger,
+  post,
+  prepared,
+  renderNote,
+  root,
+  state,
+  stateFile,
+}) {
+  const previous = state.posts[post.id];
+  if (previous?.publication?.everPublished) {
+    if (previous.sourceMd5 !== prepared.sourceMd5 && !dryRun) {
+      previous.sourceMd5 = prepared.sourceMd5;
+      saveState(stateFile, state);
+    }
+    logger(`公众号已发布一次，本次修改仅更新网站：${post.title}`);
+    return { action: "website-only", post, mediaId: previous.mediaId };
+  }
+
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), `wechat-note-${post.id}-`));
+  try {
+    const rendered = await renderNote(post, {
+      root,
+      outputDir: temporaryRoot,
+      author: config.author,
+      siteUrl: config.siteUrl,
+    });
+    const files = validatedRenderedFiles(rendered);
+    const cached = !force
+      ? cachedNoteImages(root, post.id, previous, prepared, rendered.renderHash)
+      : null;
+    const restoredPublication = previous?.publication?.status === "draft_only"
+      && previous.publication.desiredLocation === "published"
+      ? publicationForNewPost(state, post.id, new Date().toISOString())
+      : null;
+    const canRestore = restoredPublication?.status === "pending";
+    if (!dryRun && cached && previous.mediaId && canRestore) {
+      previous.publication = {
+        ...restoredPublication,
+        draftFingerprint: rendered.renderHash,
+      };
+      delete previous.syncError;
+      delete previous.sourceDeletedAt;
+      saveState(stateFile, state);
+      logger(`已恢复公众号待发布状态：${post.title}`);
+      return { action: "restored", post, mediaId: previous.mediaId };
+    }
+    if (!dryRun && cached && previous.mediaId) {
+      let changed = false;
+      if (previous.syncError) {
+        delete previous.syncError;
+        changed = true;
+      }
+      if (previous.sourceDeletedAt) {
+        delete previous.sourceDeletedAt;
+        changed = true;
+      }
+      if (changed) saveState(stateFile, state);
+      logger(`跳过未变化文章：${post.title}`);
+      return { action: "skipped", post, mediaId: previous.mediaId };
+    }
+
+    const imageMediaIds = dryRun
+      ? files.map((_, index) => `DRY_RUN_NEWS_PIC_${index + 1}`)
+      : await Promise.all(files.map((filename) => getClient().uploadNewspicImage(filename)));
+    const article = buildNewspic(post, {
+      imageMediaIds,
+      author: config.author,
+      siteUrl: config.siteUrl,
+    });
+    if (dryRun) {
+      const action = previous?.mediaId ? "update" : "add";
+      logger(`[dry-run] ${action === "add" ? "新增" : "更新"}草稿：${article.title}`);
+      return { action: `dry-run-${action}`, post, article };
+    }
+
+    let action = "add";
+    let mediaId = previous?.mediaId;
+    if (mediaId) {
+      try {
+        await getClient().updateDraft(mediaId, article);
+        action = "update";
+      } catch (error) {
+        if (!isMissingDraft(error)) throw error;
+        mediaId = null;
+        logger(`原草稿已发布或被删除，重新创建：${article.title}`);
+      }
+    }
+    if (!mediaId) mediaId = await getClient().addDraft(article);
+
+    const generatedImages = replaceNoteCache(root, post.id, files, imageMediaIds);
+    const publication = publicationForNewPost(state, post.id, new Date().toISOString());
+    if (publication.status === "pending") publication.draftFingerprint = rendered.renderHash;
+    const record = {
+      ...(previous || {}),
+      fingerprint: rendered.renderHash,
+      sourceMd5: prepared.sourceMd5,
+      renderHash: rendered.renderHash,
+      generatedImages,
+      draftKind: "newspic",
+      mediaId,
+      title: article.title,
+      sourceUrl: article.content_source_url,
+      syncedAt: new Date().toISOString(),
+      publication,
+    };
+    delete record.syncError;
+    delete record.sourceDeletedAt;
+    state.posts[post.id] = record;
+    saveState(stateFile, state);
+    logger(`${action === "add" ? "已新增" : "已更新"}公众号草稿：${article.title}`);
+    return { action, post, mediaId };
+  } finally {
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
+async function syncOnePost({ getClient, config, dryRun, force, logger, post, prepared, state, stateFile }) {
   const previous = state.posts[post.id];
   if (previous?.publication?.everPublished) {
     let changed = false;
@@ -137,6 +411,7 @@ async function syncOnePost({ client, config, dryRun, force, logger, post, prepar
       previous.fingerprint = prepared.fingerprint;
       changed = true;
     }
+    changed = backfillArticleMetadata(previous, prepared) || changed;
     if (changed && !dryRun) saveState(stateFile, state);
     logger(`公众号已发布一次，本次修改仅更新网站：${post.title}`);
     return { action: "website-only", post, mediaId: previous.mediaId };
@@ -147,6 +422,7 @@ async function syncOnePost({ client, config, dryRun, force, logger, post, prepar
     : null;
   const canRestore = restoredPublication?.status === "pending";
   if (!dryRun && !force && previous?.fingerprint === prepared.fingerprint && canRestore && previous.mediaId) {
+    backfillArticleMetadata(previous, prepared);
     previous.publication = {
       ...restoredPublication,
       draftFingerprint: prepared.fingerprint,
@@ -161,14 +437,18 @@ async function syncOnePost({ client, config, dryRun, force, logger, post, prepar
     && previous?.fingerprint === prepared.fingerprint
     && !(canRestore && !previous.mediaId)
   ) {
+    let changed = false;
+    if (!dryRun) changed = backfillArticleMetadata(previous, prepared);
     if (previous.sourceDeletedAt && !dryRun) {
       delete previous.sourceDeletedAt;
-      saveState(stateFile, state);
+      changed = true;
     }
+    if (changed) saveState(stateFile, state);
     logger(`跳过未变化文章：${post.title}`);
     return { action: "skipped", post, mediaId: previous.mediaId };
   }
 
+  const client = dryRun ? null : getClient();
   const imageUrls = await uploadedArticleImages(client, state, stateFile, prepared.assets, dryRun);
   const coverMediaId = await uploadedCover(client, state, stateFile, prepared.cover, dryRun);
   const article = buildArticle(post, {
@@ -205,6 +485,10 @@ async function syncOnePost({ client, config, dryRun, force, logger, post, prepar
   const record = {
     ...(previous || {}),
     fingerprint: prepared.fingerprint,
+    sourceMd5: prepared.sourceMd5,
+    renderHash: prepared.fingerprint,
+    generatedImages: [],
+    draftKind: "news",
     mediaId,
     title: article.title,
     sourceUrl: article.content_source_url,
@@ -225,9 +509,13 @@ async function syncWechatDrafts({
   force = false,
   config,
   client = null,
+  renderNote = renderNotePosters,
   logger = console.log,
 }) {
-  const blog = loadBlog({ publishedDir: path.join(root, "content", "published") });
+  const blog = loadBlog({
+    publishedDir: path.join(root, "content", "published"),
+    albumsDir: path.join(root, "content", "albums"),
+  });
   const publishedIds = new Set(blog.posts.map((post) => post.id));
   const markers = loadWithdrawalMarkers(root);
   const stateFile = config.stateFile || path.join(root, ".wechat-sync", "state.json");
@@ -297,30 +585,26 @@ async function syncWechatDrafts({
     return { results: [], deleted: selection.deleted };
   }
 
-  const preparedPosts = selection.posts.map((post) => ({ post, prepared: preparePost(root, post, config) }));
-  const needsNetwork = preparedPosts.some(({ post, prepared }) => (
-    !state.posts[post.id]?.publication?.everPublished
-    && (
-      force
-      || state.posts[post.id]?.fingerprint !== prepared.fingerprint
-      || (
-        state.posts[post.id]?.publication?.status === "draft_only"
-        && state.posts[post.id]?.publication?.desiredLocation === "published"
-        && !state.posts[post.id]?.mediaId
-        && publicationForNewPost(state, post.id, new Date().toISOString()).status === "pending"
-      )
-    )
-  ));
-  const apiClient = client || (
-    needsNetwork && !dryRun
-      ? new WechatClient({ appId: config.appId, appSecret: config.appSecret })
-      : null
-  );
+  const preparedPosts = selection.posts.map((post) => ({
+    post,
+    prepared: post.wechat === false ? null : preparePost(root, post, config),
+  }));
+  let apiClient = client;
+  const getClient = () => {
+    if (!apiClient) apiClient = new WechatClient({ appId: config.appId, appSecret: config.appSecret });
+    return apiClient;
+  };
 
   const results = [];
   for (const { post, prepared } of preparedPosts) {
-    results.push(await syncOnePost({
-      client: apiClient,
+    if (post.wechat === false) {
+      disableWechatPost(post.id, state, stateFile, dryRun);
+      logger(`已关闭公众号同步：${post.title}`);
+      results.push({ action: "wechat-disabled", post });
+      continue;
+    }
+    const input = {
+      getClient,
       config,
       dryRun,
       force,
@@ -329,7 +613,16 @@ async function syncWechatDrafts({
       prepared,
       state,
       stateFile,
-    }));
+    };
+    if (post.kind === "note") {
+      try {
+        results.push(await syncNotePost({ ...input, renderNote, root }));
+      } catch (error) {
+        results.push(recordNoteFailure({ dryRun, error, logger, post, state, stateFile }));
+      }
+    } else {
+      results.push(await syncOnePost(input));
+    }
   }
   return { results, deleted: selection.deleted };
 }
@@ -339,5 +632,6 @@ module.exports = {
   isMissingDraft,
   preparePost,
   resolveCover,
+  sourceMd5,
   syncWechatDrafts,
 };

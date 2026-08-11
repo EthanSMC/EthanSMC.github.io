@@ -46,7 +46,7 @@ test("uses stable_token once and sends the documented add/update draft payloads"
   assert.match(calls[1].url, /access_token=token/);
 });
 
-test("uploads article and permanent cover images as multipart media", async () => {
+test("uploads article, permanent cover, and newspic images as multipart media", async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-client-"));
   const filename = path.join(directory, "cover.png");
   fs.writeFileSync(filename, "png fixture");
@@ -62,9 +62,32 @@ test("uploads article and permanent cover images as multipart media", async () =
 
   assert.equal(await client.uploadArticleImage(filename), "https://mmbiz.qpic.cn/image");
   assert.equal(await client.uploadPermanentImage(filename), "cover-id");
+  assert.equal(await client.uploadNewspicImage(filename), "cover-id");
   assert.ok(calls[1].init.body instanceof FormData);
   assert.equal(calls[1].init.body.get("media").name, "cover.png");
   assert.match(calls[2].url, /type=image/);
+  assert.match(calls[3].url, /\/cgi-bin\/material\/add_material/);
+  assert.match(calls[3].url, /type=image/);
+});
+
+test("rejects a newspic upload response without a permanent media id", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-client-"));
+  const filename = path.join(directory, "page.png");
+  fs.writeFileSync(filename, "png fixture");
+  const client = new WechatClient({
+    appId: "app-id",
+    appSecret: "secret",
+    fetchImpl: async (url) => (
+      String(url).endsWith("/cgi-bin/stable_token")
+        ? jsonResponse({ access_token: "token" })
+        : jsonResponse({ errcode: 0 })
+    ),
+  });
+
+  await assert.rejects(
+    () => client.uploadNewspicImage(filename),
+    /newspic image response did not include media_id/,
+  );
 });
 
 test("surfaces WeChat error codes without exposing credentials", async () => {
