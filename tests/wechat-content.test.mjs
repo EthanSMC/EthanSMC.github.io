@@ -89,7 +89,7 @@ test("normalizes canonical URLs and visible truncation", () => {
 });
 
 test("selects only a confident classifier cast for automatic notes", async () => {
-  for (const cast of ["mochi", "molly", "none"]) {
+  for (const cast of ["mochi", "molly"]) {
     assert.equal(
       await selectNoteCast({ cast: "auto", text: "正文" }, {
         classify: async () => ({ cast, confidence: 0.9 }),
@@ -99,8 +99,17 @@ test("selects only a confident classifier cast for automatic notes", async () =>
   }
 });
 
+test("does not accept none from automatic classification", async () => {
+  assert.equal(
+    await selectNoteCast({ cast: "auto", text: "正文" }, {
+      classify: async () => ({ cast: "none", confidence: 0.99 }),
+    }),
+    "molly",
+  );
+});
+
 test("explicit note casts bypass classification", async () => {
-  for (const cast of ["mochi", "molly", "none"]) {
+  for (const cast of ["mochi", "molly"]) {
     assert.equal(
       await selectNoteCast({ cast, text: "正文" }, {
         classify: async () => {
@@ -110,6 +119,17 @@ test("explicit note casts bypass classification", async () => {
       cast,
     );
   }
+});
+
+test("keeps an explicit none cast without classification", async () => {
+  assert.equal(
+    await selectNoteCast({ cast: "none", text: "正文" }, {
+      classify: async () => {
+        throw new Error("explicit none must not classify");
+      },
+    }),
+    "none",
+  );
 });
 
 test("falls back to Molly for low-confidence, malformed, invalid, or failed classification", async () => {
@@ -142,14 +162,14 @@ test("falls back to Molly when automatic classification times out", async () => 
 test("paginates Markdown blocks in order using injected pixel measurements", () => {
   const note = notePost({ body: "第一段。\n\n第二段。\n\n第三段。" });
   const pages = paginateNote(note, {
-    contentHeight: 100,
+    contentHeight: 110,
     blockGap: 10,
-    measureBlock: () => 45,
+    measureBlock: (block) => block.type === "title" ? 0 : 45,
   });
 
   assert.equal(pages.length, 2);
   assert.deepEqual(
-    pages.map((page) => page.blocks.map((block) => block.text)),
+    pages.map((page) => page.blocks.filter((block) => block.type !== "title").map((block) => block.text)),
     [["第一段。", "第二段。"], ["第三段。"]],
   );
 });
@@ -157,13 +177,15 @@ test("paginates Markdown blocks in order using injected pixel measurements", () 
 test("splits oversized paragraphs by sentence and then Unicode grapheme without losing text", () => {
   const source = "甲乙丙丁戊。👨‍👩‍👧‍👦庚辛壬癸。";
   const note = notePost({ body: source });
-  const measureBlock = (block) => Array.from(new Intl.Segmenter("zh-CN", { granularity: "grapheme" }).segment(block.text)).length * 10;
+  const measureBlock = (block) => block.type === "title"
+    ? 0
+    : Array.from(new Intl.Segmenter("zh-CN", { granularity: "grapheme" }).segment(block.text)).length * 10;
   const pages = paginateNote(note, {
     contentHeight: 50,
     blockGap: 0,
     measureBlock,
   });
-  const blocks = pages.flatMap((page) => page.blocks);
+  const blocks = pages.flatMap((page) => page.blocks).filter((block) => block.type !== "title");
 
   assert.ok(pages.length >= 1 && pages.length <= 4);
   assert.equal(blocks.map((block) => block.text).join(""), source);
@@ -177,12 +199,12 @@ test("packs sentence fragments into the previous page before opening another pag
   const pages = paginateNote(note, {
     contentHeight: 100,
     blockGap: 0,
-    measureBlock: (block) => Array.from(block.text).length * 10,
+    measureBlock: (block) => block.type === "title" ? 0 : Array.from(block.text).length * 10,
   });
 
   assert.equal(pages.length, 2);
   assert.deepEqual(
-    pages.map((page) => page.blocks.map((block) => block.text).join("")),
+    pages.map((page) => page.blocks.filter((block) => block.type !== "title").map((block) => block.text).join("")),
     ["甲乙丙丁戊己庚辛。", "壬癸。子丑。寅卯。"],
   );
 });
@@ -194,7 +216,7 @@ test("rejects a fifth poster page without truncating or reducing body type", () 
     () => paginateNote(note, {
       contentHeight: 40,
       blockGap: 0,
-      measureBlock: (block) => Array.from(block.text).length * 10,
+      measureBlock: (block) => block.type === "title" ? 0 : Array.from(block.text).length * 10,
     }),
     (error) => error?.code === "content_too_long",
   );
@@ -217,7 +239,7 @@ test("renders deterministic 1080 by 1440 note posters with source-date title and
     author: "Ethan",
     siteUrl: "https://example.com",
     contentHeight: 900,
-    measureBlock: () => 700,
+    measureBlock: (block) => block.type === "title" ? 0 : 700,
     capture,
   };
 
@@ -245,6 +267,67 @@ test("renders deterministic 1080 by 1440 note posters with source-date title and
   assert.match(captures[1].svg, /Ethan · example\.com/);
 });
 
+test("paginates a long authored title at fixed type size without losing title or body text", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-long-title-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const title = "把一段很长很长的中文标题完整放进海报而不是悄悄裁掉";
+  const body = "正文甲。正文乙。";
+  const note = notePost({
+    frontmatter: "kind: note\ncast: none",
+    body: `# ${title}\n\n${body}`,
+  });
+  const captures = [];
+  const result = await renderNotePosters(note, {
+    outputDir: root,
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    contentHeight: 100,
+    blockGap: 0,
+    measureBlock: (block) => Array.from(
+      new Intl.Segmenter("zh-CN", { granularity: "grapheme" }).segment(block.text),
+    ).length * (block.type === "title" ? 8 : 10),
+    capture: async (input) => { captures.push(input); },
+  });
+  const blocks = result.pages.flatMap((page) => page.blocks);
+
+  assert.equal(blocks.filter((block) => block.type === "title").map((block) => block.text).join(""), title);
+  assert.equal(blocks.filter((block) => block.type !== "title").map((block) => block.text).join(""), body);
+  assert.match(captures.map(({ svg }) => svg).join(""), /note-block--title/);
+  assert.doesNotMatch(captures.map(({ svg }) => svg).join(""), /<text[^>]*font-size="54"[^>]*>把一段很长/);
+});
+
+test("keeps the untitled fallback as one title block without repeating body text", () => {
+  const note = notePost({ body: "第一段。\n\n第二段。" });
+  const pages = paginateNote(note, {
+    contentHeight: 500,
+    blockGap: 0,
+    measureBlock: () => 50,
+  });
+  const blocks = pages.flatMap((page) => page.blocks);
+
+  assert.equal(blocks.filter((block) => block.type === "title").map((block) => block.text).join(""), "碎碎念 · 2026.08.04");
+  assert.equal(blocks.filter((block) => block.type !== "title").map((block) => block.text).join(""), "第一段。第二段。");
+});
+
+test("keeps the page-one character outside the measured content rectangle", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-cast-layout-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  let svg = "";
+  await renderNotePosters(notePost({ frontmatter: "kind: note\ncast: mochi" }), {
+    outputDir: root,
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    contentHeight: 900,
+    measureBlock: (block) => block.type === "title" ? 0 : 100,
+    capture: async (input) => { svg = input.svg; },
+  });
+
+  const content = svg.match(/<foreignObject x="\d+" y="(\d+)" width="\d+" height="(\d+)">/);
+  const cast = svg.match(/<g data-cast="mochi">[\s\S]*?<circle cx="\d+" cy="(\d+)" r="(\d+)"/);
+  assert.ok(content && cast);
+  assert.ok(Number(content[1]) + Number(content[2]) <= Number(cast[1]) - Number(cast[2]));
+});
+
 test("render hash changes with poster content and oversized rendering captures nothing", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-render-hash-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -255,7 +338,7 @@ test("render hash changes with poster content and oversized rendering captures n
     siteUrl: "https://example.com",
     contentHeight: 100,
     blockGap: 0,
-    measureBlock: (block) => Array.from(block.text).length * 10,
+    measureBlock: (block) => block.type === "title" ? 0 : Array.from(block.text).length * 10,
     capture,
   };
   const short = await renderNotePosters(notePost({ frontmatter: "kind: note\ncast: none", body: "短句。" }), options);
@@ -279,6 +362,66 @@ test("render hash changes with poster content and oversized rendering captures n
     (error) => error?.code === "content_too_long",
   );
   assert.equal(captureCount, 0);
+});
+
+test("changes render hash when the renderer fingerprint changes", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-renderer-fingerprint-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+  const options = {
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    measureBlock: () => 50,
+    capture: async () => {},
+  };
+  const first = await renderNotePosters(note, {
+    ...options,
+    outputDir: path.join(root, "first"),
+    rendererFingerprint: "renderer-a",
+  });
+  const second = await renderNotePosters(note, {
+    ...options,
+    outputDir: path.join(root, "second"),
+    rendererFingerprint: "renderer-b",
+  });
+
+  assert.notEqual(first.renderHash, second.renderHash);
+});
+
+test("closes a launched browser exactly once when poster browser initialization fails", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-browser-init-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+
+  for (const failureStep of ["newPage", "setContent", "fonts"]) {
+    let closeCount = 0;
+    const page = {
+      setContent: async () => {
+        if (failureStep === "setContent") throw new Error("setContent failed");
+      },
+      evaluate: async () => {
+        if (failureStep === "fonts") throw new Error("fonts failed");
+      },
+    };
+    const browser = {
+      newPage: async () => {
+        if (failureStep === "newPage") throw new Error("newPage failed");
+        return page;
+      },
+      close: async () => { closeCount += 1; },
+    };
+
+    await assert.rejects(
+      () => renderNotePosters(note, {
+        outputDir: path.join(root, failureStep),
+        author: "Ethan",
+        siteUrl: "https://example.com",
+        launchBrowser: async () => browser,
+      }),
+      new RegExp(`${failureStep} failed`),
+    );
+    assert.equal(closeCount, 1, failureStep);
+  }
 });
 
 test("bundles the fixed Mochi and Molly characters as real JPEG files", () => {

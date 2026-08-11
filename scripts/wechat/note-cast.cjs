@@ -1,5 +1,5 @@
-const CLASSIFIER_CASTS = new Set(["mochi", "molly", "none"]);
-const EXPLICIT_CASTS = new Set(CLASSIFIER_CASTS);
+const CLASSIFIER_CASTS = new Set(["mochi", "molly"]);
+const EXPLICIT_CASTS = new Set(["mochi", "molly", "none"]);
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.8;
 const DEFAULT_TIMEOUT_MS = 4_000;
 

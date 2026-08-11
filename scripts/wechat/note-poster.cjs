@@ -9,19 +9,21 @@ const NOTE_POSTER_WIDTH = 1080;
 const NOTE_POSTER_HEIGHT = 1440;
 const NOTE_CONTENT_WIDTH = 896;
 const NOTE_CONTENT_HEIGHT = 860;
+const NOTE_CONTENT_Y = 180;
 const NOTE_BLOCK_GAP = 24;
 const NOTE_BODY_FONT_SIZE = 43;
 const NOTE_POSTER_TEMPLATE_VERSION = "note-poster-v1";
 const NOTE_FONT_IDENTITY = "PingFang SC/Hiragino Sans GB/Arial@43px";
 const MAX_POSTER_PAGES = 4;
 const SENTENCE_PATTERN = /[^。！？!?]+[。！？!?]?/gu;
-const CLASS_NAMES = new Set(["paragraph", "heading", "quote", "list", "code"]);
+const CLASS_NAMES = new Set(["title", "paragraph", "heading", "quote", "list", "code"]);
 const markdown = new MarkdownIt({ html: false, linkify: true, typographer: false });
 
 const DEFAULT_CAST_ASSETS = {
   mochi: path.resolve(__dirname, "..", "..", "assets", "writing", "mochi-note.jpg"),
   molly: path.resolve(__dirname, "..", "..", "assets", "writing", "molly-note.jpg"),
 };
+const DEFAULT_RENDERER_FINGERPRINT = hash(fs.readFileSync(__filename));
 
 const BLOCK_CSS = `
 .note-block {
@@ -41,6 +43,12 @@ const BLOCK_CSS = `
   font-size: 50px;
   font-weight: 700;
   line-height: 1.42;
+}
+.note-block--title {
+  color: #1e3150;
+  font-size: 54px;
+  font-weight: 750;
+  line-height: 1.35;
 }
 .note-block--quote {
   border-left: 5px solid #7fa2d3;
@@ -122,6 +130,10 @@ function markdownBlocks(post) {
   return blocks;
 }
 
+function posterBlocks(post) {
+  return [{ type: "title", text: posterTitle(post) }, ...markdownBlocks(post)];
+}
+
 function graphemes(value) {
   if (typeof Intl.Segmenter === "function") {
     return [...new Intl.Segmenter("zh-CN", { granularity: "grapheme" }).segment(value)]
@@ -156,12 +168,14 @@ function classNameFor(block) {
 }
 
 function defaultMeasureBlock(block, { width = NOTE_CONTENT_WIDTH } = {}) {
-  const fontSize = block.type === "heading"
-    ? 50
-    : (block.type === "code" ? 32 : NOTE_BODY_FONT_SIZE);
-  const lineHeight = block.type === "heading"
-    ? fontSize * 1.42
-    : (block.type === "code" ? fontSize * 1.55 : fontSize * 1.62);
+  const fontSize = block.type === "title"
+    ? 54
+    : (block.type === "heading" ? 50 : (block.type === "code" ? 32 : NOTE_BODY_FONT_SIZE));
+  const lineHeight = block.type === "title"
+    ? fontSize * 1.35
+    : (block.type === "heading"
+      ? fontSize * 1.42
+      : (block.type === "code" ? fontSize * 1.55 : fontSize * 1.62));
   const horizontalPadding = block.type === "quote" ? 31 : (block.type === "code" ? 48 : 0);
   const usableWidth = Math.max(fontSize, width - horizontalPadding);
   const lines = String(block.text).split("\n").reduce((total, line) => {
@@ -268,7 +282,7 @@ function paginateNote(post, options = {}) {
   const measureBlock = options.measureBlock || options.measure || defaultMeasureBlock;
   if (!Number.isFinite(contentHeight) || contentHeight <= 0) throw new Error("Poster contentHeight must be positive");
   if (!Number.isFinite(blockGap) || blockGap < 0) throw new Error("Poster blockGap must not be negative");
-  return paginateBlocksSync(markdownBlocks(post), { contentHeight, blockGap, measureBlock });
+  return paginateBlocksSync(posterBlocks(post), { contentHeight, blockGap, measureBlock });
 }
 
 async function measuredHeightAsync(measureBlock, block, context) {
@@ -413,9 +427,8 @@ function pageSvg({ page, title, date, cast, castData, author, site, contentHeigh
   <rect x="0" y="0" width="18" height="1440" fill="#275ba8" />
   <text x="92" y="92" fill="#275ba8" font-family="Menlo, Consolas, monospace" font-size="22" font-weight="700" letter-spacing="3">ETHANSMC / SMALL TALK</text>
   <text x="988" y="92" text-anchor="end" fill="#6d7890" font-family="Menlo, Consolas, monospace" font-size="22">${escapeXml(date)} · ${page.number}/${page.total}</text>
-  <text x="92" y="205" fill="#1e3150" font-family="PingFang SC, Hiragino Sans GB, Arial, sans-serif" font-size="54" font-weight="750">${escapeXml(title)}</text>
-  <line x1="92" y1="244" x2="988" y2="244" stroke="#8caad3" stroke-width="2" />
-  <foreignObject x="92" y="290" width="${NOTE_CONTENT_WIDTH}" height="${contentHeight}">
+  <line x1="92" y1="145" x2="988" y2="145" stroke="#8caad3" stroke-width="2" />
+  <foreignObject x="92" y="${NOTE_CONTENT_Y}" width="${NOTE_CONTENT_WIDTH}" height="${contentHeight}">
     <div xmlns="http://www.w3.org/1999/xhtml" style="display:flex;flex-direction:column;gap:${blockGap}px;width:${NOTE_CONTENT_WIDTH}px;">
       <style>${BLOCK_CSS}</style>${blocks}
     </div>
@@ -437,36 +450,45 @@ async function browserSession(options = {}) {
   const browser = options.launchBrowser
     ? await options.launchBrowser(browserLaunchOptions)
     : await chromium.launch(browserLaunchOptions);
-  const page = await browser.newPage({
-    viewport: { width: NOTE_POSTER_WIDTH, height: NOTE_POSTER_HEIGHT },
-    deviceScaleFactor: 1,
-  });
-  await page.setContent(`<!doctype html><html><head><style>${BLOCK_CSS}</style></head><body></body></html>`);
-  await page.evaluate(() => document.fonts.ready);
+  try {
+    const page = await browser.newPage({
+      viewport: { width: NOTE_POSTER_WIDTH, height: NOTE_POSTER_HEIGHT },
+      deviceScaleFactor: 1,
+    });
+    await page.setContent(`<!doctype html><html><head><style>${BLOCK_CSS}</style></head><body></body></html>`);
+    await page.evaluate(() => document.fonts.ready);
 
-  return {
-    measureBlock: async (block, context) => page.evaluate(({ className, text, width }) => {
-      const element = document.createElement("div");
-      element.className = className;
-      element.textContent = text;
-      element.style.position = "absolute";
-      element.style.visibility = "hidden";
-      element.style.width = `${width}px`;
-      document.body.append(element);
-      const height = element.getBoundingClientRect().height;
-      element.remove();
-      return height;
-    }, { className: classNameFor(block), text: block.text, width: context.width }),
-    capture: async ({ svg, outputPath }) => {
-      await page.setContent(`<!doctype html><html><head><style>html,body{margin:0;width:${NOTE_POSTER_WIDTH}px;height:${NOTE_POSTER_HEIGHT}px;overflow:hidden}</style></head><body>${svg}</body></html>`);
-      await page.screenshot({
-        path: outputPath,
-        type: "png",
-        clip: { x: 0, y: 0, width: NOTE_POSTER_WIDTH, height: NOTE_POSTER_HEIGHT },
-      });
-    },
-    close: () => browser.close(),
-  };
+    return {
+      measureBlock: async (block, context) => page.evaluate(({ className, text, width }) => {
+        const element = document.createElement("div");
+        element.className = className;
+        element.textContent = text;
+        element.style.position = "absolute";
+        element.style.visibility = "hidden";
+        element.style.width = `${width}px`;
+        document.body.append(element);
+        const height = element.getBoundingClientRect().height;
+        element.remove();
+        return height;
+      }, { className: classNameFor(block), text: block.text, width: context.width }),
+      capture: async ({ svg, outputPath }) => {
+        await page.setContent(`<!doctype html><html><head><style>html,body{margin:0;width:${NOTE_POSTER_WIDTH}px;height:${NOTE_POSTER_HEIGHT}px;overflow:hidden}</style></head><body>${svg}</body></html>`);
+        await page.screenshot({
+          path: outputPath,
+          type: "png",
+          clip: { x: 0, y: 0, width: NOTE_POSTER_WIDTH, height: NOTE_POSTER_HEIGHT },
+        });
+      },
+      close: () => browser.close(),
+    };
+  } catch (error) {
+    try {
+      await browser.close();
+    } catch {
+      // Preserve the initialization error after attempting resource cleanup.
+    }
+    throw error;
+  }
 }
 
 function hash(value) {
@@ -501,7 +523,7 @@ async function renderNotePosters(post, options = {}) {
     });
     const assetPaths = { ...DEFAULT_CAST_ASSETS, ...(options.assetPaths || {}) };
     const asset = castAsset(cast, assetPaths);
-    const blocks = markdownBlocks(post);
+    const blocks = posterBlocks(post);
     const pages = injectedMeasure
       ? paginateBlocksSync(blocks, {
         contentHeight,
@@ -519,6 +541,7 @@ async function renderNotePosters(post, options = {}) {
     const site = siteLabel(options.siteUrl);
     const renderHash = hash(JSON.stringify({
       template: NOTE_POSTER_TEMPLATE_VERSION,
+      rendererFingerprint: options.rendererFingerprint ?? DEFAULT_RENDERER_FINGERPRINT,
       font: NOTE_FONT_IDENTITY,
       dimensions: [NOTE_POSTER_WIDTH, NOTE_POSTER_HEIGHT],
       contentHeight,
