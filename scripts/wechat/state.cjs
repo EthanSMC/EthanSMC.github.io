@@ -33,6 +33,46 @@ function emptyState() {
   };
 }
 
+function normalizedGeneratedImages(value) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 4) return [];
+  const normalized = value.map((image, index) => {
+    const filename = `page-${String(index + 1).padStart(2, "0")}.png`;
+    if (
+      !image
+      || typeof image !== "object"
+      || Array.isArray(image)
+      || image.filename !== filename
+      || typeof image.hash !== "string"
+      || image.hash.length === 0
+      || typeof image.mediaId !== "string"
+      || image.mediaId.length === 0
+    ) return null;
+    return { filename, hash: image.hash, mediaId: image.mediaId };
+  });
+  return normalized.includes(null) ? [] : normalized;
+}
+
+function normalizedPostMetadata(metadata) {
+  const md5 = typeof metadata.sourceMd5 === "string" && /^[a-f\d]{32}$/iu.test(metadata.sourceMd5)
+    ? metadata.sourceMd5.toLowerCase()
+    : null;
+  return {
+    ...metadata,
+    sourceMd5: md5,
+    renderHash: typeof metadata.renderHash === "string" && metadata.renderHash
+      ? metadata.renderHash
+      : null,
+    renderInputHash: typeof metadata.renderInputHash === "string" && metadata.renderInputHash
+      ? metadata.renderInputHash
+      : null,
+    renderCast: ["mochi", "molly", "none"].includes(metadata.renderCast)
+      ? metadata.renderCast
+      : null,
+    generatedImages: normalizedGeneratedImages(metadata.generatedImages),
+    draftKind: metadata.draftKind === "newspic" ? "newspic" : "news",
+  };
+}
+
 function normalizeState(value) {
   if (!value || (value.version !== 1 && value.version !== 2)) return emptyState();
   const posts = Object.fromEntries(Object.entries(value.posts || {}).map(([postId, record]) => {
@@ -45,7 +85,7 @@ function normalizeState(value) {
         if (field !== "status" && Object.hasOwn(source, field)) publication[field] = source[field];
       }
     }
-    return [postId, { ...metadata, publication }];
+    return [postId, { ...normalizedPostMetadata(metadata), publication }];
   }));
   const publisher = value.version === 2 && value.publisher && typeof value.publisher === "object"
     ? value.publisher

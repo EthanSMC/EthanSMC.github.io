@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { loadBlog } = require("./scripts/prepare-content.cjs");
 const { injectHomeWriting } = require("./scripts/render-home-writing.cjs");
+const { renderWritingShowcase } = require("./scripts/render-writing-showcase.cjs");
 
 export default function (eleventyConfig) {
   eleventyConfig.ignores.add("README.md");
@@ -24,14 +25,16 @@ export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy("script.js");
   eleventyConfig.addPassthroughCopy("blog.js");
   eleventyConfig.addPassthroughCopy("i18n.js");
+  eleventyConfig.addPassthroughCopy("writing-carousel.js");
   eleventyConfig.addWatchTarget("content/published");
+  eleventyConfig.addWatchTarget("content/albums");
   eleventyConfig.addWatchTarget("content/assets");
 
   eleventyConfig.on("eleventy.before", ({ directories }) => {
     const { attachments } = loadBlog();
     for (const relativePath of attachments) {
-      const source = path.join("content", "assets", relativePath);
-      const destination = path.join(directories.output, "blog", "assets", relativePath);
+      const source = path.resolve("content", "assets", relativePath);
+      const destination = path.resolve(directories.output, "blog", "assets", relativePath);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.copyFileSync(source, destination);
     }
@@ -52,6 +55,9 @@ export default function (eleventyConfig) {
   ));
   eleventyConfig.addFilter("dateToRfc3339", (date) => new Date(date).toISOString());
   eleventyConfig.addFilter("dateToRfc822", (date) => new Date(date).toUTCString());
+  eleventyConfig.addFilter("writingShowcase", (blog, context = "home") => (
+    renderWritingShowcase(blog, { context })
+  ));
 
   eleventyConfig.addTransform("inject-home-writing", function (content) {
     if (this.page?.inputPath !== "./index.html") return content;

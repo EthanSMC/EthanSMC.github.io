@@ -19,9 +19,9 @@ const {
   updateCheckout,
 } = require("../scripts/wechat-mac-agent.cjs");
 
-const PRIVATE_ENVIRONMENT_DEFAULTS = [
-  "WECHAT_AUTO_PUBLISH=0",
-  "WECHAT_AUTO_WITHDRAW=0",
+const LEGACY_AUTOMATION_ENVIRONMENT = [
+  "WECHAT_AUTO_PUBLISH=1",
+  "WECHAT_AUTO_WITHDRAW=1",
   "WECHAT_BROWSER_CHANNEL=chrome",
   "WECHAT_BROWSER_HEADLESS=0",
 ];
@@ -135,9 +135,7 @@ test("creates an external configuration template without storing an access token
   assert.match(source, /^WECHAT_APP_ID=$/m);
   assert.match(source, /^WECHAT_APP_SECRET=$/m);
   assert.match(source, /^WECHAT_SYNC_STATE_FILE=\/private\/state\.json$/m);
-  for (const line of PRIVATE_ENVIRONMENT_DEFAULTS) {
-    assert.match(source, new RegExp(`^${line}$`, "m"));
-  }
+  for (const key of AUTOMATION_ENVIRONMENT_KEYS) assert.doesNotMatch(source, new RegExp(`^${key}=`, "m"));
   assert.doesNotMatch(source, /ACCESS_TOKEN/);
   assert.doesNotMatch(source, /WEBHOOK/);
 });
@@ -146,7 +144,7 @@ function agentFixture() {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-agent-run-test-"));
   const paths = agentPaths({ WECHAT_AGENT_HOME: path.join(temporary, "agent") }, temporary);
   fs.mkdirSync(path.join(paths.checkout, ".git"), { recursive: true });
-  fs.writeFileSync(paths.envFile, `${PRIVATE_ENVIRONMENT_DEFAULTS.join("\n")}\n`);
+  fs.writeFileSync(paths.envFile, `${LEGACY_AUTOMATION_ENVIRONMENT.join("\n")}\n`);
   return { temporary, paths };
 }
 
@@ -154,11 +152,10 @@ function successfulChild() {
   return { status: 0, stdout: "", stderr: "" };
 }
 
-test("uses --automatic only as the Agent compatibility marker in one serial lifecycle", () => {
+test("runs only draft sync even when legacy automatic publish and withdrawal flags are enabled", () => {
   const fixture = agentFixture();
   const events = [];
   const calls = [];
-  let syncFinished = false;
   try {
     const result = runAgent({
       paths: fixture.paths,
@@ -172,21 +169,16 @@ test("uses --automatic only as the Agent compatibility marker in one serial life
         calls.push({ commandName, args, options });
         if (path.basename(args[0]) === "wechat-sync.cjs") {
           events.push("sync:start");
-          syncFinished = true;
           events.push("sync:finish");
-        } else if (path.basename(args[0]) === "wechat-publish.cjs") {
-          assert.equal(syncFinished, true, "publisher started before draft sync finished");
-          events.push("lifecycle");
         }
         return successfulChild();
       },
       logger: () => {},
     });
 
-    assert.deepEqual(events, ["checkout", "sync:start", "sync:finish", "lifecycle"]);
+    assert.deepEqual(events, ["checkout", "sync:start", "sync:finish"]);
     assert.deepEqual(calls.map(({ args }) => args), [
       [path.join(fixture.paths.checkout, "scripts", "wechat-sync.cjs"), "--automatic"],
-      [path.join(fixture.paths.checkout, "scripts", "wechat-publish.cjs"), "run", "--automatic"],
     ]);
     for (const call of calls) {
       assert.equal(call.commandName, "/private/fake-bun");
@@ -194,8 +186,8 @@ test("uses --automatic only as the Agent compatibility marker in one serial life
       assert.equal(call.options.env.WECHAT_ENV_FILE, fixture.paths.envFile);
       assert.equal(call.options.env.WECHAT_SYNC_STATE_FILE, fixture.paths.stateFile);
       assert.equal(call.options.env.WECHAT_AGENT_HOME, fixture.paths.agentHome);
-      assert.equal(call.options.env.WECHAT_AUTO_PUBLISH, "0");
-      assert.equal(call.options.env.WECHAT_AUTO_WITHDRAW, "0");
+      assert.equal(call.options.env.WECHAT_AUTO_PUBLISH, "1");
+      assert.equal(call.options.env.WECHAT_AUTO_WITHDRAW, "1");
     }
     assert.equal(result.status, "success");
     assert.equal(result.mode, "automatic");
@@ -204,7 +196,7 @@ test("uses --automatic only as the Agent compatibility marker in one serial life
   }
 });
 
-test("passes dry-run to both children so the lifecycle cannot launch Chrome", () => {
+test("passes dry-run only to draft sync and has no publisher child", () => {
   const fixture = agentFixture();
   const childArguments = [];
   try {
@@ -222,14 +214,13 @@ test("passes dry-run to both children so the lifecycle cannot launch Chrome", ()
 
     assert.deepEqual(childArguments, [
       [path.join(fixture.paths.checkout, "scripts", "wechat-sync.cjs"), "--automatic", "--dry-run"],
-      [path.join(fixture.paths.checkout, "scripts", "wechat-publish.cjs"), "run", "--automatic", "--dry-run"],
     ]);
   } finally {
     fs.rmSync(fixture.temporary, { recursive: true, force: true });
   }
 });
 
-test("limits force to draft sync without authorizing a browser operation", () => {
+test("passes force only to draft sync and has no publisher child", () => {
   const fixture = agentFixture();
   const childArguments = [];
   try {
@@ -247,14 +238,13 @@ test("limits force to draft sync without authorizing a browser operation", () =>
 
     assert.deepEqual(childArguments, [
       [path.join(fixture.paths.checkout, "scripts", "wechat-sync.cjs"), "--automatic", "--force"],
-      [path.join(fixture.paths.checkout, "scripts", "wechat-publish.cjs"), "run", "--automatic"],
     ]);
   } finally {
     fs.rmSync(fixture.temporary, { recursive: true, force: true });
   }
 });
 
-test("does not start lifecycle when draft sync fails", () => {
+test("records a failure when draft sync fails", () => {
   const fixture = agentFixture();
   const childNames = [];
   try {
@@ -277,43 +267,13 @@ test("does not start lifecycle when draft sync fails", () => {
   }
 });
 
-test("records lifecycle failure without changing the draft state saved by sync", () => {
+test("status does not advertise removed browser automation settings", () => {
   const fixture = agentFixture();
-  try {
-    assert.throws(() => runAgent({
-      paths: fixture.paths,
-      bunPath: "/private/fake-bun",
-      updateCheckoutRunner: () => ({ before: "same", after: "same" }),
-      commandRunner: (_commandName, args) => {
-        if (path.basename(args[0]) === "wechat-sync.cjs") {
-          fs.writeFileSync(fixture.paths.stateFile, "draft-state-saved\n");
-          return successfulChild();
-        }
-        throw new Error("lifecycle failed");
-      },
-      logger: () => {},
-    }), /lifecycle failed/);
-
-    assert.equal(fs.readFileSync(fixture.paths.stateFile, "utf8"), "draft-state-saved\n");
-    const lastRun = JSON.parse(fs.readFileSync(fixture.paths.lastRunFile, "utf8"));
-    assert.equal(lastRun.status, "failure");
-    assert.equal(lastRun.error, "lifecycle failed");
-  } finally {
-    fs.rmSync(fixture.temporary, { recursive: true, force: true });
-  }
-});
-
-test("status lists copyable defaults missing from an existing private env without overwriting it", () => {
-  const fixture = agentFixture();
-  const existing = "WECHAT_APP_ID=private-id\nWECHAT_AUTO_PUBLISH=0\n";
+  const existing = "WECHAT_APP_ID=private-id\n";
   fs.writeFileSync(fixture.paths.envFile, existing);
   const logs = [];
   try {
-    assert.deepEqual(missingEnvironmentLines(existing), [
-      "WECHAT_AUTO_WITHDRAW=0",
-      "WECHAT_BROWSER_CHANNEL=chrome",
-      "WECHAT_BROWSER_HEADLESS=0",
-    ]);
+    assert.deepEqual(missingEnvironmentLines(existing), []);
     statusAgent({
       paths: fixture.paths,
       commandRunner: () => ({ status: 1, stdout: "", stderr: "" }),
@@ -321,11 +281,27 @@ test("status lists copyable defaults missing from an existing private env withou
     });
 
     const output = logs.join("\n");
-    assert.match(output, /复制到私密配置文件末尾/);
-    for (const line of missingEnvironmentLines(existing)) assert.match(output, new RegExp(line));
+    for (const key of AUTOMATION_ENVIRONMENT_KEYS) assert.doesNotMatch(output, new RegExp(key));
     assert.equal(fs.readFileSync(fixture.paths.envFile, "utf8"), existing);
   } finally {
     fs.rmSync(fixture.temporary, { recursive: true, force: true });
+  }
+});
+
+test("package scripts expose draft synchronization but no browser publisher commands", () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(path.dirname(import.meta.dirname), "package.json"), "utf8"));
+  assert.equal(pkg.scripts["wechat:sync"], "bun scripts/wechat-sync.cjs");
+  assert.equal(Object.keys(pkg.scripts).some((name) => name.startsWith("wechat:publisher:")), false);
+});
+
+test("operator docs stop at the WeChat draft box", () => {
+  const root = path.dirname(import.meta.dirname);
+  for (const filename of ["docs/wechat-draft-sync.md", "docs/obsidian-publishing.md"]) {
+    const source = fs.readFileSync(path.join(root, filename), "utf8");
+    assert.match(source, /草稿箱/);
+    assert.match(source, /手动发表|人工.*发表/);
+    assert.doesNotMatch(source, /pnpm wechat:publisher:/);
+    assert.doesNotMatch(source, /WECHAT_AUTO_(?:PUBLISH|WITHDRAW)=/);
   }
 });
 

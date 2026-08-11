@@ -11,6 +11,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+from typing import Optional
 
 
 TIMESTAMP_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{6}\.md$")
@@ -44,10 +45,19 @@ def reject(errors: list[str]) -> None:
 root = Path(git("rev-parse", "--show-toplevel").stdout.strip()).resolve()
 published_root = (root / "content" / "published").resolve()
 drafts_root = (root / "content" / "drafts").resolve()
-assets_root = (root / "content" / "assets").resolve()
+assets_root = root / "content" / "assets"
+albums_root = root / "content" / "albums"
 withdrawals_root = root / "content" / ".lifecycle" / "withdrawals"
 referenced_assets: set[str] = set()
+validated_albums: set[str] = set()
 errors: list[str] = []
+
+try:
+    albums_root_mode = albums_root.lstat().st_mode
+except FileNotFoundError:
+    albums_root_mode = None
+if albums_root_mode is not None and not stat.S_ISDIR(albums_root_mode):
+    reject(["content/albums must be a regular directory inside the repository"])
 
 published_ids = {
     path.stem
@@ -102,6 +112,173 @@ def write_marker_atomically(marker_path: Path, marker: dict[str, str]) -> None:
     except BaseException:
         temporary_path.unlink(missing_ok=True)
         raise
+
+
+def frontmatter_scalar(
+    raw_value: str,
+    markdown_path: Path,
+    key: str,
+    source_label: str,
+) -> Optional[str]:
+    value = raw_value.strip()
+    if not value:
+        errors.append(f"{source_label} {key} must not be empty: {markdown_path.relative_to(root)}")
+        return None
+    if value.startswith('"'):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            errors.append(f"invalid {source_label} {key}: {markdown_path.relative_to(root)}")
+            return None
+        if not isinstance(parsed, str):
+            errors.append(f"{source_label} {key} must be text: {markdown_path.relative_to(root)}")
+            return None
+        return parsed
+    if value.startswith("'"):
+        if len(value) < 2 or not value.endswith("'"):
+            errors.append(f"invalid {source_label} {key}: {markdown_path.relative_to(root)}")
+            return None
+        inner = value[1:-1]
+        if "'" in inner.replace("''", ""):
+            errors.append(f"invalid {source_label} {key}: {markdown_path.relative_to(root)}")
+            return None
+        return inner.replace("''", "'")
+    return value
+
+
+def album_metadata(
+    source: str,
+    markdown_path: Path,
+    source_label: str = "Album Markdown",
+) -> Optional[dict[str, Optional[str]]]:
+    lines = source.splitlines()
+    if not lines or lines[0].removesuffix("\r") != "---":
+        errors.append(f"{source_label} must start with frontmatter: {markdown_path.relative_to(root)}")
+        return None
+
+    metadata: dict[str, Optional[str]] = {}
+    closed = False
+    for line in lines[1:]:
+        line = line.removesuffix("\r")
+        if line == "---":
+            closed = True
+            break
+        match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(.*)", line)
+        if not match or match.group(1) not in {"kind", "cover"}:
+            continue
+        key, raw_value = match.groups()
+        if key in metadata:
+            errors.append(f"duplicate {source_label} {key}: {markdown_path.relative_to(root)}")
+            return None
+        metadata[key] = frontmatter_scalar(raw_value, markdown_path, key, source_label)
+
+    if not closed:
+        errors.append(f"{source_label} has unterminated frontmatter: {markdown_path.relative_to(root)}")
+        return None
+    if metadata.get("kind") != "album":
+        errors.append(f"{source_label} must declare kind: album: {markdown_path.relative_to(root)}")
+        return None
+    return metadata
+
+
+def validate_album_cover(reference: str, markdown_path: Path) -> Optional[str]:
+    match = re.fullmatch(r"\[\[assets/([^\[\]|#]+)\]\]", reference)
+    if not match:
+        errors.append(
+            f"album cover must be an exact [[assets/...]] wikilink: "
+            f"{markdown_path.relative_to(root)}"
+        )
+        return None
+
+    relative_text = match.group(1)
+    parts = relative_text.split("/")
+    if (
+        relative_text.strip() != relative_text
+        or "\\" in relative_text
+        or any(not part or part in {".", ".."} for part in parts)
+        or Path(relative_text).is_absolute()
+        or Path(relative_text).as_posix() != relative_text
+    ):
+        errors.append(
+            f"album cover must stay inside content/assets: {markdown_path.relative_to(root)}"
+        )
+        return None
+
+    try:
+        assets_mode = assets_root.lstat().st_mode
+    except FileNotFoundError:
+        errors.append(f"missing album cover: {markdown_path.relative_to(root)}")
+        return None
+    if not stat.S_ISDIR(assets_mode):
+        errors.append(
+            f"album cover must be a regular file inside content/assets: "
+            f"{markdown_path.relative_to(root)}"
+        )
+        return None
+
+    current = assets_root
+    for index, part in enumerate(parts):
+        current /= part
+        try:
+            mode = current.lstat().st_mode
+        except FileNotFoundError:
+            errors.append(
+                f"missing album cover: {current.relative_to(root)} "
+                f"referenced by {markdown_path.relative_to(root)}"
+            )
+            return None
+        is_cover = index == len(parts) - 1
+        if (is_cover and not stat.S_ISREG(mode)) or (not is_cover and not stat.S_ISDIR(mode)):
+            errors.append(
+                f"album cover must be a regular file inside content/assets: "
+                f"{markdown_path.relative_to(root)}"
+            )
+            return None
+
+    return (Path("content/assets") / Path(*parts)).as_posix()
+
+
+album_index_raw = git(
+    "ls-files",
+    "--stage",
+    "-z",
+    "--",
+    "content/albums",
+    text=False,
+).stdout
+for entry in (value for value in album_index_raw.split(b"\0") if value):
+    index_metadata, path_bytes = entry.split(b"\t", 1)
+    mode_bytes, object_bytes, stage_bytes = index_metadata.split()
+    album_relative = path_bytes.decode("utf-8", errors="surrogateescape")
+    album_candidate = Path(album_relative)
+    if album_candidate.parent != Path("content/albums") or album_candidate.suffix != ".md":
+        continue
+    markdown_path = root / album_candidate
+    if mode_bytes not in {b"100644", b"100755"} or stage_bytes != b"0":
+        errors.append(
+            f"staged Album Markdown must be a regular file: {album_relative}"
+        )
+        continue
+    source_bytes = git(
+        "cat-file",
+        "blob",
+        object_bytes.decode("ascii"),
+        text=False,
+    ).stdout
+    try:
+        source = source_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        errors.append(f"staged Album Markdown must be UTF-8: {album_relative}")
+        continue
+    metadata = album_metadata(source, markdown_path, "staged Album Markdown")
+    if metadata is None:
+        continue
+    validated_albums.add(album_relative)
+    cover = metadata.get("cover")
+    if cover:
+        validated_cover = validate_album_cover(cover, markdown_path)
+        if validated_cover:
+            referenced_assets.add(validated_cover)
 
 
 deleted_raw = git(
@@ -262,6 +439,12 @@ for staged_path in staged_paths:
         publishable.append(staged_path)
         continue
     candidate = Path(staged_path)
+    if candidate.parent == Path("content/albums") and candidate.suffix == ".md":
+        if staged_path in validated_albums or staged_path in deleted_paths:
+            publishable.append(staged_path)
+        else:
+            disallowed.append(staged_path)
+        continue
     if candidate.parent == Path("content/published") and candidate.suffix == ".md":
         if not TIMESTAMP_NAME.fullmatch(candidate.name):
             disallowed.append(staged_path)

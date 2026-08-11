@@ -1,0 +1,51 @@
+---
+layout: layouts/blog-shell.njk
+pagination:
+  data: blog.albums
+  size: 1
+  alias: album
+  addAllPagesToCollections: true
+permalink: "{{ album.outputPath }}"
+eleventyComputed:
+  pageTitle: "{{ album.basename }}｜Ethan 的写作"
+  pageDescription: "{{ album.description }}"
+  canonicalPath: "{{ album.url }}"
+---
+<article class="post-page album-page" data-album-page="{{ album.slug | escape }}">
+  <header class="post-heading album-page__heading">
+    <p class="post-ledger"><a href="/blog/" data-i18n="writing.title">写作</a> / <span data-i18n="writing.albums">专辑</span></p>
+    <h1 data-i18n-authored="{{ album.basename | escape }}">{{ album.basename | escape }}</h1>
+    {% if album.description %}<p class="post-deck" data-i18n-authored="{{ album.description | escape }}">{{ album.description | escape }}</p>{% endif %}
+    {% if album.status %}<p class="album-page__status"><span data-i18n="writing.albumStatusLabel">状态</span> · <span data-album-status-value>{{ album.status | escape }}</span></p>{% endif %}
+  </header>
+
+  {% if album.cover %}
+    <figure class="album-cover album-page__cover" data-album-cast="{{ album.coverCast | escape }}">
+      <img src="{{ album.cover | escape }}" alt="{{ (album.coverAlt or album.basename) | escape }}" decoding="async" />
+    </figure>
+  {% endif %}
+
+  <section class="post-body prose album-page__tracks" aria-labelledby="album-tracks-title">
+    <h2 id="album-tracks-title" data-i18n="writing.albumTracks">目录</h2>
+    {% if album.tracks.length %}
+      <ol class="album-track-list">
+        {% for track in album.tracks %}
+          <li>
+            <a href="{{ track.url | escape }}">
+              <span class="album-track__number">{% if track.track < 10 %}0{% endif %}{{ track.track }}</span>
+              <span data-i18n-authored="{{ track.title | escape }}">{{ track.title | escape }}</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ol>
+    {% else %}
+      <p class="album-slide__empty" data-i18n="writing.albumTracksEmpty">文章正在装订中。</p>
+    {% endif %}
+  </section>
+
+  <nav class="post-navigation" aria-label="专辑导航">
+    <span></span>
+    <a class="post-back" href="/blog/" data-i18n="blog.post.back">返回写作</a>
+    <span></span>
+  </nav>
+</article>

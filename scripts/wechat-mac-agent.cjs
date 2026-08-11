@@ -10,12 +10,7 @@ const ROOT = path.resolve(__dirname, "..");
 const LABEL = "com.ethansmc.wechat-draft-sync";
 const DEFAULT_INTERVAL_SECONDS = 300;
 const LOCK_INITIALIZATION_GRACE_MS = 5_000;
-const PRIVATE_ENVIRONMENT_DEFAULTS = Object.freeze([
-  "WECHAT_AUTO_PUBLISH=0",
-  "WECHAT_AUTO_WITHDRAW=0",
-  "WECHAT_BROWSER_CHANNEL=chrome",
-  "WECHAT_BROWSER_HEADLESS=0",
-]);
+const PRIVATE_ENVIRONMENT_DEFAULTS = Object.freeze([]);
 
 function parseArguments(argv) {
   const options = {
@@ -118,7 +113,7 @@ function repositoryUrl(options) {
 }
 
 function environmentTemplate({ repoUrl, branch, stateFile }) {
-  return `# 微信公众号 API 凭据；只保存在这台 Mac，不提交到 Git。\nWECHAT_APP_ID=\nWECHAT_APP_SECRET=\n\n# 后台同步来源。\nWECHAT_REPO_URL=${repoUrl}\nWECHAT_SYNC_BRANCH=${branch}\nWECHAT_SYNC_REMOTE=origin\nWECHAT_SYNC_STATE_FILE=${stateFile}\n\nSITE_URL=https://ethansmc-personal-page.vercel.app\nWECHAT_AUTHOR=申名翀 Ethan\n\n# 浏览器生命周期默认关闭；完成单独验收后再逐项改为 1。\n${PRIVATE_ENVIRONMENT_DEFAULTS.join("\n")}\n\n# 默认取文章第一张本地图片作为封面；需要固定封面时取消下一行注释。\n# WECHAT_DEFAULT_COVER=assets/share-card-writing.png\n`;
+  return `# 微信公众号 API 凭据；只保存在这台 Mac，不提交到 Git。\nWECHAT_APP_ID=\nWECHAT_APP_SECRET=\n\n# 后台同步来源。\nWECHAT_REPO_URL=${repoUrl}\nWECHAT_SYNC_BRANCH=${branch}\nWECHAT_SYNC_REMOTE=origin\nWECHAT_SYNC_STATE_FILE=${stateFile}\n\nSITE_URL=https://ethansmc-personal-page.vercel.app\nWECHAT_AUTHOR=申名翀 Ethan\n\n# 默认取文章第一张本地图片作为封面；需要固定封面时取消下一行注释。\n# WECHAT_DEFAULT_COVER=assets/share-card-writing.png\n`;
 }
 
 function missingEnvironmentLines(source) {
@@ -309,11 +304,6 @@ function runAgent({
     if (force) syncArguments.push("--force");
     commandRunner(bunPath, syncArguments, { cwd: paths.checkout, env: childEnv, logger });
 
-    logger("检查微信公众号发布生命周期…");
-    const publisherScript = path.join(paths.checkout, "scripts", "wechat-publish.cjs");
-    const publisherArguments = [publisherScript, "run", "--automatic"];
-    if (dryRun) publisherArguments.push("--dry-run");
-    commandRunner(bunPath, publisherArguments, { cwd: paths.checkout, env: childEnv, logger });
     const result = {
       status: "success",
       mode: dryRun ? "dry-run" : force ? "force" : "automatic",

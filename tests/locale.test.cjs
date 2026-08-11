@@ -179,3 +179,17 @@ test("English is the final fallback when browser and IP inference are unavailabl
   assert.equal(result.siteI18n.getLocale(), "en");
   assert.equal(result.fetchCalls.length, 1);
 });
+
+test("localizes the writing showcase categories and view-all link", async () => {
+  const english = await loadBrowserI18n({ query: "?lang=en" });
+  assert.equal(english.siteI18n.t("writing.albums"), "Albums");
+  assert.equal(english.siteI18n.t("writing.independent"), "Independent writing");
+  assert.equal(english.siteI18n.t("writing.smallTalks"), "Small Talks");
+  assert.equal(english.siteI18n.t("writing.viewAll"), "View all writing");
+
+  const chinese = await loadBrowserI18n({ query: "?lang=zh" });
+  assert.equal(chinese.siteI18n.t("writing.albums"), "专辑");
+  assert.equal(chinese.siteI18n.t("writing.independent"), "独立文章");
+  assert.equal(chinese.siteI18n.t("writing.smallTalks"), "碎碎念");
+  assert.equal(chinese.siteI18n.t("writing.viewAll"), "查看全部写作");
+});

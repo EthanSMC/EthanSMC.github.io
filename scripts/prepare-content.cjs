@@ -2,9 +2,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 const MarkdownIt = require("markdown-it");
 const markdownItFootnote = require("markdown-it-footnote");
+const { parseFrontmatter } = require("./content/frontmatter.cjs");
+const { ALLOWED_CASTS, ALLOWED_KINDS, loadAlbums } = require("./content/albums.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const PUBLISHED_DIR = path.join(ROOT, "content", "published");
+const ALBUMS_DIR = path.join(ROOT, "content", "albums");
 const PAGE_SIZE = 20;
 const RESERVED_TYPES = new Set(["note", "essay"]);
 const TAG_PATTERN = /(^|(?:(?!#)[\s\p{P}\p{S}]))#([\p{L}\p{N}_-]+)/gu;
@@ -222,7 +225,9 @@ function parseTimestamp(filename) {
 
 function parsePost({ filename, source }) {
   const timestamp = parseTimestamp(filename);
-  const { cleanedSource, tags, directives } = cleanSourceAndExtractTags(source);
+  const frontmatter = parseFrontmatter(source, filename);
+  const { attributes } = frontmatter;
+  const { cleanedSource, tags, directives } = cleanSourceAndExtractTags(frontmatter.bodySource);
   if (directives.has("note") && directives.has("essay")) {
     throw new Error(`Article cannot use both #note and #essay: ${filename}`);
   }
@@ -232,10 +237,31 @@ function parsePost({ filename, source }) {
   const automaticType = /^\s{0,3}##\s+/m.test(bodySource) || Array.from(text).length > 600
     ? "Essay"
     : "Note";
-  const type = directives.has("essay") ? "Essay" : directives.has("note") ? "Note" : automaticType;
+  const legacyType = directives.has("essay") ? "Essay" : directives.has("note") ? "Note" : automaticType;
+  const kind = Object.hasOwn(attributes, "kind")
+    ? attributes.kind
+    : (legacyType === "Essay" ? "article" : "note");
+  if (!ALLOWED_KINDS.has(kind) || kind === "album") {
+    throw new Error(`Unsupported published kind in ${filename}: ${kind}`);
+  }
+  const type = kind === "article" ? "Essay" : "Note";
+  const wechat = attributes.wechat ?? true;
+  const cast = attributes.cast ?? "auto";
+  if (!ALLOWED_CASTS.has(cast)) throw new Error(`Unsupported cast in ${filename}: ${cast}`);
+  const albumReference = Object.hasOwn(attributes, "album") ? attributes.album : null;
+  const track = Object.hasOwn(attributes, "track") ? attributes.track : null;
+  if (albumReference !== null && kind !== "article") {
+    throw new Error(`Only articles may declare an album: ${filename}`);
+  }
+  if (albumReference !== null && (!Number.isInteger(track) || track <= 0)) {
+    throw new Error(`Album articles require a positive track: ${filename}`);
+  }
+  if (albumReference === null && track !== null) {
+    throw new Error(`Article track requires an album reference: ${filename}`);
+  }
   const title = authoredTitle || generatedTitle(text);
   const attachments = [];
-  for (const match of source.matchAll(MARKDOWN_ATTACHMENT_PATTERN)) {
+  for (const match of frontmatter.bodySource.matchAll(MARKDOWN_ATTACHMENT_PATTERN)) {
     const rawTarget = decodeURIComponent((match[1] || match[2]).split("#", 1)[0]);
     if (!rawTarget.startsWith("../assets/")) continue;
     const relative = path.posix.normalize(rawTarget.slice("../assets/".length));
@@ -245,6 +271,12 @@ function parsePost({ filename, source }) {
   return {
     ...timestamp,
     filename,
+    kind,
+    wechat,
+    cast,
+    albumReference,
+    albumSlug: null,
+    track,
     type,
     title,
     authoredTitle,
@@ -266,7 +298,7 @@ function chunks(values, size) {
   return result;
 }
 
-function loadBlog({ publishedDir = PUBLISHED_DIR } = {}) {
+function loadBlog({ publishedDir = PUBLISHED_DIR, albumsDir = ALBUMS_DIR } = {}) {
   const filenames = fs.existsSync(publishedDir)
     ? fs.readdirSync(publishedDir).filter((filename) => filename.endsWith(".md")).sort()
     : [];
@@ -286,6 +318,10 @@ function loadBlog({ publishedDir = PUBLISHED_DIR } = {}) {
       : null;
     post.canonicalPath = post.url;
   });
+
+  const albums = loadAlbums({ albumsDir, posts });
+  const independentArticles = posts.filter((post) => post.kind === "article" && post.albumSlug === null);
+  const smallTalks = posts.filter((post) => post.kind === "note");
 
   const tagMap = new Map();
   for (const post of posts) {
@@ -330,9 +366,15 @@ function loadBlog({ publishedDir = PUBLISHED_DIR } = {}) {
 
   return {
     posts,
+    albums,
+    independentArticles,
+    smallTalks,
     tags,
     tagPages,
-    attachments: [...new Set(posts.flatMap((post) => post.attachments))],
+    attachments: [...new Set([
+      ...posts.flatMap((post) => post.attachments),
+      ...albums.map((album) => album.coverAsset).filter(Boolean),
+    ])],
     latestEssay: posts.find((post) => post.type === "Essay") || null,
     latestNotes: posts.filter((post) => post.type === "Note").slice(0, 2),
     latestDate: posts[0]?.date || new Date("2026-07-28T00:00:00+08:00"),

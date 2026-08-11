@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { createRequire } from "node:module";
 
@@ -6,10 +9,30 @@ const require = createRequire(import.meta.url);
 const { parsePost } = require("../scripts/prepare-content.cjs");
 const {
   buildArticle,
+  buildNewspic,
   canonicalPostUrl,
   renderWechatHtml,
   truncateVisible,
 } = require("../scripts/wechat/content.cjs");
+const { selectNoteCast } = require("../scripts/wechat/note-cast.cjs");
+const {
+  NOTE_POSTER_HEIGHT,
+  NOTE_POSTER_WIDTH,
+  noteRenderInputHash,
+  paginateNote,
+  renderNotePosters,
+} = require("../scripts/wechat/note-poster.cjs");
+
+function notePost({
+  filename = "2026-08-04-120000.md",
+  frontmatter = "kind: note",
+  body = "第一段。",
+} = {}) {
+  return parsePost({
+    filename,
+    source: `---\n${frontmatter}\n---\n${body}`,
+  });
+}
 
 test("renders local Markdown images with uploaded WeChat URLs and inline styles", () => {
   const post = parsePost({
@@ -63,5 +86,614 @@ test("normalizes canonical URLs and visible truncation", () => {
   assert.equal(
     canonicalPostUrl("https://example.com/", { url: "/blog/2026/08/04/120000/" }),
     "https://example.com/blog/2026/08/04/120000/",
+  );
+});
+
+test("selects only a confident classifier cast for automatic notes", async () => {
+  for (const cast of ["mochi", "molly"]) {
+    assert.equal(
+      await selectNoteCast({ cast: "auto", text: "正文" }, {
+        classify: async () => ({ cast, confidence: 0.9 }),
+      }),
+      cast,
+    );
+  }
+});
+
+test("does not accept none from automatic classification", async () => {
+  assert.equal(
+    await selectNoteCast({ cast: "auto", text: "正文" }, {
+      classify: async () => ({ cast: "none", confidence: 0.99 }),
+    }),
+    "molly",
+  );
+});
+
+test("explicit note casts bypass classification", async () => {
+  for (const cast of ["mochi", "molly"]) {
+    assert.equal(
+      await selectNoteCast({ cast, text: "正文" }, {
+        classify: async () => {
+          throw new Error("explicit cast must not classify");
+        },
+      }),
+      cast,
+    );
+  }
+});
+
+test("keeps an explicit none cast without classification", async () => {
+  assert.equal(
+    await selectNoteCast({ cast: "none", text: "正文" }, {
+      classify: async () => {
+        throw new Error("explicit none must not classify");
+      },
+    }),
+    "none",
+  );
+});
+
+test("falls back to Molly for low-confidence, malformed, invalid, or failed classification", async () => {
+  const classifiers = [
+    async () => ({ cast: "mochi", confidence: 0.79 }),
+    async () => ({ cast: "auto", confidence: 1 }),
+    async () => ({ cast: "mochi", confidence: "0.99" }),
+    async () => null,
+    async () => { throw new Error("offline"); },
+  ];
+
+  for (const classify of classifiers) {
+    assert.equal(await selectNoteCast({ cast: "auto", text: "正文" }, { classify }), "molly");
+  }
+  assert.equal(await selectNoteCast({ cast: "snoopy", text: "正文" }, {}), "molly");
+});
+
+test("falls back to Molly when automatic classification times out", async () => {
+  const selected = await selectNoteCast({ cast: "auto", text: "正文" }, {
+    timeoutMs: 5,
+    classify: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      return { cast: "mochi", confidence: 0.99 };
+    },
+  });
+
+  assert.equal(selected, "molly");
+});
+
+test("paginates Markdown blocks in order using injected pixel measurements", () => {
+  const note = notePost({ body: "第一段。\n\n第二段。\n\n第三段。" });
+  const pages = paginateNote(note, {
+    contentHeight: 110,
+    blockGap: 10,
+    measureBlock: (block) => block.type === "title" ? 0 : 45,
+  });
+
+  assert.equal(pages.length, 2);
+  assert.deepEqual(
+    pages.map((page) => page.blocks.filter((block) => block.type !== "title").map((block) => block.text)),
+    [["第一段。", "第二段。"], ["第三段。"]],
+  );
+});
+
+test("splits oversized paragraphs by sentence and then Unicode grapheme without losing text", () => {
+  const source = "甲乙丙丁戊。👨‍👩‍👧‍👦庚辛壬癸。";
+  const note = notePost({ body: source });
+  const measureBlock = (block) => block.type === "title"
+    ? 0
+    : Array.from(new Intl.Segmenter("zh-CN", { granularity: "grapheme" }).segment(block.text)).length * 10;
+  const pages = paginateNote(note, {
+    contentHeight: 50,
+    blockGap: 0,
+    measureBlock,
+  });
+  const blocks = pages.flatMap((page) => page.blocks).filter((block) => block.type !== "title");
+
+  assert.ok(pages.length >= 1 && pages.length <= 4);
+  assert.equal(blocks.map((block) => block.text).join(""), source);
+  assert.ok(blocks.every((block) => measureBlock(block) <= 50));
+});
+
+test("packs sentence fragments into the previous page before opening another page", () => {
+  const note = notePost({
+    body: "甲乙丙丁戊己\n\n庚辛。壬癸。子丑。寅卯。",
+  });
+  const pages = paginateNote(note, {
+    contentHeight: 100,
+    blockGap: 0,
+    measureBlock: (block) => block.type === "title" ? 0 : Array.from(block.text).length * 10,
+  });
+
+  assert.equal(pages.length, 2);
+  assert.deepEqual(
+    pages.map((page) => page.blocks.filter((block) => block.type !== "title").map((block) => block.text).join("")),
+    ["甲乙丙丁戊己庚辛。", "壬癸。子丑。寅卯。"],
+  );
+});
+
+test("rejects a fifth poster page without truncating or reducing body type", () => {
+  const note = notePost({ body: "甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌" });
+
+  assert.throws(
+    () => paginateNote(note, {
+      contentHeight: 40,
+      blockGap: 0,
+      measureBlock: (block) => block.type === "title" ? 0 : Array.from(block.text).length * 10,
+    }),
+    (error) => error?.code === "content_too_long",
+  );
+});
+
+test("renders deterministic 1080 by 1440 note posters with source-date title and corner cast", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-poster-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const note = notePost({
+    frontmatter: "kind: note\ncast: mochi",
+    body: "第一段。\n\n第二段。",
+  });
+  const captures = [];
+  const capture = async (input) => {
+    captures.push(input);
+    fs.writeFileSync(input.outputPath, Buffer.from(`page-${input.index + 1}`));
+  };
+  const options = {
+    outputDir: path.join(root, "first"),
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    contentHeight: 900,
+    measureBlock: (block) => block.type === "title" ? 0 : 700,
+    capture,
+  };
+
+  const first = await renderNotePosters(note, options);
+  const second = await renderNotePosters(note, {
+    ...options,
+    outputDir: path.join(root, "second"),
+    capture: async (input) => fs.writeFileSync(input.outputPath, Buffer.from("repeat")),
+  });
+
+  assert.equal(NOTE_POSTER_WIDTH, 1080);
+  assert.equal(NOTE_POSTER_HEIGHT, 1440);
+  assert.equal(first.pages.length, 2);
+  assert.equal(first.files.length, 2);
+  assert.equal(first.cast, "mochi");
+  assert.equal(first.renderHash, second.renderHash);
+  assert.ok(first.files.every((file) => file.endsWith(".png") && fs.existsSync(file)));
+  assert.equal(captures[0].width, 1080);
+  assert.equal(captures[0].height, 1440);
+  assert.match(captures[0].svg, /碎碎念 · 2026\.08\.04/);
+  assert.match(captures[0].svg, /data-cast="mochi"/);
+  assert.match(captures[0].svg, /data:image\/jpeg;base64,/);
+  assert.doesNotMatch(captures[1].svg, /data-cast=/);
+  assert.doesNotMatch(captures[0].svg, /Ethan · example\.com/);
+  assert.match(captures[1].svg, /Ethan · example\.com/);
+});
+
+test("paginates a long authored title at fixed type size without losing title or body text", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-long-title-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const title = "把一段很长很长的中文标题完整放进海报而不是悄悄裁掉";
+  const body = "正文甲。正文乙。";
+  const note = notePost({
+    frontmatter: "kind: note\ncast: none",
+    body: `# ${title}\n\n${body}`,
+  });
+  const captures = [];
+  const result = await renderNotePosters(note, {
+    outputDir: root,
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    contentHeight: 100,
+    blockGap: 0,
+    measureBlock: (block) => Array.from(
+      new Intl.Segmenter("zh-CN", { granularity: "grapheme" }).segment(block.text),
+    ).length * (block.type === "title" ? 8 : 10),
+    capture: async (input) => { captures.push(input); },
+  });
+  const blocks = result.pages.flatMap((page) => page.blocks);
+
+  assert.equal(blocks.filter((block) => block.type === "title").map((block) => block.text).join(""), title);
+  assert.equal(blocks.filter((block) => block.type !== "title").map((block) => block.text).join(""), body);
+  assert.match(captures.map(({ svg }) => svg).join(""), /note-block--title/);
+  assert.doesNotMatch(captures.map(({ svg }) => svg).join(""), /<text[^>]*font-size="54"[^>]*>把一段很长/);
+});
+
+test("keeps the untitled fallback as one title block without repeating body text", () => {
+  const note = notePost({ body: "第一段。\n\n第二段。" });
+  const pages = paginateNote(note, {
+    contentHeight: 500,
+    blockGap: 0,
+    measureBlock: () => 50,
+  });
+  const blocks = pages.flatMap((page) => page.blocks);
+
+  assert.equal(blocks.filter((block) => block.type === "title").map((block) => block.text).join(""), "碎碎念 · 2026.08.04");
+  assert.equal(blocks.filter((block) => block.type !== "title").map((block) => block.text).join(""), "第一段。第二段。");
+});
+
+test("keeps the page-one character outside the measured content rectangle", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-cast-layout-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  let svg = "";
+  await renderNotePosters(notePost({ frontmatter: "kind: note\ncast: mochi" }), {
+    outputDir: root,
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    contentHeight: 900,
+    measureBlock: (block) => block.type === "title" ? 0 : 100,
+    capture: async (input) => { svg = input.svg; },
+  });
+
+  const content = svg.match(/<foreignObject x="\d+" y="(\d+)" width="\d+" height="(\d+)">/);
+  const cast = svg.match(/<g data-cast="mochi">[\s\S]*?<circle cx="\d+" cy="(\d+)" r="(\d+)"/);
+  assert.ok(content && cast);
+  assert.ok(Number(content[1]) + Number(content[2]) <= Number(cast[1]) - Number(cast[2]));
+});
+
+test("render hash changes with poster content and oversized rendering captures nothing", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-render-hash-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const capture = async ({ outputPath }) => fs.writeFileSync(outputPath, Buffer.from("png"));
+  const options = {
+    outputDir: path.join(root, "short"),
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    contentHeight: 100,
+    blockGap: 0,
+    measureBlock: (block) => block.type === "title" ? 0 : Array.from(block.text).length * 10,
+    capture,
+  };
+  const short = await renderNotePosters(notePost({ frontmatter: "kind: note\ncast: none", body: "短句。" }), options);
+  const changed = await renderNotePosters(notePost({ frontmatter: "kind: note\ncast: none", body: "另一句。" }), {
+    ...options,
+    outputDir: path.join(root, "changed"),
+  });
+  let captureCount = 0;
+
+  assert.notEqual(short.renderHash, changed.renderHash);
+  await assert.rejects(
+    () => renderNotePosters(notePost({
+      frontmatter: "kind: note\ncast: none",
+      body: "甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌",
+    }), {
+      ...options,
+      outputDir: path.join(root, "long"),
+      contentHeight: 40,
+      capture: async () => { captureCount += 1; },
+    }),
+    (error) => error?.code === "content_too_long",
+  );
+  assert.equal(captureCount, 0);
+});
+
+test("changes render hash when the renderer fingerprint changes", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-renderer-fingerprint-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+  const options = {
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    measureBlock: () => 50,
+    capture: async () => {},
+  };
+  const first = await renderNotePosters(note, {
+    ...options,
+    outputDir: path.join(root, "first"),
+    rendererFingerprint: "renderer-a",
+  });
+  const second = await renderNotePosters(note, {
+    ...options,
+    outputDir: path.join(root, "second"),
+    rendererFingerprint: "renderer-b",
+  });
+
+  assert.notEqual(first.renderHash, second.renderHash);
+});
+
+test("preflight render input hash changes with renderer, config, cast, and character asset", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-preflight-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const assetA = path.join(root, "a.jpg");
+  const assetB = path.join(root, "b.jpg");
+  fs.writeFileSync(assetA, Buffer.from([0xff, 0xd8, 0xff, 0x01]));
+  fs.writeFileSync(assetB, Buffer.from([0xff, 0xd8, 0xff, 0x02]));
+  const note = notePost({ frontmatter: "kind: note\ncast: molly" });
+  const baseOptions = {
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    rendererFingerprint: "renderer-a",
+    assetPaths: { mochi: assetA, molly: assetA },
+  };
+
+  const base = await noteRenderInputHash(note, baseOptions);
+  const rendererChanged = await noteRenderInputHash(note, {
+    ...baseOptions,
+    rendererFingerprint: "renderer-b",
+  });
+  const configChanged = await noteRenderInputHash(note, {
+    ...baseOptions,
+    author: "Another author",
+  });
+  const castChanged = await noteRenderInputHash(
+    notePost({ frontmatter: "kind: note\ncast: mochi" }),
+    baseOptions,
+  );
+  const assetChanged = await noteRenderInputHash(note, {
+    ...baseOptions,
+    assetPaths: { mochi: assetA, molly: assetB },
+  });
+
+  assert.equal(base.cast, "molly");
+  for (const changed of [rendererChanged, configChanged, castChanged, assetChanged]) {
+    assert.notEqual(changed.renderInputHash, base.renderInputHash);
+  }
+});
+
+test("preflight render input hash changes with font bytes and renderer runtime fingerprint", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-font-fingerprint-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const font = path.join(root, "test-font.ttf");
+  fs.writeFileSync(font, "font-v1");
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+  const options = {
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    rendererFingerprint: "renderer-v1",
+    fontPaths: [font],
+    runtimeFingerprint: "node+playwright+markdown-v1",
+  };
+
+  const first = await noteRenderInputHash(note, options);
+  fs.writeFileSync(font, "font-v2");
+  const fontChanged = await noteRenderInputHash(note, options);
+  const runtimeChanged = await noteRenderInputHash(note, {
+    ...options,
+    runtimeFingerprint: "node+playwright+markdown-v2",
+  });
+
+  assert.notEqual(fontChanged.renderInputHash, first.renderInputHash);
+  assert.notEqual(runtimeChanged.renderInputHash, fontChanged.renderInputHash);
+});
+
+test("preflight render input hash tracks the configured Chrome executable and bundle metadata", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-chrome-fingerprint-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const firstApp = path.join(root, "First Chrome.app", "Contents");
+  const firstExecutable = path.join(firstApp, "MacOS", "Google Chrome");
+  const firstPlist = path.join(firstApp, "Info.plist");
+  const secondExecutable = path.join(root, "Second Chrome");
+  fs.mkdirSync(path.dirname(firstExecutable), { recursive: true });
+  fs.writeFileSync(firstExecutable, "chrome-v1");
+  fs.chmodSync(firstExecutable, 0o755);
+  fs.writeFileSync(firstPlist, "version-1");
+  fs.writeFileSync(secondExecutable, "chrome-v2");
+  fs.chmodSync(secondExecutable, 0o755);
+  const previousExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  t.after(() => {
+    if (previousExecutable === undefined) delete process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    else process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = previousExecutable;
+  });
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+  const options = {
+    rendererFingerprint: "renderer-v1",
+    fontFingerprint: "fonts-v1",
+    runtimeFingerprint: "runtime-v1",
+    environmentCache: false,
+  };
+
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = firstExecutable;
+  const first = await noteRenderInputHash(note, options);
+  fs.writeFileSync(firstExecutable, "chrome-v2");
+  const executableChanged = await noteRenderInputHash(note, options);
+  fs.chmodSync(firstExecutable, 0o775);
+  const statChanged = await noteRenderInputHash(note, options);
+  fs.writeFileSync(firstPlist, "version-2");
+  const bundleChanged = await noteRenderInputHash(note, options);
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = secondExecutable;
+  const pathChanged = await noteRenderInputHash(note, options);
+
+  assert.notEqual(executableChanged.renderInputHash, first.renderInputHash);
+  assert.notEqual(statChanged.renderInputHash, executableChanged.renderInputHash);
+  assert.notEqual(bundleChanged.renderInputHash, statChanged.renderInputHash);
+  assert.notEqual(pathChanged.renderInputHash, bundleChanged.renderInputHash);
+});
+
+test("preflight render input hash distinguishes Node-only and Bun process runtimes", async () => {
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+  const options = {
+    rendererFingerprint: "renderer-v1",
+    fontFingerprint: "fonts-v1",
+    browserFingerprint: "browser-v1",
+    environmentCache: false,
+  };
+
+  const node = await noteRenderInputHash(note, {
+    ...options,
+    runtimeVersions: { node: "22.0.0", bun: null },
+  });
+  const bun = await noteRenderInputHash(note, {
+    ...options,
+    runtimeVersions: { node: "22.0.0", bun: "1.2.3" },
+  });
+
+  assert.notEqual(bun.renderInputHash, node.renderInputHash);
+});
+
+test("preflight discovers nested fallback fonts and ignores symlinked font entries", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-font-discovery-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const fontRoot = path.join(root, "Fonts");
+  const supplemental = path.join(fontRoot, "Supplemental");
+  const baseFont = path.join(fontRoot, "Base.ttf");
+  const fallbackFont = path.join(supplemental, "Unlisted Fallback.otf");
+  const externalFont = path.join(root, "external.ttf");
+  fs.mkdirSync(supplemental, { recursive: true });
+  fs.writeFileSync(baseFont, "base-v1");
+  fs.writeFileSync(externalFont, "external-v1");
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+  const options = {
+    rendererFingerprint: "renderer-v1",
+    fontDirectories: [fontRoot],
+    runtimeFingerprint: "runtime-v1",
+    browserFingerprint: "browser-v1",
+    environmentCache: false,
+  };
+
+  const base = await noteRenderInputHash(note, options);
+  fs.writeFileSync(fallbackFont, "fallback-v1");
+  const added = await noteRenderInputHash(note, options);
+  fs.writeFileSync(fallbackFont, "fallback-v2");
+  const changed = await noteRenderInputHash(note, options);
+  fs.symlinkSync(externalFont, path.join(fontRoot, "Symlinked.ttf"));
+  const withSymlink = await noteRenderInputHash(note, options);
+  fs.writeFileSync(externalFont, "external-v2");
+  const externalChanged = await noteRenderInputHash(note, options);
+
+  assert.notEqual(added.renderInputHash, base.renderInputHash);
+  assert.notEqual(changed.renderInputHash, added.renderInputHash);
+  assert.equal(withSymlink.renderInputHash, changed.renderInputHash);
+  assert.equal(externalChanged.renderInputHash, withSymlink.renderInputHash);
+});
+
+test("preflight memoizes injected font discovery unless environment cache is disabled", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-font-memo-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const font = path.join(root, "Memo.ttf");
+  fs.writeFileSync(font, "memo-font");
+  let discoveries = 0;
+  const discoverFontPaths = () => {
+    discoveries += 1;
+    return [font];
+  };
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+  const options = {
+    rendererFingerprint: "renderer-v1",
+    discoverFontPaths,
+    runtimeFingerprint: "runtime-v1",
+    browserFingerprint: "browser-v1",
+    environmentCacheKey: `font-memo-${root}`,
+  };
+
+  const first = await noteRenderInputHash(note, options);
+  const second = await noteRenderInputHash(note, options);
+  const uncached = await noteRenderInputHash(note, { ...options, environmentCache: false });
+
+  assert.equal(second.renderInputHash, first.renderInputHash);
+  assert.equal(uncached.renderInputHash, first.renderInputHash);
+  assert.equal(discoveries, 2);
+});
+
+test("renders with the preflight cast without classifying a second time", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-resolved-cast-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  let classifierCalls = 0;
+
+  const rendered = await renderNotePosters(notePost(), {
+    outputDir: root,
+    resolvedCast: "mochi",
+    classify: async () => {
+      classifierCalls += 1;
+      return { cast: "molly", confidence: 1 };
+    },
+    measureBlock: () => 50,
+    capture: async () => {},
+  });
+
+  assert.equal(rendered.cast, "mochi");
+  assert.equal(classifierCalls, 0);
+});
+
+test("uses an OS temporary directory when no poster output directory is supplied", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-default-output-root-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const rendered = await renderNotePosters(
+    notePost({ frontmatter: "kind: note\ncast: none" }),
+    {
+      root,
+      measureBlock: () => 50,
+      capture: async ({ outputPath }) => fs.writeFileSync(outputPath, "png"),
+    },
+  );
+  t.after(() => fs.rmSync(path.dirname(rendered.files[0]), { recursive: true, force: true }));
+
+  assert.ok(rendered.files.every((filename) => path.basename(path.dirname(filename)).startsWith("wechat-note-poster-")));
+  assert.ok(rendered.files.every((filename) => path.relative(root, filename).startsWith("..")));
+  assert.equal(fs.existsSync(path.join(root, ".wechat-sync", "generated")), false);
+});
+
+test("closes a launched browser exactly once when poster browser initialization fails", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-browser-init-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+
+  for (const failureStep of ["newPage", "setContent", "fonts"]) {
+    let closeCount = 0;
+    const page = {
+      setContent: async () => {
+        if (failureStep === "setContent") throw new Error("setContent failed");
+      },
+      evaluate: async () => {
+        if (failureStep === "fonts") throw new Error("fonts failed");
+      },
+    };
+    const browser = {
+      newPage: async () => {
+        if (failureStep === "newPage") throw new Error("newPage failed");
+        return page;
+      },
+      close: async () => { closeCount += 1; },
+    };
+
+    await assert.rejects(
+      () => renderNotePosters(note, {
+        outputDir: path.join(root, failureStep),
+        author: "Ethan",
+        siteUrl: "https://example.com",
+        launchBrowser: async () => browser,
+      }),
+      new RegExp(`${failureStep} failed`),
+    );
+    assert.equal(closeCount, 1, failureStep);
+  }
+});
+
+test("bundles the fixed Mochi and Molly characters as real JPEG files", () => {
+  for (const filename of ["mochi-note.jpg", "molly-note.jpg"]) {
+    const data = fs.readFileSync(path.join(import.meta.dirname, "..", "assets", "writing", filename));
+    assert.deepEqual([...data.subarray(0, 3)], [0xff, 0xd8, 0xff]);
+  }
+});
+
+test("builds a native newspic draft with one to four poster media ids", () => {
+  const note = notePost({ body: "今天完成了一次小迭代。" });
+  const imageMediaIds = ["poster-1", "poster-2"];
+  const article = buildNewspic(note, {
+    imageMediaIds,
+    author: "一位名字特别特别长的微信公众号作者",
+    siteUrl: "https://example.com/",
+  });
+
+  assert.equal(article.article_type, "newspic");
+  assert.equal(article.title, "碎碎念 · 2026.08.04");
+  assert.ok(Array.from(article.author).length <= 16);
+  assert.ok(Array.from(article.digest).length <= 120);
+  assert.equal(article.content, "今天完成了一次小迭代。");
+  assert.equal(article.content_source_url, "https://example.com/blog/2026/08/04/120000/");
+  assert.deepEqual(
+    article.image_info.image_list,
+    imageMediaIds.map((image_media_id) => ({ image_media_id })),
+  );
+  assert.equal(Object.hasOwn(article, "thumb_media_id"), false);
+});
+
+test("rejects newspic drafts without one to four valid image media ids", () => {
+  const note = notePost();
+  const input = { author: "Ethan", siteUrl: "https://example.com" };
+
+  assert.throws(() => buildNewspic(note, { ...input, imageMediaIds: [] }), /one to four/i);
+  assert.throws(() => buildNewspic(note, { ...input, imageMediaIds: ["ok", ""] }), /media id/i);
+  assert.throws(
+    () => buildNewspic(note, { ...input, imageMediaIds: ["1", "2", "3", "4", "5"] }),
+    (error) => error?.code === "content_too_long",
   );
 });
