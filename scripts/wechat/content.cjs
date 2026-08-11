@@ -121,6 +121,55 @@ function buildArticle(post, { author, coverMediaId, imageUrls, siteUrl }) {
   };
 }
 
+function noteSourceDate(post) {
+  if (/^\d{4}\.\d{2}\.\d{2}$/u.test(post.display || "")) return post.display;
+  const source = [post.iso, post.id, post.filename]
+    .find((value) => /^\d{4}-\d{2}-\d{2}/u.test(value || ""));
+  if (!source) throw new Error(`WeChat newspic requires a source date: ${post.filename || "unknown note"}`);
+  return source.slice(0, 10).replaceAll("-", ".");
+}
+
+function noteDraftTitle(post) {
+  if (typeof post.authoredTitle === "string") {
+    return post.authoredTitle.trim() || `碎碎念 · ${noteSourceDate(post)}`;
+  }
+  return String(post.title || "").trim() || `碎碎念 · ${noteSourceDate(post)}`;
+}
+
+function buildNewspic(post, { imageMediaIds, author, siteUrl }) {
+  if (!Array.isArray(imageMediaIds) || imageMediaIds.length === 0) {
+    throw new Error("WeChat newspic requires one to four poster images");
+  }
+  if (imageMediaIds.length > 4) {
+    const error = new Error("WeChat newspic cannot contain more than four poster images");
+    error.code = "content_too_long";
+    throw error;
+  }
+  if (imageMediaIds.some((mediaId) => typeof mediaId !== "string" || !mediaId.trim())) {
+    throw new Error("WeChat newspic image media id must not be empty");
+  }
+
+  const title = truncateVisible(noteDraftTitle(post), 32);
+  const normalizedAuthor = truncateVisible(author || "", 16);
+  const content = truncateVisible(post.text || post.summary || "", 1_000);
+  const digest = truncateVisible(post.summary || content, 120);
+  if (!title) throw new Error(`WeChat newspic title is empty: ${post.filename}`);
+
+  return {
+    article_type: "newspic",
+    title,
+    author: normalizedAuthor,
+    digest,
+    content,
+    content_source_url: canonicalPostUrl(siteUrl, post),
+    image_info: {
+      image_list: imageMediaIds.map((image_media_id) => ({ image_media_id })),
+    },
+    need_open_comment: 0,
+    only_fans_can_comment: 0,
+  };
+}
+
 function collectPostAssets(root, post) {
   return post.attachments.map((relative) => {
     const absolutePath = path.resolve(root, "content", "assets", relative);
@@ -148,6 +197,7 @@ function publicationFingerprint({ source, assets, author, siteUrl, coverHash }) 
 module.exports = {
   RENDERER_VERSION,
   buildArticle,
+  buildNewspic,
   canonicalPostUrl,
   collectPostAssets,
   hashBuffer,
