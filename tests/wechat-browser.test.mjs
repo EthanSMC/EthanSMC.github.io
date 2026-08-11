@@ -16,6 +16,7 @@ const {
 } = require("../scripts/wechat/browser-session.cjs");
 const { chromium } = require("playwright-core");
 const {
+  livePublishedListReadiness,
   WechatBrowserAdapter,
 } = require("../scripts/wechat/browser-publisher.cjs");
 
@@ -421,7 +422,7 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
 
       assert.deepEqual(await adapter.checkSession(), { authenticated: true });
       assert.equal(
-        await page.getByRole("button", { name: "内容管理", exact: true }).getAttribute("aria-expanded"),
+        await page.locator(".weui-desktop-menu__link").getAttribute("aria-expanded"),
         "true",
       );
 
@@ -586,6 +587,23 @@ test("deterministic WeChat page adapter works against semantic fixtures", async 
         }),
         { kind: "absent" },
       );
+    });
+
+    await t.test("accepts a live published list only when its stated total is fully rendered", async () => {
+      await page.setContent(`
+        <main class="publish_history_page">
+          <header>发表记录 <span>全部 3</span></header>
+          <section class="publish_content publish_record_history">
+            <article class="weui-desktop-block">第一篇</article>
+            <article class="weui-desktop-block">第二篇</article>
+            <article class="weui-desktop-block">第三篇</article>
+          </section>
+        </main>
+      `);
+      assert.deepEqual(await livePublishedListReadiness({ page }), { kind: "complete" });
+
+      await page.locator(".weui-desktop-block").last().evaluate((element) => element.remove());
+      assert.deepEqual(await livePublishedListReadiness({ page }), { kind: "partial" });
     });
 
     await t.test("rejects loading, partial, and paginated published lists as global ambiguity", async () => {

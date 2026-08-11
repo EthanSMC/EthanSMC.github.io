@@ -6,6 +6,7 @@ const { loadEnvFile } = require("./wechat/env.cjs");
 const { launchWechatContext } = require("./wechat/browser-session.cjs");
 const {
   BROWSER_ERROR_CODES,
+  livePublishedListReadiness,
   WechatBrowserAdapter,
 } = require("./wechat/browser-publisher.cjs");
 const { loadState, saveState } = require("./wechat/state.cjs");
@@ -125,7 +126,9 @@ async function defaultOpenAdapter(config, headed = false) {
     const page = pages[0] || await context.newPage();
     await page.goto("https://mp.weixin.qq.com/");
     return {
-      adapter: new WechatBrowserAdapter(page),
+      adapter: new WechatBrowserAdapter(page, {
+        publishedListReadiness: livePublishedListReadiness,
+      }),
       close: () => context.close(),
     };
   } catch (error) {

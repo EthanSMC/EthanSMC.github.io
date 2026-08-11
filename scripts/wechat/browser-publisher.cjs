@@ -156,6 +156,43 @@ async function revealContentNavigation(page, errorCode) {
   return links;
 }
 
+async function livePublishedListReadiness({ page }) {
+  const roots = await visibleLocators(page.locator(".publish_history_page"));
+  if (roots.length !== 1) return { kind: "unrecognized" };
+
+  const loading = await visibleLocators(
+    roots[0].locator('.weui-desktop-loading, [class*="loading"]'),
+  );
+  if (loading.length > 0) return { kind: "loading" };
+
+  const contents = await visibleLocators(
+    roots[0].locator(".publish_content.publish_record_history"),
+  );
+  if (contents.length === 0) return { kind: "loading" };
+  if (contents.length !== 1) return { kind: "unrecognized" };
+
+  const pagination = await visibleLocators(
+    roots[0].locator('.weui-desktop-pagination, .pagination, [class*="pagination"], [class*="page_nav"]'),
+  );
+  const nextLinks = await visibleLocators(
+    roots[0].getByRole("link", { name: /下一页/ }),
+  );
+  const nextButtons = await visibleLocators(
+    roots[0].getByRole("button", { name: /下一页/ }),
+  );
+  if (pagination.length > 0 || nextLinks.length > 0 || nextButtons.length > 0) {
+    return { kind: "paginated" };
+  }
+
+  const totalMatch = (await roots[0].innerText()).match(/全部\s*(\d+)/);
+  if (!totalMatch) return { kind: "partial" };
+  const expectedCount = Number(totalMatch[1]);
+  const records = await visibleLocators(
+    contents[0].locator(":scope > .weui-desktop-block"),
+  );
+  return records.length === expectedCount ? { kind: "complete" } : { kind: "partial" };
+}
+
 function normalizedUrl(value) {
   if (!value) return null;
   try {
@@ -610,4 +647,5 @@ module.exports = {
   WechatBrowserAdapter,
   browserError,
   detectGlobalBlocker,
+  livePublishedListReadiness,
 };
