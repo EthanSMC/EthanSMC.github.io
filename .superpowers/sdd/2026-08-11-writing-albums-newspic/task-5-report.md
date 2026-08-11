@@ -139,3 +139,41 @@ No dependency or lockfile changed. The worktree's pre-existing untracked `node_m
 
 - Successful standalone calls to `renderNotePosters()` without `outputDir` return files in a unique OS temporary directory; the caller owns those returned files. Task 5 sync always supplies and cleans its own enclosing temporary directory.
 - The previously classified full-suite Chrome sandbox failure was not rerun because this review used injected capture/render functions and the requested focused suites. No business assertion was skipped.
+
+## Review fix round 3/5
+
+### Finding addressed
+
+- `renderInputHash` and the authoritative `renderHash` now include the actual browser runtime fingerprint without launching Chrome: the configured `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` or explicit renderer path wins, otherwise the system/user Google Chrome channel candidates are resolved.
+- Chrome identity covers the configured path, resolved real path, executable mode/size/timestamps/inode, bounded-memory SHA-256 content digest, and the containing app bundle's `Info.plist` content/stat fingerprint when present. Missing or invalid executables produce a deterministic non-launching fingerprint.
+- Current process identity explicitly includes Node and Bun independently. Node-only processes hash `bun: null`; Bun processes include `Bun.version`. `markdown-it` and `playwright-core` versions remain part of the runtime fingerprint.
+- Default font discovery now walks `/System/Library/Fonts`, `/Library/Fonts`, and the current user's `Library/Fonts` with stable ordering, fixed depth/file limits, supported macOS font extensions, non-following `lstat` checks, and `O_NOFOLLOW` file opens. Symlinked files/directories and unreadable entries are ignored rather than followed.
+- Every accepted font fingerprint covers its path, opened-file stat identity, and bounded-memory content digest. Only the final aggregate hash is stored through `renderInputHash`; user paths are not persisted in state.
+- Environment and file fingerprints are memoized in process. Normal Task 5 preflight and rendering share the result across posts; tests and callers can inject executable/font/runtime inputs, provide `discoverFontPaths`, choose an explicit cache key, or set `environmentCache: false` to recompute.
+- Cache-hit behavior remains unchanged: valid source/input/manifest records perform zero classifier, renderer, browser launch, or WeChat API work.
+- Scope remains draft-box only. No network, live Chrome, WeChat, publishing, withdrawal, Task 6 Mac Agent, package, or documentation behavior was changed.
+
+### TDD evidence
+
+- RED: 4/4 focused regressions failed because Chrome executable/path/stat/bundle changes, Node-vs-Bun identity, discovered fallback fonts, and injected discovery memoization did not affect the environment key.
+- GREEN: 4/4 pass. Fake executable content/mode/path and fake `Info.plist` changes each alter the key; Bun identity differs from Node-only; nested unlisted font addition/content changes alter the key while symlink-target changes do not; injected discovery runs once for cached calls and once more when caching is explicitly disabled.
+- Existing unchanged-note sync coverage remains green with zero render/classifier/browser/API calls.
+
+### Verification
+
+- `node --check scripts/wechat/note-poster.cjs` — PASS.
+- `node --test tests/wechat-content.test.mjs tests/wechat-sync.test.mjs` — PASS, 78/78, 0 skipped.
+- `pnpm build` — PASS; Eleventy wrote 20 files.
+- `git diff --check` — PASS.
+- No dependency or lockfile changed.
+
+### Files
+
+- `scripts/wechat/note-poster.cjs`
+- `tests/wechat-content.test.mjs`
+- `.superpowers/sdd/2026-08-11-writing-albums-newspic/task-5-report.md`
+
+### Remaining concerns
+
+- The first default environment fingerprint in a process reads the selected Chrome executable and discovered font files; subsequent posts reuse the memoized result. A new process or explicit cache disable intentionally recomputes it.
+- Full-suite live Chrome verification remains outside this draft-only, non-launching review. No business assertion was skipped.

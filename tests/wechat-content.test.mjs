@@ -454,6 +454,134 @@ test("preflight render input hash changes with font bytes and renderer runtime f
   assert.notEqual(runtimeChanged.renderInputHash, fontChanged.renderInputHash);
 });
 
+test("preflight render input hash tracks the configured Chrome executable and bundle metadata", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-chrome-fingerprint-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const firstApp = path.join(root, "First Chrome.app", "Contents");
+  const firstExecutable = path.join(firstApp, "MacOS", "Google Chrome");
+  const firstPlist = path.join(firstApp, "Info.plist");
+  const secondExecutable = path.join(root, "Second Chrome");
+  fs.mkdirSync(path.dirname(firstExecutable), { recursive: true });
+  fs.writeFileSync(firstExecutable, "chrome-v1");
+  fs.chmodSync(firstExecutable, 0o755);
+  fs.writeFileSync(firstPlist, "version-1");
+  fs.writeFileSync(secondExecutable, "chrome-v2");
+  fs.chmodSync(secondExecutable, 0o755);
+  const previousExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  t.after(() => {
+    if (previousExecutable === undefined) delete process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    else process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = previousExecutable;
+  });
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+  const options = {
+    rendererFingerprint: "renderer-v1",
+    fontFingerprint: "fonts-v1",
+    runtimeFingerprint: "runtime-v1",
+    environmentCache: false,
+  };
+
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = firstExecutable;
+  const first = await noteRenderInputHash(note, options);
+  fs.writeFileSync(firstExecutable, "chrome-v2");
+  const executableChanged = await noteRenderInputHash(note, options);
+  fs.chmodSync(firstExecutable, 0o775);
+  const statChanged = await noteRenderInputHash(note, options);
+  fs.writeFileSync(firstPlist, "version-2");
+  const bundleChanged = await noteRenderInputHash(note, options);
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = secondExecutable;
+  const pathChanged = await noteRenderInputHash(note, options);
+
+  assert.notEqual(executableChanged.renderInputHash, first.renderInputHash);
+  assert.notEqual(statChanged.renderInputHash, executableChanged.renderInputHash);
+  assert.notEqual(bundleChanged.renderInputHash, statChanged.renderInputHash);
+  assert.notEqual(pathChanged.renderInputHash, bundleChanged.renderInputHash);
+});
+
+test("preflight render input hash distinguishes Node-only and Bun process runtimes", async () => {
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+  const options = {
+    rendererFingerprint: "renderer-v1",
+    fontFingerprint: "fonts-v1",
+    browserFingerprint: "browser-v1",
+    environmentCache: false,
+  };
+
+  const node = await noteRenderInputHash(note, {
+    ...options,
+    runtimeVersions: { node: "22.0.0", bun: null },
+  });
+  const bun = await noteRenderInputHash(note, {
+    ...options,
+    runtimeVersions: { node: "22.0.0", bun: "1.2.3" },
+  });
+
+  assert.notEqual(bun.renderInputHash, node.renderInputHash);
+});
+
+test("preflight discovers nested fallback fonts and ignores symlinked font entries", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-font-discovery-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const fontRoot = path.join(root, "Fonts");
+  const supplemental = path.join(fontRoot, "Supplemental");
+  const baseFont = path.join(fontRoot, "Base.ttf");
+  const fallbackFont = path.join(supplemental, "Unlisted Fallback.otf");
+  const externalFont = path.join(root, "external.ttf");
+  fs.mkdirSync(supplemental, { recursive: true });
+  fs.writeFileSync(baseFont, "base-v1");
+  fs.writeFileSync(externalFont, "external-v1");
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+  const options = {
+    rendererFingerprint: "renderer-v1",
+    fontDirectories: [fontRoot],
+    runtimeFingerprint: "runtime-v1",
+    browserFingerprint: "browser-v1",
+    environmentCache: false,
+  };
+
+  const base = await noteRenderInputHash(note, options);
+  fs.writeFileSync(fallbackFont, "fallback-v1");
+  const added = await noteRenderInputHash(note, options);
+  fs.writeFileSync(fallbackFont, "fallback-v2");
+  const changed = await noteRenderInputHash(note, options);
+  fs.symlinkSync(externalFont, path.join(fontRoot, "Symlinked.ttf"));
+  const withSymlink = await noteRenderInputHash(note, options);
+  fs.writeFileSync(externalFont, "external-v2");
+  const externalChanged = await noteRenderInputHash(note, options);
+
+  assert.notEqual(added.renderInputHash, base.renderInputHash);
+  assert.notEqual(changed.renderInputHash, added.renderInputHash);
+  assert.equal(withSymlink.renderInputHash, changed.renderInputHash);
+  assert.equal(externalChanged.renderInputHash, withSymlink.renderInputHash);
+});
+
+test("preflight memoizes injected font discovery unless environment cache is disabled", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-font-memo-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const font = path.join(root, "Memo.ttf");
+  fs.writeFileSync(font, "memo-font");
+  let discoveries = 0;
+  const discoverFontPaths = () => {
+    discoveries += 1;
+    return [font];
+  };
+  const note = notePost({ frontmatter: "kind: note\ncast: none" });
+  const options = {
+    rendererFingerprint: "renderer-v1",
+    discoverFontPaths,
+    runtimeFingerprint: "runtime-v1",
+    browserFingerprint: "browser-v1",
+    environmentCacheKey: `font-memo-${root}`,
+  };
+
+  const first = await noteRenderInputHash(note, options);
+  const second = await noteRenderInputHash(note, options);
+  const uncached = await noteRenderInputHash(note, { ...options, environmentCache: false });
+
+  assert.equal(second.renderInputHash, first.renderInputHash);
+  assert.equal(uncached.renderInputHash, first.renderInputHash);
+  assert.equal(discoveries, 2);
+});
+
 test("renders with the preflight cast without classifying a second time", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-resolved-cast-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

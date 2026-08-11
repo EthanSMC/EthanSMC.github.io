@@ -24,24 +24,25 @@ const DEFAULT_CAST_ASSETS = {
   mochi: path.resolve(__dirname, "..", "..", "assets", "writing", "mochi-note.jpg"),
   molly: path.resolve(__dirname, "..", "..", "assets", "writing", "molly-note.jpg"),
 };
-const DEFAULT_FONT_PATHS = [
-  "/System/Library/Fonts/PingFang.ttc",
-  "/System/Library/Fonts/PingFangUI.ttc",
-  "/System/Library/Fonts/Hiragino Sans GB.ttc",
-  "/System/Library/Fonts/Menlo.ttc",
-  "/System/Library/Fonts/Supplemental/Arial.ttf",
-  "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+const DEFAULT_FONT_DIRECTORIES = [
+  "/System/Library/Fonts",
+  "/Library/Fonts",
+  path.join(os.homedir(), "Library", "Fonts"),
 ];
+const DEFAULT_CHROME_EXECUTABLES = [
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  path.join(os.homedir(), "Applications", "Google Chrome.app", "Contents", "MacOS", "Google Chrome"),
+];
+const FONT_EXTENSIONS = new Set([".dfont", ".otc", ".otf", ".ttc", ".ttf"]);
+const DEFAULT_MAX_FONT_FILES = 1_024;
+const ABSOLUTE_MAX_FONT_FILES = 2_048;
+const DEFAULT_MAX_FONT_DEPTH = 4;
+const FILE_FINGERPRINT_CACHE = new Map();
+const ENVIRONMENT_FINGERPRINT_CACHE = new Map();
 const DEFAULT_RENDERER_FINGERPRINT = filesFingerprint([
   __filename,
   path.resolve(__dirname, "note-cast.cjs"),
 ]);
-const DEFAULT_FONT_FINGERPRINT = filesFingerprint(DEFAULT_FONT_PATHS);
-const DEFAULT_RUNTIME_FINGERPRINT = hash(JSON.stringify({
-  node: process.versions.node,
-  markdownIt: packageVersion("markdown-it"),
-  playwrightCore: packageVersion("playwright-core"),
-}));
 
 const BLOCK_CSS = `
 .note-block {
@@ -535,12 +536,257 @@ function packageVersion(packageName) {
   }
 }
 
-function renderEnvironmentFingerprints(options) {
+function boundedInteger(value, fallback, maximum) {
+  return Number.isInteger(value) && value > 0 ? Math.min(value, maximum) : fallback;
+}
+
+function statMetadata(stat) {
   return {
-    fontFingerprint: options.fontFingerprint
-      ?? (options.fontPaths ? filesFingerprint(options.fontPaths) : DEFAULT_FONT_FINGERPRINT),
-    runtimeFingerprint: options.runtimeFingerprint ?? DEFAULT_RUNTIME_FINGERPRINT,
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    mode: String(stat.mode),
+    size: String(stat.size),
+    mtimeNs: String(stat.mtimeNs),
+    ctimeNs: String(stat.ctimeNs),
   };
+}
+
+function descriptorDigest(fileDescriptor) {
+  const digest = crypto.createHash("sha256");
+  const buffer = Buffer.allocUnsafe(1024 * 1024);
+  let bytesRead;
+  do {
+    bytesRead = fs.readSync(fileDescriptor, buffer, 0, buffer.length, null);
+    if (bytesRead > 0) digest.update(buffer.subarray(0, bytesRead));
+  } while (bytesRead > 0);
+  return digest.digest("hex");
+}
+
+function regularFileFingerprint(filename, {
+  realpath = false,
+  requireExecutable = false,
+  useCache = true,
+} = {}) {
+  if (typeof filename !== "string" || !filename) return null;
+  const absolutePath = path.resolve(filename);
+  let resolvedPath = absolutePath;
+  try {
+    if (realpath) resolvedPath = fs.realpathSync.native(absolutePath);
+    const before = fs.lstatSync(resolvedPath, { bigint: true });
+    if (!before.isFile() || before.isSymbolicLink()) return null;
+    const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0);
+    const descriptor = fs.openSync(resolvedPath, flags);
+    try {
+      const opened = fs.fstatSync(descriptor, { bigint: true });
+      if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino) return null;
+      if (requireExecutable && (opened.mode & 0o111n) === 0n) return null;
+      const metadata = statMetadata(opened);
+      const cacheKey = JSON.stringify([resolvedPath, metadata]);
+      if (useCache && FILE_FINGERPRINT_CACHE.has(cacheKey)) return FILE_FINGERPRINT_CACHE.get(cacheKey);
+      const fingerprint = hash(JSON.stringify({
+        path: resolvedPath,
+        stat: metadata,
+        content: descriptorDigest(descriptor),
+      }));
+      if (useCache) FILE_FINGERPRINT_CACHE.set(cacheKey, fingerprint);
+      return fingerprint;
+    } finally {
+      fs.closeSync(descriptor);
+    }
+  } catch (error) {
+    if (["EACCES", "ELOOP", "ENOENT", "ENOTDIR", "EPERM"].includes(error?.code)) return null;
+    throw error;
+  }
+}
+
+function discoverFontFiles({ directories, maxFiles, maxDepth }) {
+  const fonts = [];
+  const visitedDirectories = new Set();
+  const visit = (directory, depth) => {
+    if (fonts.length >= maxFiles) return;
+    let directoryStat;
+    try {
+      directoryStat = fs.lstatSync(directory, { bigint: true });
+    } catch (error) {
+      if (["EACCES", "ENOENT", "ENOTDIR", "EPERM"].includes(error?.code)) return;
+      throw error;
+    }
+    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) return;
+    const directoryIdentity = `${directoryStat.dev}:${directoryStat.ino}`;
+    if (visitedDirectories.has(directoryIdentity)) return;
+    visitedDirectories.add(directoryIdentity);
+    let entries;
+    try {
+      entries = fs.readdirSync(directory).sort((left, right) => left.localeCompare(right, "en"));
+    } catch (error) {
+      if (["EACCES", "ENOENT", "ENOTDIR", "EPERM"].includes(error?.code)) return;
+      throw error;
+    }
+    for (const entry of entries) {
+      if (fonts.length >= maxFiles) break;
+      const candidate = path.join(directory, entry);
+      let stat;
+      try {
+        stat = fs.lstatSync(candidate);
+      } catch (error) {
+        if (["EACCES", "ELOOP", "ENOENT", "ENOTDIR", "EPERM"].includes(error?.code)) continue;
+        throw error;
+      }
+      if (stat.isSymbolicLink()) continue;
+      if (stat.isDirectory()) {
+        if (depth < maxDepth) visit(candidate, depth + 1);
+        continue;
+      }
+      if (stat.isFile() && FONT_EXTENSIONS.has(path.extname(entry).toLowerCase())) fonts.push(candidate);
+    }
+  };
+  for (const directory of [...new Set(directories.map((entry) => path.resolve(entry)))].sort()) {
+    visit(directory, 0);
+  }
+  return fonts.sort((left, right) => left.localeCompare(right, "en"));
+}
+
+function fontFingerprint(options, useCache) {
+  if (options.fontFingerprint !== undefined) return options.fontFingerprint;
+  const maxFiles = boundedInteger(options.maxFontFiles, DEFAULT_MAX_FONT_FILES, ABSOLUTE_MAX_FONT_FILES);
+  const maxDepth = boundedInteger(options.maxFontDepth, DEFAULT_MAX_FONT_DEPTH, 8);
+  const directories = Array.isArray(options.fontDirectories)
+    ? options.fontDirectories
+    : DEFAULT_FONT_DIRECTORIES;
+  let filenames;
+  if (Array.isArray(options.fontPaths)) {
+    filenames = options.fontPaths;
+  } else if (typeof options.discoverFontPaths === "function") {
+    filenames = options.discoverFontPaths({
+      directories: [...directories],
+      extensions: [...FONT_EXTENSIONS].sort(),
+      maxDepth,
+      maxFiles,
+    });
+    if (!Array.isArray(filenames)) throw new Error("Font discovery must return an array of paths");
+  } else {
+    filenames = discoverFontFiles({ directories, maxFiles, maxDepth });
+  }
+  const fingerprints = [...new Set(filenames
+    .filter((filename) => typeof filename === "string" && filename)
+    .map((filename) => path.resolve(filename)))]
+    .sort((left, right) => left.localeCompare(right, "en"))
+    .slice(0, maxFiles)
+    .map((filename) => regularFileFingerprint(filename, { useCache }))
+    .filter(Boolean);
+  return hash(JSON.stringify(fingerprints));
+}
+
+function currentRuntimeVersions() {
+  return {
+    node: typeof process.versions?.node === "string" ? process.versions.node : null,
+    bun: typeof globalThis.Bun?.version === "string" ? globalThis.Bun.version : null,
+  };
+}
+
+function runtimeFingerprint(options) {
+  if (options.runtimeFingerprint !== undefined) return options.runtimeFingerprint;
+  const versions = options.runtimeVersions || currentRuntimeVersions();
+  return hash(JSON.stringify({
+    node: typeof versions.node === "string" ? versions.node : null,
+    bun: typeof versions.bun === "string" ? versions.bun : null,
+    markdownIt: packageVersion("markdown-it"),
+    playwrightCore: packageVersion("playwright-core"),
+  }));
+}
+
+function chromeBundleInfoPath(executablePath) {
+  let current = path.dirname(executablePath);
+  while (current !== path.dirname(current)) {
+    if (path.basename(current) === "Contents") return path.join(current, "Info.plist");
+    current = path.dirname(current);
+  }
+  return null;
+}
+
+function browserFingerprint(options, useCache) {
+  if (options.browserFingerprint !== undefined) return options.browserFingerprint;
+  const configuredPath = options.executablePath
+    || options.browserLaunchOptions?.executablePath
+    || process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  const candidates = Array.isArray(options.chromeExecutablePaths)
+    ? options.chromeExecutablePaths
+    : DEFAULT_CHROME_EXECUTABLES;
+  let executablePath = configuredPath;
+  if (!executablePath) {
+    executablePath = candidates.find((candidate) => (
+      regularFileFingerprint(candidate, { realpath: true, requireExecutable: true, useCache }) !== null
+    )) || null;
+  }
+  if (!executablePath) {
+    return hash(JSON.stringify({ channel: options.browserLaunchOptions?.channel || "chrome", executable: null }));
+  }
+  let realExecutablePath;
+  try {
+    realExecutablePath = fs.realpathSync.native(path.resolve(executablePath));
+  } catch (error) {
+    if (["EACCES", "ENOENT", "ENOTDIR", "EPERM"].includes(error?.code)) {
+      return hash(JSON.stringify({ configuredPath: path.resolve(executablePath), executable: null }));
+    }
+    throw error;
+  }
+  const executable = regularFileFingerprint(realExecutablePath, {
+    realpath: true,
+    requireExecutable: true,
+    useCache,
+  });
+  const bundleInfoPath = chromeBundleInfoPath(realExecutablePath);
+  const bundleInfo = bundleInfoPath
+    ? regularFileFingerprint(bundleInfoPath, { useCache })
+    : null;
+  return hash(JSON.stringify({
+    configuredPath: path.resolve(executablePath),
+    realExecutablePath,
+    executable,
+    bundleInfo,
+  }));
+}
+
+function environmentCacheKey(options) {
+  if (options.environmentCache === false) return null;
+  if (typeof options.environmentCacheKey === "string" && options.environmentCacheKey) {
+    return `explicit:${options.environmentCacheKey}`;
+  }
+  const hasCustomEnvironment = [
+    "browserFingerprint",
+    "browserLaunchOptions",
+    "chromeExecutablePaths",
+    "discoverFontPaths",
+    "environmentCacheKey",
+    "executablePath",
+    "fontDirectories",
+    "fontFingerprint",
+    "fontPaths",
+    "maxFontDepth",
+    "maxFontFiles",
+    "runtimeFingerprint",
+    "runtimeVersions",
+  ].some((field) => Object.hasOwn(options, field));
+  if (hasCustomEnvironment) return null;
+  return `default:${hash(JSON.stringify({
+    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || null,
+    runtime: currentRuntimeVersions(),
+  }))}`;
+}
+
+function renderEnvironmentFingerprints(options) {
+  const cacheKey = environmentCacheKey(options);
+  if (cacheKey && ENVIRONMENT_FINGERPRINT_CACHE.has(cacheKey)) {
+    return ENVIRONMENT_FINGERPRINT_CACHE.get(cacheKey);
+  }
+  const useFileCache = options.environmentCache !== false;
+  const fingerprints = {
+    browserFingerprint: browserFingerprint(options, useFileCache),
+    fontFingerprint: fontFingerprint(options, useFileCache),
+    runtimeFingerprint: runtimeFingerprint(options),
+  };
+  if (cacheKey) ENVIRONMENT_FINGERPRINT_CACHE.set(cacheKey, fingerprints);
+  return fingerprints;
 }
 
 function castAsset(cast, assetPaths) {
@@ -568,6 +814,7 @@ async function noteRenderInputHash(post, options = {}) {
     font: NOTE_FONT_IDENTITY,
     fontFingerprint: environment.fontFingerprint,
     runtimeFingerprint: environment.runtimeFingerprint,
+    browserFingerprint: environment.browserFingerprint,
     dimensions: [NOTE_POSTER_WIDTH, NOTE_POSTER_HEIGHT],
     contentHeight: options.contentHeight ?? NOTE_CONTENT_HEIGHT,
     blockGap: options.blockGap ?? NOTE_BLOCK_GAP,
@@ -620,6 +867,7 @@ async function renderNotePosters(post, options = {}) {
       font: NOTE_FONT_IDENTITY,
       fontFingerprint: environment.fontFingerprint,
       runtimeFingerprint: environment.runtimeFingerprint,
+      browserFingerprint: environment.browserFingerprint,
       dimensions: [NOTE_POSTER_WIDTH, NOTE_POSTER_HEIGHT],
       contentHeight,
       blockGap,
