@@ -46,7 +46,6 @@ root = Path(git("rev-parse", "--show-toplevel").stdout.strip()).resolve()
 published_root = (root / "content" / "published").resolve()
 drafts_root = (root / "content" / "drafts").resolve()
 assets_root = root / "content" / "assets"
-albums_root = root / "content" / "albums"
 withdrawals_root = root / "content" / ".lifecycle" / "withdrawals"
 referenced_assets: set[str] = set()
 validated_albums: set[str] = set()
@@ -107,37 +106,46 @@ def write_marker_atomically(marker_path: Path, marker: dict[str, str]) -> None:
         raise
 
 
-def frontmatter_scalar(raw_value: str, markdown_path: Path, key: str) -> Optional[str]:
+def frontmatter_scalar(
+    raw_value: str,
+    markdown_path: Path,
+    key: str,
+    source_label: str,
+) -> Optional[str]:
     value = raw_value.strip()
     if not value:
-        errors.append(f"album {key} must not be empty: {markdown_path.relative_to(root)}")
+        errors.append(f"{source_label} {key} must not be empty: {markdown_path.relative_to(root)}")
         return None
     if value.startswith('"'):
         try:
             parsed = json.loads(value)
         except json.JSONDecodeError:
-            errors.append(f"invalid album {key}: {markdown_path.relative_to(root)}")
+            errors.append(f"invalid {source_label} {key}: {markdown_path.relative_to(root)}")
             return None
         if not isinstance(parsed, str):
-            errors.append(f"album {key} must be text: {markdown_path.relative_to(root)}")
+            errors.append(f"{source_label} {key} must be text: {markdown_path.relative_to(root)}")
             return None
         return parsed
     if value.startswith("'"):
         if len(value) < 2 or not value.endswith("'"):
-            errors.append(f"invalid album {key}: {markdown_path.relative_to(root)}")
+            errors.append(f"invalid {source_label} {key}: {markdown_path.relative_to(root)}")
             return None
         inner = value[1:-1]
         if "'" in inner.replace("''", ""):
-            errors.append(f"invalid album {key}: {markdown_path.relative_to(root)}")
+            errors.append(f"invalid {source_label} {key}: {markdown_path.relative_to(root)}")
             return None
         return inner.replace("''", "'")
     return value
 
 
-def album_metadata(source: str, markdown_path: Path) -> Optional[dict[str, Optional[str]]]:
+def album_metadata(
+    source: str,
+    markdown_path: Path,
+    source_label: str = "Album Markdown",
+) -> Optional[dict[str, Optional[str]]]:
     lines = source.splitlines()
     if not lines or lines[0].removesuffix("\r") != "---":
-        errors.append(f"Album Markdown must start with frontmatter: {markdown_path.relative_to(root)}")
+        errors.append(f"{source_label} must start with frontmatter: {markdown_path.relative_to(root)}")
         return None
 
     metadata: dict[str, Optional[str]] = {}
@@ -152,15 +160,15 @@ def album_metadata(source: str, markdown_path: Path) -> Optional[dict[str, Optio
             continue
         key, raw_value = match.groups()
         if key in metadata:
-            errors.append(f"duplicate album {key}: {markdown_path.relative_to(root)}")
+            errors.append(f"duplicate {source_label} {key}: {markdown_path.relative_to(root)}")
             return None
-        metadata[key] = frontmatter_scalar(raw_value, markdown_path, key)
+        metadata[key] = frontmatter_scalar(raw_value, markdown_path, key, source_label)
 
     if not closed:
-        errors.append(f"Album Markdown has unterminated frontmatter: {markdown_path.relative_to(root)}")
+        errors.append(f"{source_label} has unterminated frontmatter: {markdown_path.relative_to(root)}")
         return None
     if metadata.get("kind") != "album":
-        errors.append(f"Album Markdown must declare kind: album: {markdown_path.relative_to(root)}")
+        errors.append(f"{source_label} must declare kind: album: {markdown_path.relative_to(root)}")
         return None
     return metadata
 
@@ -222,39 +230,47 @@ def validate_album_cover(reference: str, markdown_path: Path) -> Optional[str]:
     return (Path("content/assets") / Path(*parts)).as_posix()
 
 
-if albums_root.exists() or albums_root.is_symlink():
+album_index_raw = git(
+    "ls-files",
+    "--stage",
+    "-z",
+    "--",
+    "content/albums",
+    text=False,
+).stdout
+for entry in (value for value in album_index_raw.split(b"\0") if value):
+    index_metadata, path_bytes = entry.split(b"\t", 1)
+    mode_bytes, object_bytes, stage_bytes = index_metadata.split()
+    album_relative = path_bytes.decode("utf-8", errors="surrogateescape")
+    album_candidate = Path(album_relative)
+    if album_candidate.parent != Path("content/albums") or album_candidate.suffix != ".md":
+        continue
+    markdown_path = root / album_candidate
+    if mode_bytes not in {b"100644", b"100755"} or stage_bytes != b"0":
+        errors.append(
+            f"staged Album Markdown must be a regular file: {album_relative}"
+        )
+        continue
+    source_bytes = git(
+        "cat-file",
+        "blob",
+        object_bytes.decode("ascii"),
+        text=False,
+    ).stdout
     try:
-        albums_mode = albums_root.lstat().st_mode
-    except FileNotFoundError:
-        albums_mode = 0
-    if not stat.S_ISDIR(albums_mode):
-        errors.append("content/albums must be a regular directory inside the repository")
-    else:
-        for markdown_path in sorted(albums_root.glob("*.md")):
-            try:
-                markdown_mode = markdown_path.lstat().st_mode
-            except FileNotFoundError:
-                continue
-            if not stat.S_ISREG(markdown_mode):
-                errors.append(
-                    f"Album Markdown must be a regular file: {markdown_path.relative_to(root)}"
-                )
-                continue
-            try:
-                source = markdown_path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                errors.append(f"Album Markdown must be UTF-8: {markdown_path.relative_to(root)}")
-                continue
-            metadata = album_metadata(source, markdown_path)
-            if metadata is None:
-                continue
-            album_relative = markdown_path.relative_to(root).as_posix()
-            validated_albums.add(album_relative)
-            cover = metadata.get("cover")
-            if cover:
-                validated_cover = validate_album_cover(cover, markdown_path)
-                if validated_cover:
-                    referenced_assets.add(validated_cover)
+        source = source_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        errors.append(f"staged Album Markdown must be UTF-8: {album_relative}")
+        continue
+    metadata = album_metadata(source, markdown_path, "staged Album Markdown")
+    if metadata is None:
+        continue
+    validated_albums.add(album_relative)
+    cover = metadata.get("cover")
+    if cover:
+        validated_cover = validate_album_cover(cover, markdown_path)
+        if validated_cover:
+            referenced_assets.add(validated_cover)
 
 
 deleted_raw = git(

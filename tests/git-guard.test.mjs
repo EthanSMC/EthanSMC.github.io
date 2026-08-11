@@ -174,6 +174,67 @@ cover: "[[assets/albums/ai-native/cover.png]]"
   assert.doesNotMatch(names, /body-only\.png|private\.png/);
 });
 
+test("Obsidian validates the staged Album blob instead of a later valid working tree", async () => {
+  const directory = await fixture();
+  const album = path.join(directory, "content", "albums", "快照校验.md");
+  await writeFile(album, "---\nkind: note\nslug: staged-invalid\n---\n# Invalid staged blob\n");
+  run(directory, "git", ["add", "--", "content/albums/快照校验.md"]);
+  const stagedBefore = run(directory, "git", ["diff", "--cached", "--binary"]).stdout;
+  await writeFile(album, "---\nkind: album\nslug: working-valid\n---\n# Valid only in working tree\n");
+
+  const commit = run(directory, "git", ["commit", "-m", "blog: staged album blob"], { OBSIDIAN_GIT: "1" });
+
+  assert.notEqual(commit.status, 0);
+  assert.match(commit.stderr, /staged Album Markdown must declare kind: album/i);
+  assert.equal(run(directory, "git", ["diff", "--cached", "--binary"]).stdout, stagedBefore);
+  assert.notEqual(
+    run(directory, "git", ["cat-file", "-e", "HEAD:content/albums/快照校验.md"]).status,
+    0,
+  );
+});
+
+test("Obsidian rejects a staged Album symlink after working tree replacement", async () => {
+  const directory = await fixture();
+  const externalDirectory = await mkdtemp(path.join(os.tmpdir(), "ethan-staged-album-link-"));
+  const externalAlbum = path.join(externalDirectory, "outside.md");
+  const album = path.join(directory, "content", "albums", "暂存链接.md");
+  await writeFile(externalAlbum, "---\nkind: album\nslug: outside\n---\n# Outside\n");
+  await symlink(externalAlbum, album);
+  run(directory, "git", ["add", "--", "content/albums/暂存链接.md"]);
+  assert.match(
+    run(directory, "git", ["ls-files", "--stage", "--", "content/albums/暂存链接.md"]).stdout,
+    /^120000 /,
+  );
+  const stagedBefore = run(directory, "git", ["diff", "--cached", "--binary"]).stdout;
+  await unlink(album);
+  await writeFile(album, "---\nkind: album\nslug: working-regular\n---\n# Regular only in working tree\n");
+
+  const commit = run(directory, "git", ["commit", "-m", "blog: staged album symlink"], { OBSIDIAN_GIT: "1" });
+
+  assert.notEqual(commit.status, 0);
+  assert.match(commit.stderr, /staged Album Markdown must be a regular file/i);
+  assert.equal(run(directory, "git", ["diff", "--cached", "--binary"]).stdout, stagedBefore);
+  assert.equal(await readFile(externalAlbum, "utf8"), "---\nkind: album\nslug: outside\n---\n# Outside\n");
+});
+
+test("Obsidian honors a staged Album deletion despite a replacement working file", async () => {
+  const directory = await fixture();
+  const relativeAlbum = "content/albums/待删除专辑.md";
+  const album = path.join(directory, relativeAlbum);
+  await writeFile(album, "---\nkind: album\nslug: tracked-album\n---\n# Tracked album\n");
+  run(directory, "git", ["add", "--", relativeAlbum]);
+  assert.equal(run(directory, "git", ["commit", "-m", "test: tracked album"]).status, 0);
+  await unlink(album);
+  run(directory, "git", ["add", "--", relativeAlbum]);
+  await writeFile(album, "---\nkind: note\nslug: replacement\n---\n# Unstaged replacement\n");
+
+  const commit = run(directory, "git", ["commit", "-m", "blog: delete album"], { OBSIDIAN_GIT: "1" });
+
+  assert.equal(commit.status, 0, commit.stderr);
+  assert.notEqual(run(directory, "git", ["cat-file", "-e", `HEAD:${relativeAlbum}`]).status, 0);
+  assert.match(run(directory, "git", ["status", "--short", "--", relativeAlbum]).stdout, /^\?\?/);
+});
+
 test("Obsidian rejects an album cover that traverses outside content assets", async () => {
   const directory = await fixture();
   await writeFile(
