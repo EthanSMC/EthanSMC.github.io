@@ -13,11 +13,11 @@ const NOTE_CONTENT_HEIGHT = 860;
 const NOTE_CONTENT_Y = 180;
 const NOTE_BLOCK_GAP = 24;
 const NOTE_BODY_FONT_SIZE = 43;
-const NOTE_POSTER_TEMPLATE_VERSION = "note-poster-v1";
+const NOTE_POSTER_TEMPLATE_VERSION = "note-poster-v2";
 const NOTE_FONT_IDENTITY = "PingFang SC/Hiragino Sans GB/Arial@43px";
 const MAX_POSTER_PAGES = 4;
 const SENTENCE_PATTERN = /[^。！？!?]+[。！？!?]?/gu;
-const CLASS_NAMES = new Set(["title", "paragraph", "heading", "quote", "list", "code"]);
+const CLASS_NAMES = new Set(["paragraph", "heading", "quote", "list", "code"]);
 const markdown = new MarkdownIt({ html: false, linkify: true, typographer: false });
 
 const DEFAULT_CAST_ASSETS = {
@@ -63,12 +63,6 @@ const BLOCK_CSS = `
   font-weight: 700;
   line-height: 1.42;
 }
-.note-block--title {
-  color: #1e3150;
-  font-size: 54px;
-  font-weight: 750;
-  line-height: 1.35;
-}
 .note-block--quote {
   border-left: 5px solid #7fa2d3;
   color: #4d607a;
@@ -95,7 +89,8 @@ function contentTooLong(message = "Note requires more than four poster pages") {
 function normalizedInlineText(token) {
   if (!Array.isArray(token.children)) return token.content || "";
   return token.children.map((child) => {
-    if (child.type === "softbreak" || child.type === "hardbreak") return "\n";
+    if (child.type === "softbreak") return "\n";
+    if (child.type === "hardbreak") return "\n";
     if (child.type === "image") return child.content || "";
     return child.content || "";
   }).join("");
@@ -149,10 +144,6 @@ function markdownBlocks(post) {
   return blocks;
 }
 
-function posterBlocks(post) {
-  return [{ type: "title", text: posterTitle(post) }, ...markdownBlocks(post)];
-}
-
 function graphemes(value) {
   if (typeof Intl.Segmenter === "function") {
     return [...new Intl.Segmenter("zh-CN", { granularity: "grapheme" }).segment(value)]
@@ -187,14 +178,12 @@ function classNameFor(block) {
 }
 
 function defaultMeasureBlock(block, { width = NOTE_CONTENT_WIDTH } = {}) {
-  const fontSize = block.type === "title"
-    ? 54
-    : (block.type === "heading" ? 50 : (block.type === "code" ? 32 : NOTE_BODY_FONT_SIZE));
-  const lineHeight = block.type === "title"
-    ? fontSize * 1.35
-    : (block.type === "heading"
-      ? fontSize * 1.42
-      : (block.type === "code" ? fontSize * 1.55 : fontSize * 1.62));
+  const fontSize = block.type === "heading"
+    ? 50
+    : (block.type === "code" ? 32 : NOTE_BODY_FONT_SIZE);
+  const lineHeight = block.type === "heading"
+    ? fontSize * 1.42
+    : (block.type === "code" ? fontSize * 1.55 : fontSize * 1.62);
   const horizontalPadding = block.type === "quote" ? 31 : (block.type === "code" ? 48 : 0);
   const usableWidth = Math.max(fontSize, width - horizontalPadding);
   const lines = String(block.text).split("\n").reduce((total, line) => {
@@ -301,7 +290,7 @@ function paginateNote(post, options = {}) {
   const measureBlock = options.measureBlock || options.measure || defaultMeasureBlock;
   if (!Number.isFinite(contentHeight) || contentHeight <= 0) throw new Error("Poster contentHeight must be positive");
   if (!Number.isFinite(blockGap) || blockGap < 0) throw new Error("Poster blockGap must not be negative");
-  return paginateBlocksSync(posterBlocks(post), { contentHeight, blockGap, measureBlock });
+  return paginateBlocksSync(markdownBlocks(post), { contentHeight, blockGap, measureBlock });
 }
 
 async function measuredHeightAsync(measureBlock, block, context) {
@@ -404,13 +393,6 @@ function sourceDate(post) {
   return source.slice(0, 10).replaceAll("-", ".");
 }
 
-function posterTitle(post) {
-  if (typeof post?.authoredTitle === "string") {
-    return post.authoredTitle.trim() || `碎碎念 · ${sourceDate(post)}`;
-  }
-  return String(post?.title || "").trim() || `碎碎念 · ${sourceDate(post)}`;
-}
-
 function siteLabel(siteUrl) {
   if (!siteUrl) return "";
   return new URL(siteUrl).hostname.replace(/^www\./u, "");
@@ -420,7 +402,7 @@ function xhtmlText(value) {
   return escapeXml(value).replace(/\n/g, "<br />");
 }
 
-function pageSvg({ page, title, date, cast, castData, author, site, contentHeight, blockGap }) {
+function pageSvg({ page, date, cast, castData, author, site, contentHeight, blockGap }) {
   const character = page.number === 1 && castData
     ? `<g data-cast="${escapeXml(cast)}">
         <circle cx="925" cy="1195" r="92" fill="#f7f3e9" stroke="#275ba8" stroke-width="4" />
@@ -434,7 +416,7 @@ function pageSvg({ page, title, date, cast, castData, author, site, contentHeigh
     `<div class="${classNameFor(block)}">${xhtmlText(block.text)}</div>`
   )).join("");
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${NOTE_POSTER_WIDTH}" height="${NOTE_POSTER_HEIGHT}" viewBox="0 0 ${NOTE_POSTER_WIDTH} ${NOTE_POSTER_HEIGHT}" role="img" aria-label="${escapeXml(title)}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${NOTE_POSTER_WIDTH}" height="${NOTE_POSTER_HEIGHT}" viewBox="0 0 ${NOTE_POSTER_WIDTH} ${NOTE_POSTER_HEIGHT}" role="img" aria-label="${escapeXml(`碎碎念贴图 ${page.number}/${page.total}`)}">
   <defs>
     <pattern id="paper-grid" width="32" height="32" patternUnits="userSpaceOnUse">
       <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#275ba8" stroke-opacity="0.035" stroke-width="1" />
@@ -844,7 +826,7 @@ async function renderNotePosters(post, options = {}) {
     });
     const assetPaths = { ...DEFAULT_CAST_ASSETS, ...(options.assetPaths || {}) };
     const asset = castAsset(cast, assetPaths);
-    const blocks = posterBlocks(post);
+    const blocks = markdownBlocks(post);
     const pages = injectedMeasure
       ? paginateBlocksSync(blocks, {
         contentHeight,
@@ -857,7 +839,6 @@ async function renderNotePosters(post, options = {}) {
         measureBlock: (await ensureSession()).measureBlock,
       });
     const date = sourceDate(post);
-    const title = posterTitle(post);
     const author = String(options.author || "").trim();
     const site = siteLabel(options.siteUrl);
     const environment = renderEnvironmentFingerprints(options);
@@ -871,7 +852,6 @@ async function renderNotePosters(post, options = {}) {
       dimensions: [NOTE_POSTER_WIDTH, NOTE_POSTER_HEIGHT],
       contentHeight,
       blockGap,
-      title,
       date,
       author,
       site,
@@ -891,7 +871,6 @@ async function renderNotePosters(post, options = {}) {
       const outputPath = path.join(outputDir, `page-${String(index + 1).padStart(2, "0")}.png`);
       const svg = pageSvg({
         page,
-        title,
         date,
         cast,
         castData: asset.data,

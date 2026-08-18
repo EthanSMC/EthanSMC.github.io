@@ -165,28 +165,52 @@ test("paginates Markdown blocks in order using injected pixel measurements", () 
   const pages = paginateNote(note, {
     contentHeight: 110,
     blockGap: 10,
-    measureBlock: (block) => block.type === "title" ? 0 : 45,
+    measureBlock: () => 45,
   });
 
   assert.equal(pages.length, 2);
   assert.deepEqual(
-    pages.map((page) => page.blocks.filter((block) => block.type !== "title").map((block) => block.text)),
+    pages.map((page) => page.blocks.map((block) => block.text)),
     [["第一段。", "第二段。"], ["第三段。"]],
   );
 });
 
+test("preserves authored Markdown line breaks in poster blocks and SVG", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-line-breaks-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const note = notePost({
+    frontmatter: "kind: note\ncast: none",
+    body: "第一行\n第二行\n\n第三段。",
+  });
+  const captures = [];
+  const result = await renderNotePosters(note, {
+    outputDir: root,
+    author: "Ethan",
+    siteUrl: "https://example.com",
+    contentHeight: 900,
+    measureBlock: () => 100,
+    capture: async (input) => { captures.push(input); },
+  });
+
+  assert.deepEqual(
+    result.pages.flatMap((page) => page.blocks).map((block) => block.text),
+    ["第一行\n第二行", "第三段。"],
+  );
+  assert.match(captures[0].svg, /第一行<br \/>第二行/);
+});
+
 test("splits oversized paragraphs by sentence and then Unicode grapheme without losing text", () => {
-  const source = "甲乙丙丁戊。👨‍👩‍👧‍👦庚辛壬癸。";
+  const source = "甲乙\n丙丁戊。👨‍👩‍👧‍👦庚辛壬癸。";
   const note = notePost({ body: source });
-  const measureBlock = (block) => block.type === "title"
-    ? 0
-    : Array.from(new Intl.Segmenter("zh-CN", { granularity: "grapheme" }).segment(block.text)).length * 10;
+  const measureBlock = (block) => (
+    Array.from(new Intl.Segmenter("zh-CN", { granularity: "grapheme" }).segment(block.text)).length * 10
+  );
   const pages = paginateNote(note, {
     contentHeight: 50,
     blockGap: 0,
     measureBlock,
   });
-  const blocks = pages.flatMap((page) => page.blocks).filter((block) => block.type !== "title");
+  const blocks = pages.flatMap((page) => page.blocks);
 
   assert.ok(pages.length >= 1 && pages.length <= 4);
   assert.equal(blocks.map((block) => block.text).join(""), source);
@@ -200,12 +224,12 @@ test("packs sentence fragments into the previous page before opening another pag
   const pages = paginateNote(note, {
     contentHeight: 100,
     blockGap: 0,
-    measureBlock: (block) => block.type === "title" ? 0 : Array.from(block.text).length * 10,
+    measureBlock: (block) => Array.from(block.text).length * 10,
   });
 
   assert.equal(pages.length, 2);
   assert.deepEqual(
-    pages.map((page) => page.blocks.filter((block) => block.type !== "title").map((block) => block.text).join("")),
+    pages.map((page) => page.blocks.map((block) => block.text).join("")),
     ["甲乙丙丁戊己庚辛。", "壬癸。子丑。寅卯。"],
   );
 });
@@ -217,13 +241,13 @@ test("rejects a fifth poster page without truncating or reducing body type", () 
     () => paginateNote(note, {
       contentHeight: 40,
       blockGap: 0,
-      measureBlock: (block) => block.type === "title" ? 0 : Array.from(block.text).length * 10,
+      measureBlock: (block) => Array.from(block.text).length * 10,
     }),
     (error) => error?.code === "content_too_long",
   );
 });
 
-test("renders deterministic 1080 by 1440 note posters with source-date title and corner cast", async (t) => {
+test("renders deterministic body-only 1080 by 1440 note posters with corner cast", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-poster-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const note = notePost({
@@ -240,7 +264,7 @@ test("renders deterministic 1080 by 1440 note posters with source-date title and
     author: "Ethan",
     siteUrl: "https://example.com",
     contentHeight: 900,
-    measureBlock: (block) => block.type === "title" ? 0 : 700,
+    measureBlock: () => 700,
     capture,
   };
 
@@ -260,7 +284,7 @@ test("renders deterministic 1080 by 1440 note posters with source-date title and
   assert.ok(first.files.every((file) => file.endsWith(".png") && fs.existsSync(file)));
   assert.equal(captures[0].width, 1080);
   assert.equal(captures[0].height, 1440);
-  assert.match(captures[0].svg, /碎碎念 · 2026\.08\.04/);
+  assert.doesNotMatch(captures[0].svg, /碎碎念 · 2026\.08\.04/);
   assert.match(captures[0].svg, /data-cast="mochi"/);
   assert.match(captures[0].svg, /data:image\/jpeg;base64,/);
   assert.doesNotMatch(captures[1].svg, /data-cast=/);
@@ -268,10 +292,10 @@ test("renders deterministic 1080 by 1440 note posters with source-date title and
   assert.match(captures[1].svg, /Ethan · example\.com/);
 });
 
-test("paginates a long authored title at fixed type size without losing title or body text", async (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-long-title-"));
+test("keeps an authored title out of poster blocks and SVG", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-note-no-title-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const title = "把一段很长很长的中文标题完整放进海报而不是悄悄裁掉";
+  const title = "这是我的原文标题";
   const body = "正文甲。正文乙。";
   const note = notePost({
     frontmatter: "kind: note\ncast: none",
@@ -282,22 +306,17 @@ test("paginates a long authored title at fixed type size without losing title or
     outputDir: root,
     author: "Ethan",
     siteUrl: "https://example.com",
-    contentHeight: 100,
-    blockGap: 0,
-    measureBlock: (block) => Array.from(
-      new Intl.Segmenter("zh-CN", { granularity: "grapheme" }).segment(block.text),
-    ).length * (block.type === "title" ? 8 : 10),
+    contentHeight: 900,
+    measureBlock: () => 100,
     capture: async (input) => { captures.push(input); },
   });
-  const blocks = result.pages.flatMap((page) => page.blocks);
 
-  assert.equal(blocks.filter((block) => block.type === "title").map((block) => block.text).join(""), title);
-  assert.equal(blocks.filter((block) => block.type !== "title").map((block) => block.text).join(""), body);
-  assert.match(captures.map(({ svg }) => svg).join(""), /note-block--title/);
-  assert.doesNotMatch(captures.map(({ svg }) => svg).join(""), /<text[^>]*font-size="54"[^>]*>把一段很长/);
+  assert.deepEqual(result.pages.flatMap((page) => page.blocks).map((block) => block.text), [body]);
+  assert.doesNotMatch(captures[0].svg, new RegExp(title));
+  assert.doesNotMatch(captures[0].svg, /note-block--title/);
 });
 
-test("keeps the untitled fallback as one title block without repeating body text", () => {
+test("keeps an untitled poster body-only without repeating generated metadata", () => {
   const note = notePost({ body: "第一段。\n\n第二段。" });
   const pages = paginateNote(note, {
     contentHeight: 500,
@@ -306,8 +325,8 @@ test("keeps the untitled fallback as one title block without repeating body text
   });
   const blocks = pages.flatMap((page) => page.blocks);
 
-  assert.equal(blocks.filter((block) => block.type === "title").map((block) => block.text).join(""), "碎碎念 · 2026.08.04");
-  assert.equal(blocks.filter((block) => block.type !== "title").map((block) => block.text).join(""), "第一段。第二段。");
+  assert.deepEqual(blocks.map((block) => block.text), ["第一段。", "第二段。"]);
+  assert.equal(blocks.some((block) => block.type === "title"), false);
 });
 
 test("keeps the page-one character outside the measured content rectangle", async (t) => {
@@ -319,7 +338,7 @@ test("keeps the page-one character outside the measured content rectangle", asyn
     author: "Ethan",
     siteUrl: "https://example.com",
     contentHeight: 900,
-    measureBlock: (block) => block.type === "title" ? 0 : 100,
+    measureBlock: () => 100,
     capture: async (input) => { svg = input.svg; },
   });
 
@@ -339,7 +358,7 @@ test("render hash changes with poster content and oversized rendering captures n
     siteUrl: "https://example.com",
     contentHeight: 100,
     blockGap: 0,
-    measureBlock: (block) => block.type === "title" ? 0 : Array.from(block.text).length * 10,
+    measureBlock: (block) => Array.from(block.text).length * 10,
     capture,
   };
   const short = await renderNotePosters(notePost({ frontmatter: "kind: note\ncast: none", body: "短句。" }), options);
@@ -684,6 +703,13 @@ test("builds a native newspic draft with one to four poster media ids", () => {
     imageMediaIds.map((image_media_id) => ({ image_media_id })),
   );
   assert.equal(Object.hasOwn(article, "thumb_media_id"), false);
+
+  const titled = buildNewspic(notePost({ body: "# 我的标题\n\n正文。" }), {
+    imageMediaIds: ["poster-1"],
+    author: "Ethan",
+    siteUrl: "https://example.com/",
+  });
+  assert.equal(titled.title, "我的标题");
 });
 
 test("rejects newspic drafts without one to four valid image media ids", () => {
