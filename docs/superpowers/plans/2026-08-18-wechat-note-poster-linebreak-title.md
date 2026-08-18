@@ -35,7 +35,7 @@
 - Produces: `renderNotePosters(post, options) -> Promise<{ pages, files, renderHash, cast }>` whose SVG pages contain no note title.
 - Preserves: `buildNewspic(post, options) -> WeChatArticle`, with authored-title-first and source-date-fallback metadata behavior.
 
-- [ ] **Step 1: Add failing poster contract tests**
+- [x] **Step 1: Add failing poster contract tests**
 
 Replace title-aware assertions and measurement callbacks in `tests/wechat-content.test.mjs` with body-only expectations, and add this line-break regression test next to the existing pagination tests:
 
@@ -94,7 +94,7 @@ test("keeps an authored title out of poster blocks and SVG", async (t) => {
 
 Update the untitled poster assertion to require zero `title` blocks and require the SVG not to contain `碎碎念 · 2026.08.04`. Remove `block.type === "title"` exceptions and `.filter((block) => block.type !== "title")` calls from pagination tests so body-only blocks are measured and asserted directly. Change the oversized-paragraph test source to `"甲乙\n丙丁戊。👨‍👩‍👧‍👦庚辛壬癸。"`; its existing `blocks.map((block) => block.text).join("") === source` assertion then verifies that pagination preserves an authored newline across page fragments.
 
-- [ ] **Step 2: Add the authored draft-title regression assertion**
+- [x] **Step 2: Add the authored draft-title regression assertion**
 
 Extend the native `newspic` payload test in `tests/wechat-content.test.mjs` with a second note:
 
@@ -109,7 +109,7 @@ assert.equal(titled.title, "我的标题");
 
 Keep the existing assertion that an untitled note produces `碎碎念 · 2026.08.04`; together the two assertions prevent fallback to the body-derived website title.
 
-- [ ] **Step 3: Run focused tests and verify the title contracts fail**
+- [x] **Step 3: Run focused tests and verify the title contracts fail**
 
 Run:
 
@@ -119,7 +119,7 @@ node --test tests/wechat-content.test.mjs
 
 Expected: FAIL because `posterBlocks()` still inserts a `title` block and `pageSvg()` still exposes the note title in the generated SVG. The new line-break assertion may already pass and serves as a regression lock for the existing authored-newline behavior.
 
-- [ ] **Step 4: Render only Markdown body blocks**
+- [x] **Step 4: Render only Markdown body blocks**
 
 In `scripts/wechat/note-poster.cjs`, make the rendering contract explicit:
 
@@ -150,7 +150,7 @@ const blocks = markdownBlocks(post);
 
 This retains `normalizeBlockText()` behavior: it normalizes spaces around lines but does not remove the newline characters produced by Markdown break tokens.
 
-- [ ] **Step 5: Remove the poster's title dependency**
+- [x] **Step 5: Remove the poster's title dependency**
 
 Delete `posterTitle()`. Remove the `title` parameter from `pageSvg()` by changing its signature to:
 
@@ -166,7 +166,7 @@ return `<svg xmlns="http://www.w3.org/2000/svg" width="${NOTE_POSTER_WIDTH}" hei
 
 In `renderNotePosters()`, remove `const title = posterTitle(post)`, remove `title` from the render-hash payload, and omit it from the `pageSvg()` arguments. Leave `sourceDate(post)` in place for the visible header date.
 
-- [ ] **Step 6: Run the focused tests and verify they pass**
+- [x] **Step 6: Run the focused tests and verify they pass**
 
 Run:
 
@@ -176,7 +176,7 @@ node --test tests/wechat-content.test.mjs
 
 Expected: PASS, including body line breaks, titled and untitled body-only posters, draft title metadata, pagination, cast assets, render fingerprints, and four-page rejection.
 
-- [ ] **Step 7: Run all repository tests**
+- [x] **Step 7: Run all repository tests**
 
 Run:
 
@@ -186,7 +186,7 @@ npm test
 
 Expected: PASS with no regression in website parsing, WeChat sync, browser publishing safeguards, or portfolio behavior.
 
-- [ ] **Step 8: Review the diff and commit the implementation**
+- [x] **Step 8: Review the diff and commit the implementation**
 
 Run:
 
