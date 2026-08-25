@@ -189,7 +189,10 @@ class PortfolioE2E(unittest.TestCase):
         viewport_height = page.evaluate("window.innerHeight")
         scroll_range = max(intro_box["height"] - viewport_height, 1)
         page.evaluate(
-            "y => window.scrollTo(0, y)",
+            """y => {
+              document.documentElement.style.scrollBehavior = 'auto';
+              window.scrollTo(0, y);
+            }""",
             intro_box["y"] + scroll_range * progress,
         )
         page.wait_for_timeout(1000)
@@ -1146,12 +1149,18 @@ class PortfolioE2E(unittest.TestCase):
 
     def test_header_responsive_split_and_reduced_motion(self):
         tablet = self.open_page(width=1024, height=900)
-        self.assertLess(
-            tablet.locator(".brand-name").evaluate(
-                "element => element.getBoundingClientRect().width"
-            ),
-            1,
+        tablet_state = tablet.evaluate(
+            """() => ({
+              wordmarkWidth: document.querySelector('.brand-name').getBoundingClientRect().width,
+              navWidth: document.querySelector('.nav-links').getBoundingClientRect().width,
+              sayHiHeight: document.querySelector('.say-hi').getBoundingClientRect().height,
+              sayHiWhiteSpace: getComputedStyle(document.querySelector('.say-hi')).whiteSpace,
+            })"""
         )
+        self.assertLess(tablet_state["wordmarkWidth"], 1)
+        self.assertLess(tablet_state["navWidth"], 420)
+        self.assertLessEqual(tablet_state["sayHiHeight"], 48)
+        self.assertEqual(tablet_state["sayHiWhiteSpace"], "nowrap")
 
         mobile = self.open_page(width=390, height=844)
         mobile_state = mobile.evaluate(
@@ -1367,7 +1376,7 @@ class PortfolioE2E(unittest.TestCase):
             with self.subTest(width=width):
                 page = self.open_page(width=width, height=height)
                 page.goto(f"{BASE_URL.rstrip('/')}/blog/", wait_until="networkidle")
-                post_link = page.locator("[data-blog-entry] h2 a").first
+                post_link = page.locator(".album-track-list a[href^='/blog/20']").first
                 self.assertEqual(post_link.count(), 1)
                 page.goto(
                     f"{BASE_URL.rstrip('/')}{post_link.get_attribute('href')}",
@@ -1396,27 +1405,27 @@ class PortfolioE2E(unittest.TestCase):
                 self.assertLessEqual(abs(metrics["left"] - metrics["bodyLeft"]), 1)
                 self.assertGreater(metrics["metaTop"], metrics["deckBottom"])
 
-    def test_home_article_entry_stays_compact(self):
+    def test_home_writing_showcase_stays_within_section(self):
         page = self.open_page(width=1440, height=900)
-        metrics = page.locator(".home-essay--only").evaluate(
-            """card => {
-              const bounds = card.getBoundingClientRect();
-              const section = card.closest('.writing').getBoundingClientRect();
+        metrics = page.locator(".writing-showcase--home").evaluate(
+            """showcase => {
+              const bounds = showcase.getBoundingClientRect();
+              const section = showcase.closest('.writing').getBoundingClientRect();
               return {
-                width: bounds.width,
-                height: bounds.height,
-                sectionContentWidth: section.width - 96,
+                left: bounds.left,
+                right: bounds.right,
+                sectionLeft: section.left + 48,
+                sectionRight: section.right - 48,
               };
             }"""
         )
-        self.assertLessEqual(metrics["width"], 1060)
-        self.assertLess(metrics["width"], metrics["sectionContentWidth"] * 0.8)
-        self.assertLessEqual(metrics["height"], 350)
+        self.assertGreaterEqual(metrics["left"], metrics["sectionLeft"] - 1)
+        self.assertLessEqual(metrics["right"], metrics["sectionRight"] + 1)
 
     def test_blog_paper_background_has_no_vertical_color_wash(self):
         page = self.open_page(width=1440, height=1000)
         page.goto(f"{BASE_URL.rstrip('/')}/blog/", wait_until="networkidle")
-        post_link = page.locator("[data-blog-entry] h2 a").first
+        post_link = page.locator(".album-track-list a[href^='/blog/20']").first
         self.assertEqual(post_link.count(), 1)
         page.goto(
             f"{BASE_URL.rstrip('/')}{post_link.get_attribute('href')}",

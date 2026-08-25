@@ -214,6 +214,7 @@ canvas {
 .nav-links {
   display: flex;
   align-items: center;
+  justify-self: center;
   gap: 4px;
   height: 52px;
   padding: 2px;
@@ -395,6 +396,7 @@ canvas {
   font-size: 1.05rem;
   font-weight: 850;
   letter-spacing: 0;
+  white-space: nowrap;
   text-decoration: none;
   box-shadow: 3px 3px 0 rgba(58, 53, 45, 0.24);
   transform: rotate(-0.3deg);
