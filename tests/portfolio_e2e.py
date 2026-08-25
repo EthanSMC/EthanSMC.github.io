@@ -1144,6 +1144,50 @@ class PortfolioE2E(unittest.TestCase):
         self.assertLess(compact["wordmarkWidth"], 1)
         self.assertEqual(compact["visibleControls"], 9)
 
+    def test_header_responsive_split_and_reduced_motion(self):
+        tablet = self.open_page(width=1024, height=900)
+        self.assertLess(
+            tablet.locator(".brand-name").evaluate(
+                "element => element.getBoundingClientRect().width"
+            ),
+            1,
+        )
+
+        mobile = self.open_page(width=390, height=844)
+        mobile_state = mobile.evaluate(
+            """() => {
+              const shell = document.querySelector('.header-shell').getBoundingClientRect();
+              const nav = document.querySelector('.nav-links').getBoundingClientRect();
+              const actions = document.querySelector('.header-actions').getBoundingClientRect();
+              return {
+                shell: shell.toJSON(),
+                nav: nav.toJSON(),
+                actions: actions.toJSON(),
+                wordmarkDisplay: getComputedStyle(document.querySelector('.brand-name')).display,
+                sayHiSize: document.querySelector('.say-hi').getBoundingClientRect().toJSON(),
+                documentWidth: document.documentElement.scrollWidth,
+                viewportWidth: innerWidth,
+              };
+            }"""
+        )
+        self.assertEqual(mobile_state["wordmarkDisplay"], "none")
+        self.assertLessEqual(abs(mobile_state["nav"]["bottom"] - (844 - 14)), 3)
+        self.assertGreaterEqual(mobile_state["sayHiSize"]["width"], 44)
+        self.assertGreaterEqual(mobile_state["sayHiSize"]["height"], 44)
+        self.assertLessEqual(
+            mobile_state["documentWidth"], mobile_state["viewportWidth"] + 1
+        )
+
+        reduced = self.open_page(width=1440, height=1000, reduced_motion=True)
+        reduced.evaluate("scrollTo(0, 220)")
+        reduced.wait_for_function(
+            "document.querySelector('.site-header').classList.contains('scrolled')"
+        )
+        duration = reduced.locator(".header-shell").evaluate(
+            "element => Math.max(...getComputedStyle(element).transitionDuration.split(',').map(parseFloat))"
+        )
+        self.assertLessEqual(duration, 0.001)
+
     def test_contact_navigation_aligns_heading(self):
         page = self.open_page(width=1024, height=900)
         page.locator(".nav-links a[href='#contact']").click()
