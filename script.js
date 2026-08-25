@@ -153,7 +153,7 @@ const setActiveLink = (id) => {
 };
 
 const setHeaderState = () => {
-  header?.classList.toggle("scrolled", window.scrollY > 20);
+  header?.classList.toggle("scrolled", window.scrollY > 80);
 };
 
 setHeaderState();

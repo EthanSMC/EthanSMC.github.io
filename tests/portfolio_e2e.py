@@ -1051,6 +1051,34 @@ class PortfolioE2E(unittest.TestCase):
         with self.subTest(contract="all callouts visible"):
             self.assertEqual(visible, 5)
 
+    def test_header_shell_and_scroll_threshold(self):
+        page = self.open_page(width=1440, height=1000)
+        header = page.locator(".site-header")
+
+        self.assertEqual(page.locator(".site-header > .header-shell").count(), 1)
+        self.assertEqual(page.locator(".brand-name").inner_text(), "EthanSMC")
+
+        page.evaluate(
+            """() => {
+              document.documentElement.style.scrollBehavior = 'auto';
+              scrollTo(0, 80);
+            }"""
+        )
+        page.wait_for_timeout(80)
+        self.assertNotIn("scrolled", header.get_attribute("class"))
+
+        page.evaluate("scrollTo(0, 81)")
+        page.wait_for_function("document.querySelector('.site-header').classList.contains('scrolled')")
+        self.assertIn("scrolled", header.get_attribute("class"))
+
+        page.evaluate("scrollTo(0, 0)")
+        page.wait_for_function("!document.querySelector('.site-header').classList.contains('scrolled')")
+        self.assertNotIn("scrolled", header.get_attribute("class"))
+
+        page.goto(f"{BASE_URL.rstrip('/')}/blog/", wait_until="networkidle")
+        self.assertEqual(page.locator(".site-header > .header-shell").count(), 1)
+        self.assertIn("scrolled", page.locator(".site-header").get_attribute("class"))
+
     def test_contact_navigation_aligns_heading(self):
         page = self.open_page(width=1024, height=900)
         page.locator(".nav-links a[href='#contact']").click()

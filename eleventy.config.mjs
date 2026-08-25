@@ -11,6 +11,7 @@ export default function (eleventyConfig) {
   eleventyConfig.ignores.add("README.md");
   eleventyConfig.ignores.add("PRODUCT.md");
   eleventyConfig.ignores.add(".impeccable/**");
+  eleventyConfig.ignores.add(".pnpm-store/**");
   eleventyConfig.ignores.add("docs/**");
   eleventyConfig.ignores.add("content/**");
   eleventyConfig.ignores.add("assets/**/*.md");
