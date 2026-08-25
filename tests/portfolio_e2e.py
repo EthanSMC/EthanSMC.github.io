@@ -1079,6 +1079,71 @@ class PortfolioE2E(unittest.TestCase):
         self.assertEqual(page.locator(".site-header > .header-shell").count(), 1)
         self.assertIn("scrolled", page.locator(".site-header").get_attribute("class"))
 
+    def test_desktop_header_merges_into_one_capsule(self):
+        page = self.open_page(width=1440, height=1000)
+
+        open_state = page.evaluate(
+            """() => {
+              const shell = document.querySelector('.header-shell');
+              const nav = document.querySelector('.nav-links');
+              const wordmark = document.querySelector('.brand-name');
+              const shellStyle = getComputedStyle(shell);
+              return {
+                shellWidth: shell.getBoundingClientRect().width,
+                shellBackground: shellStyle.backgroundColor,
+                navBackground: getComputedStyle(nav).backgroundColor,
+                wordmarkOpacity: Number(getComputedStyle(wordmark).opacity),
+                wordmarkWidth: wordmark.getBoundingClientRect().width,
+              };
+            }"""
+        )
+        self.assertGreater(open_state["shellWidth"], 1200)
+        self.assertIn(open_state["shellBackground"], ["rgba(0, 0, 0, 0)", "transparent"])
+        self.assertNotIn(open_state["navBackground"], ["rgba(0, 0, 0, 0)", "transparent"])
+        self.assertGreater(open_state["wordmarkOpacity"], 0.99)
+        self.assertGreater(open_state["wordmarkWidth"], 80)
+
+        page.evaluate(
+            """() => {
+              document.documentElement.style.scrollBehavior = 'auto';
+              scrollTo(0, 220);
+            }"""
+        )
+        page.wait_for_function("document.querySelector('.site-header').classList.contains('scrolled')")
+        page.wait_for_timeout(650)
+
+        compact = page.evaluate(
+            """() => {
+              const shell = document.querySelector('.header-shell');
+              const nav = document.querySelector('.nav-links');
+              const wordmark = document.querySelector('.brand-name');
+              const controls = document.querySelectorAll(
+                '.nav-links a, .language-switcher button, .sound-toggle, .say-hi'
+              );
+              return {
+                shell: shell.getBoundingClientRect().toJSON(),
+                shellBackground: getComputedStyle(shell).backgroundColor,
+                navBackground: getComputedStyle(nav).backgroundColor,
+                wordmarkOpacity: Number(getComputedStyle(wordmark).opacity),
+                wordmarkWidth: wordmark.getBoundingClientRect().width,
+                visibleControls: [...controls].filter((element) => {
+                  const rect = element.getBoundingClientRect();
+                  const style = getComputedStyle(element);
+                  return rect.width >= 40 && rect.height >= 40 && style.visibility !== 'hidden';
+                }).length,
+              };
+            }"""
+        )
+        self.assertAlmostEqual(compact["shell"]["width"], 1080, delta=3)
+        self.assertAlmostEqual(compact["shell"]["x"], 180, delta=3)
+        self.assertGreaterEqual(compact["shell"]["height"], 54)
+        self.assertLessEqual(compact["shell"]["height"], 62)
+        self.assertNotIn(compact["shellBackground"], ["rgba(0, 0, 0, 0)", "transparent"])
+        self.assertIn(compact["navBackground"], ["rgba(0, 0, 0, 0)", "transparent"])
+        self.assertLess(compact["wordmarkOpacity"], 0.05)
+        self.assertLess(compact["wordmarkWidth"], 1)
+        self.assertEqual(compact["visibleControls"], 9)
+
     def test_contact_navigation_aligns_heading(self):
         page = self.open_page(width=1024, height=900)
         page.locator(".nav-links a[href='#contact']").click()
@@ -1210,14 +1275,15 @@ class PortfolioE2E(unittest.TestCase):
         self.assertEqual(page.locator(".nav-links a[href='/blog/']").get_attribute("aria-current"), "page")
         self.assertEqual(
             page.locator(".nav-links a").all_inner_texts(),
-            ["About", "Projects", "Writing", "Contact"],
+            ["About", "Writing", "Projects", "Contact"],
         )
         self.assertIn("scrolled", page.locator(".site-header").get_attribute("class"))
         self.assertEqual(page.locator(".site-header .header-actions").count(), 1)
         self.assertEqual(page.get_by_text("永久链接", exact=True).count(), 0)
-        self.assertTrue(
-            page.locator("[data-blog-entry]").count() > 0
-            or page.locator(".writing-empty").count() == 1
+        self.assertEqual(page.locator(".writing-showcase--index").count(), 1)
+        self.assertGreater(
+            page.locator(".album-track a, .small-talk-card a, .writing-region-empty").count(),
+            0,
         )
 
     def test_writing_index_has_no_horizontal_overflow(self):
