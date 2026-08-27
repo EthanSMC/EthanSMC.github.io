@@ -1147,6 +1147,96 @@ class PortfolioE2E(unittest.TestCase):
         self.assertLess(compact["wordmarkWidth"], 1)
         self.assertEqual(compact["visibleControls"], 9)
 
+    def test_scrolled_desktop_actions_share_compact_navigation_baseline(self):
+        for width in (1440, 1024):
+            with self.subTest(width=width):
+                page = self.open_page(width=width, height=900)
+                open_state = page.evaluate(
+                    """() => ({
+                      actionsWidth: document.querySelector('.header-actions')
+                        .getBoundingClientRect().width,
+                      sayHiWidth: document.querySelector('.say-hi')
+                        .getBoundingClientRect().width,
+                    })"""
+                )
+
+                page.evaluate(
+                    """() => {
+                      document.documentElement.style.scrollBehavior = 'auto';
+                      scrollTo(0, 220);
+                    }"""
+                )
+                page.wait_for_function(
+                    "document.querySelector('.site-header').classList.contains('scrolled')"
+                )
+                page.wait_for_timeout(650)
+
+                compact = page.evaluate(
+                    """() => {
+                      const rect = (element) => element.getBoundingClientRect().toJSON();
+                      const isVisible = (element) => element &&
+                        getComputedStyle(element).display !== 'none' &&
+                        getComputedStyle(element).visibility !== 'hidden';
+                      const navTarget = document.querySelector('.nav-links a');
+                      const language = document.querySelector('.language-switcher');
+                      const languageButtons = [...language.querySelectorAll('button')];
+                      const sound = document.querySelector('.sound-toggle');
+                      const sayHi = document.querySelector('.say-hi');
+                      const fullLabel = sayHi.querySelector('.say-hi-label--full');
+                      const compactLabel = sayHi.querySelector('.say-hi-label--compact');
+                      return {
+                        actions: rect(document.querySelector('.header-actions')),
+                        navTarget: rect(navTarget),
+                        language: rect(language),
+                        languageButtons: languageButtons.map(rect),
+                        sound: rect(sound),
+                        soundIcon: rect(sound.querySelector('svg')),
+                        sayHi: rect(sayHi),
+                        fullLabelVisible: isVisible(fullLabel),
+                        compactLabelVisible: isVisible(compactLabel),
+                        compactLabelText: compactLabel?.textContent.trim() || '',
+                        sayHiAriaLabel: sayHi.getAttribute('aria-label'),
+                      };
+                    }"""
+                )
+
+                with self.subTest(width=width, contract="right cluster shrinks"):
+                    self.assertLess(
+                        compact["actions"]["width"],
+                        open_state["actionsWidth"] - 40,
+                    )
+                    self.assertLess(
+                        compact["sayHi"]["width"],
+                        open_state["sayHiWidth"] - 40,
+                    )
+                with self.subTest(width=width, contract="shared compact target height"):
+                    target_heights = [
+                        compact["navTarget"]["height"],
+                        compact["language"]["height"],
+                        compact["sound"]["height"],
+                        compact["sayHi"]["height"],
+                    ]
+                    self.assertGreaterEqual(min(target_heights), 44)
+                    self.assertLessEqual(max(target_heights) - min(target_heights), 1)
+                    for button in compact["languageButtons"]:
+                        self.assertGreaterEqual(button["width"], 44)
+                        self.assertGreaterEqual(button["height"], 44)
+                with self.subTest(width=width, contract="shared compact width baseline"):
+                    self.assertLessEqual(compact["language"]["width"], 134)
+                    self.assertLessEqual(
+                        compact["sayHi"]["width"],
+                        compact["navTarget"]["width"] + 1,
+                    )
+                    self.assertLessEqual(compact["soundIcon"]["width"], 24)
+                with self.subTest(width=width, contract="contact remains discoverable"):
+                    self.assertFalse(compact["fullLabelVisible"])
+                    self.assertTrue(compact["compactLabelVisible"])
+                    self.assertTrue(compact["compactLabelText"])
+                    self.assertTrue(compact["sayHiAriaLabel"])
+
+                page.locator(".say-hi").click()
+                self.assertTrue(page.locator("#wechat-dialog").evaluate("dialog => dialog.open"))
+
     def test_header_responsive_split_and_reduced_motion(self):
         tablet = self.open_page(width=1024, height=900)
         tablet_state = tablet.evaluate(

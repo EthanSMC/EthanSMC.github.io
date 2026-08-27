@@ -289,6 +289,7 @@ canvas {
   display: flex;
   align-items: center;
   gap: 12px;
+  transition: gap 420ms ease;
 }
 
 .language-switcher {
@@ -303,6 +304,9 @@ canvas {
   box-shadow: 2px 3px 0 rgba(64, 49, 31, 0.045);
   transition:
     height 420ms ease,
+    gap 420ms ease,
+    padding 420ms ease,
+    border-width 320ms ease,
     background 320ms ease,
     border-color 320ms ease,
     box-shadow 320ms ease;
@@ -370,6 +374,7 @@ canvas {
 .icon-button svg {
   width: 27px;
   height: 27px;
+  transition: width 320ms ease, height 320ms ease;
 }
 
 .sound-toggle[aria-pressed="false"] .sound-wave {
@@ -401,12 +406,69 @@ canvas {
   box-shadow: 3px 3px 0 rgba(58, 53, 45, 0.24);
   transform: rotate(-0.3deg);
   cursor: pointer;
-  transition: transform 180ms ease, box-shadow 180ms ease;
+  transition:
+    width 420ms ease,
+    min-width 420ms ease,
+    padding 420ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.say-hi-label--compact {
+  display: none;
 }
 
 .say-hi:hover {
   box-shadow: 1px 1px 0 rgba(58, 53, 45, 0.24);
   transform: translate(2px, 2px) rotate(-0.3deg);
+}
+
+@media (min-width: 901px) {
+  .site-header.scrolled .header-actions {
+    gap: 8px;
+  }
+
+  .site-header.scrolled .language-switcher {
+    gap: 0;
+    padding: 0;
+    border-width: 0;
+  }
+
+  .site-header.scrolled .sound-toggle svg {
+    width: 23px;
+    height: 23px;
+  }
+
+  .site-header.scrolled .say-hi {
+    width: 76px;
+    min-width: 76px;
+    min-height: 44px;
+    padding: 0 10px;
+    box-shadow: 1px 1px 0 rgba(58, 53, 45, 0.18);
+    transform: none;
+  }
+
+  .site-header.scrolled .say-hi:hover {
+    box-shadow: none;
+    transform: translate(1px, 1px);
+  }
+
+  .site-header.scrolled .say-hi-label--full,
+  .site-header.scrolled .say-hi svg {
+    display: none;
+  }
+
+  .site-header.scrolled .say-hi-label--compact {
+    display: inline;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .site-header.scrolled .say-hi {
+    width: 68px;
+    min-width: 68px;
+    padding-inline: 8px;
+  }
 }
 
 .say-hi svg {
