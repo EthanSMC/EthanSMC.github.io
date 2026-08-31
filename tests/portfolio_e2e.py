@@ -464,6 +464,10 @@ class PortfolioE2E(unittest.TestCase):
 
         qr = dialog.locator("img[data-wechat-qr]")
         self.assertEqual(qr.get_attribute("src"), "assets/wechat-qr.jpg")
+        page.wait_for_function(
+            "document.querySelector('img[data-wechat-qr]')?.complete "
+            "&& document.querySelector('img[data-wechat-qr]').naturalWidth > 0"
+        )
         self.assertGreater(qr.evaluate("image => image.naturalWidth"), 0)
 
         page.keyboard.press("Escape")
