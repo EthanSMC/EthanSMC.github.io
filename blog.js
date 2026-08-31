@@ -57,12 +57,3 @@ soundToggle?.addEventListener("click", () => {
   updateSoundLabel();
   if (!enabled) playUiTone(520, 0.07, 0.024);
 });
-
-document.querySelectorAll(".prose h2, .prose h3").forEach((heading) => {
-  if (!heading.id) {
-    const slug = heading.textContent.trim().toLocaleLowerCase("zh-CN")
-      .replace(/\s+/g, "-")
-      .replace(/[^\p{L}\p{N}_-]/gu, "");
-    if (slug) heading.id = slug;
-  }
-});

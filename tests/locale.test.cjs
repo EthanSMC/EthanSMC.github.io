@@ -189,6 +189,8 @@ test("localizes the writing showcase categories and view-all link", async () => 
   assert.equal(english.siteI18n.t("writing.independent"), "Independent writing");
   assert.equal(english.siteI18n.t("writing.smallTalks"), "Small Talks");
   assert.equal(english.siteI18n.t("writing.viewAll"), "View all writing");
+  assert.equal(english.siteI18n.t("blog.reader.contents"), "Contents");
+  assert.equal(english.siteI18n.t("blog.reader.contentsTitle"), "In this piece");
 
   const chinese = await loadBrowserI18n({ query: "?lang=zh" });
   assert.equal(chinese.siteI18n.t("writing.albums"), "专辑");
@@ -198,9 +200,13 @@ test("localizes the writing showcase categories and view-all link", async () => 
   assert.equal(chinese.siteI18n.t("writing.independent"), "独立文章");
   assert.equal(chinese.siteI18n.t("writing.smallTalks"), "碎碎念");
   assert.equal(chinese.siteI18n.t("writing.viewAll"), "查看全部写作");
+  assert.equal(chinese.siteI18n.t("blog.reader.contents"), "目录");
+  assert.equal(chinese.siteI18n.t("blog.reader.contentsTitle"), "本文目录");
 
   const japanese = await loadBrowserI18n({ query: "?lang=ja" });
   assert.equal(japanese.siteI18n.t("writing.albumStatusLabel"), "ステータス");
   assert.equal(japanese.siteI18n.t("writing.albumStatusOngoing"), "連載中");
   assert.equal(japanese.siteI18n.t("writing.albumTracks"), "目次");
+  assert.equal(japanese.siteI18n.t("blog.reader.contents"), "目次");
+  assert.equal(japanese.siteI18n.t("blog.reader.contentsTitle"), "この記事の目次");
 });

@@ -75,6 +75,7 @@
 
     const onCarouselPointerDown = (event) => {
       if (event.button !== 0) return;
+      if (event.target?.closest?.("a")) return;
       pointerStart = {
         id: event.pointerId,
         x: event.clientX,

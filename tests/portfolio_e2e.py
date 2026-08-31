@@ -102,6 +102,7 @@ class PortfolioE2E(unittest.TestCase):
         contribution_status=200,
         contribution_timeout_ms=None,
         abort_contribution_fetch=False,
+        contribution_requests=None,
     ):
         context = self.browser.new_context(
             viewport={"width": width, "height": height},
@@ -144,6 +145,13 @@ class PortfolioE2E(unittest.TestCase):
                 """
             )
         page = context.new_page()
+        if contribution_requests is not None:
+            page.on(
+                "request",
+                lambda request: contribution_requests.append(request.url)
+                if request.url.endswith("/api/github-contributions")
+                else None,
+            )
         if reduced_motion:
             page.emulate_media(reduced_motion="reduce")
         if contribution_payload is not NO_CONTRIBUTION_ROUTE:
@@ -811,6 +819,24 @@ class PortfolioE2E(unittest.TestCase):
             1,
         )
 
+    def test_contribution_heatmap_uses_the_public_api_from_local_preview(self):
+        contribution_requests = []
+        page = self.open_page(
+            contribution_payload=contribution_fixture(),
+            contribution_requests=contribution_requests,
+        )
+        page.wait_for_function(
+            "document.querySelector('[data-contributions]')?.dataset.state === 'ready'"
+        )
+
+        self.assertEqual(
+            contribution_requests,
+            [
+                "https://ethansmc-personal-page.vercel.app/"
+                "api/github-contributions"
+            ],
+        )
+
     def test_contribution_heatmap_timeout_aborts_and_becomes_unavailable(self):
         page = self.open_page(
             contribution_timeout_ms=25,
@@ -1428,6 +1454,248 @@ class PortfolioE2E(unittest.TestCase):
             page.locator(".album-track a, .small-talk-card a, .writing-region-empty").count(),
             0,
         )
+
+    def test_home_writing_primary_cards_have_clickable_native_link_targets(self):
+        page = self.open_page(width=1024, height=900)
+
+        album_cover = page.locator(
+            ".writing-showcase--home .album-slide[aria-current='true'] .album-cover"
+        )
+        self.assertEqual(album_cover.count(), 1)
+        album_href = album_cover.evaluate(
+            "cover => cover.closest('a')?.getAttribute('href') || null"
+        )
+        self.assertEqual(
+            album_href,
+            page.locator(
+                ".writing-showcase--home .album-slide[aria-current='true'] h3 a"
+            ).get_attribute("href"),
+        )
+
+        small_talk = page.locator(".writing-showcase--home .small-talk-card").first
+        small_talk_link = small_talk.locator(":scope > a")
+        self.assertEqual(small_talk_link.count(), 1)
+        self.assertRegex(
+            small_talk_link.get_attribute("href"),
+            r"^/blog/\d{4}/\d{2}/\d{2}/\d{6}/$",
+        )
+
+        independent_card = page.locator(".writing-showcase--home .independent-card").first
+        if independent_card.count() > 0:
+            independent_link = independent_card.locator(":scope > a.independent-card__link")
+            self.assertEqual(independent_link.count(), 1)
+            self.assertRegex(
+                independent_link.get_attribute("href"),
+                r"^/blog/\d{4}/\d{2}/\d{2}/\d{6}/$",
+            )
+
+            article_page = self.open_page(width=1024, height=900)
+            article_card = article_page.locator(".writing-showcase--home .independent-card").first
+            article_href = article_card.locator(":scope > a.independent-card__link").get_attribute("href")
+            article_card.click()
+            self.assertEqual(article_page.url, f"{BASE_URL.rstrip('/')}{article_href}")
+
+        album_cover.click()
+        self.assertEqual(page.url, f"{BASE_URL.rstrip('/')}{album_href}")
+
+    def test_album_page_cover_keeps_a_book_scale_without_cropping(self):
+        limits = [
+            (1440, 1000, 340, 430, True),
+            (820, 900, 260, 330, True),
+            (390, 844, 200, 250, False),
+        ]
+        for width, height, maximum_width, maximum_height, side_by_side in limits:
+            with self.subTest(width=width):
+                page = self.open_page(width=width, height=height)
+                page.goto(
+                    f"{BASE_URL.rstrip('/')}/blog/albums/ai-native-content-system/",
+                    wait_until="networkidle",
+                )
+                metrics = page.locator(".album-page__cover").evaluate(
+                    """cover => {
+                      const image = cover.querySelector('img');
+                      const tracks = document.querySelector('.album-page__tracks');
+                      const firstTrack = tracks.querySelector('.album-track-list a');
+                      const coverBounds = cover.getBoundingClientRect();
+                      const imageBounds = image.getBoundingClientRect();
+                      const tracksBounds = tracks.getBoundingClientRect();
+                      const firstTrackBounds = firstTrack.getBoundingClientRect();
+                      return {
+                        coverWidth: coverBounds.width,
+                        coverHeight: coverBounds.height,
+                        coverTop: coverBounds.top,
+                        tracksTop: tracksBounds.top,
+                        firstTrackBottom: firstTrackBounds.bottom,
+                        imageRatio: imageBounds.width / imageBounds.height,
+                        naturalRatio: image.naturalWidth / image.naturalHeight,
+                        pageOverflow: document.documentElement.scrollWidth - innerWidth,
+                      };
+                    }"""
+                )
+                self.assertLessEqual(metrics["coverWidth"], maximum_width)
+                self.assertLessEqual(metrics["coverHeight"], maximum_height)
+                self.assertLessEqual(metrics["firstTrackBottom"], height)
+                if side_by_side:
+                    self.assertLessEqual(
+                        abs(metrics["coverTop"] - metrics["tracksTop"]),
+                        1,
+                    )
+                self.assertLessEqual(
+                    abs(metrics["imageRatio"] - metrics["naturalRatio"]),
+                    0.02,
+                )
+                self.assertLessEqual(metrics["pageOverflow"], 1)
+
+    def test_long_read_reader_tracks_progress_and_sections(self):
+        page = self.open_page(width=1440, height=1000)
+        page.goto(
+            f"{BASE_URL.rstrip('/')}/blog/2026/07/29/165546/",
+            wait_until="networkidle",
+        )
+
+        reader = page.locator("[data-reader]")
+        self.assertIn("reader-enhanced", reader.get_attribute("class"))
+        self.assertIn("reader-has-contents", reader.get_attribute("class"))
+        self.assertGreaterEqual(page.locator("[data-reader-toc-list] a").count(), 6)
+
+        first_heading = page.locator(".prose h2, .prose h3").first
+        first_heading.evaluate(
+            "heading => scrollTo(0, heading.getBoundingClientRect().top + scrollY + 160)"
+        )
+        page.wait_for_function(
+            "Number(document.querySelector('[data-reader-percent]').textContent.replace('%', '')) > 0"
+        )
+        page.wait_for_function(
+            "document.querySelectorAll('[data-reader-toc-list] a[aria-current=\"location\"]').length === 2"
+        )
+        self.assertEqual(
+            page.locator("[data-reader-current]").inner_text(),
+            first_heading.inner_text(),
+        )
+
+    def test_short_note_keeps_contents_controls_hidden(self):
+        page = self.open_page(width=390, height=844)
+        page.goto(
+            f"{BASE_URL.rstrip('/')}/blog/2026/08/13/165414/",
+            wait_until="networkidle",
+        )
+
+        self.assertIn("reader-enhanced", page.locator("[data-reader]").get_attribute("class"))
+        self.assertFalse(page.locator("[data-reader-open]").is_visible())
+        self.assertFalse(page.locator("[data-reader-toc]").is_visible())
+
+    def test_reader_navigation_adapts_across_viewports(self):
+        article_url = f"{BASE_URL.rstrip('/')}/blog/2026/07/29/165546/"
+
+        desktop = self.open_page(width=1440, height=1000)
+        desktop.goto(article_url, wait_until="networkidle")
+        self.assertTrue(desktop.locator("[data-reader-toc]").is_visible())
+        self.assertFalse(desktop.locator("[data-reader-open]").is_visible())
+        self.assertEqual(
+            desktop.locator("[data-reader-toolbar]").evaluate(
+                "element => getComputedStyle(element).position"
+            ),
+            "sticky",
+        )
+
+        for width, height in [(820, 900), (390, 844)]:
+            with self.subTest(width=width):
+                page = self.open_page(width=width, height=height)
+                page.goto(article_url, wait_until="networkidle")
+                self.assertFalse(page.locator("[data-reader-toc]").is_visible())
+                button = page.locator("[data-reader-open]")
+                self.assertTrue(button.is_visible())
+                bounds = button.bounding_box()
+                self.assertGreaterEqual(bounds["width"], 44)
+                self.assertGreaterEqual(bounds["height"], 44)
+                dimensions = page.evaluate(
+                    "({inner: innerWidth, scroll: document.documentElement.scrollWidth})"
+                )
+                self.assertLessEqual(dimensions["scroll"], dimensions["inner"] + 1)
+
+    def test_mobile_reader_dialog_focuses_and_reaches_sections(self):
+        page = self.open_page(width=390, height=844)
+        page.goto(
+            f"{BASE_URL.rstrip('/')}/blog/2026/07/29/165546/",
+            wait_until="networkidle",
+        )
+        button = page.locator("[data-reader-open]")
+        dialog = page.locator("[data-reader-dialog]")
+        button.click()
+        self.assertTrue(dialog.evaluate("element => element.open"))
+        self.assertEqual(button.get_attribute("aria-expanded"), "true")
+        page.wait_for_function(
+            "document.activeElement?.matches('[data-reader-dialog] a')"
+        )
+        dialog_bounds = dialog.bounding_box()
+        self.assertLessEqual(abs(dialog_bounds["y"] + dialog_bounds["height"] - 844), 2)
+        self.assertGreaterEqual(dialog_bounds["width"], 388)
+
+        first_link = dialog.locator("a").first
+        target_id = first_link.get_attribute("data-reader-target")
+        first_link.click()
+        page.wait_for_function("!document.querySelector('[data-reader-dialog]').open")
+        page.wait_for_function(
+            "target => decodeURIComponent(location.hash.slice(1)) === target",
+            arg=target_id,
+        )
+        page.wait_for_function(
+            """target => {
+              const top = document.getElementById(target)?.getBoundingClientRect().top;
+              return top >= 112 && top <= 220;
+            }""",
+            arg=target_id,
+        )
+        heading_top = page.locator(f"[id='{target_id}']").evaluate(
+            "element => element.getBoundingClientRect().top"
+        )
+        self.assertGreaterEqual(heading_top, 112)
+        self.assertLessEqual(heading_top, 220)
+
+        button.click()
+        page.keyboard.press("Escape")
+        page.wait_for_function("!document.querySelector('[data-reader-dialog]').open")
+        self.assertEqual(button.get_attribute("aria-expanded"), "false")
+
+    def test_reader_typography_progress_and_reduced_motion_contracts(self):
+        article_url = f"{BASE_URL.rstrip('/')}/blog/2026/07/29/165546/"
+        for width, height in [(1440, 1000), (820, 900), (390, 844)]:
+            with self.subTest(width=width):
+                page = self.open_page(width=width, height=height)
+                page.goto(article_url, wait_until="networkidle")
+                metrics = page.locator(".post-body").evaluate(
+                    """element => {
+                      const style = getComputedStyle(element);
+                      const measure = document.createElement('span');
+                      measure.style.cssText = 'position:absolute;width:72ch;visibility:hidden;pointer-events:none';
+                      element.append(measure);
+                      const maxReadableWidth = measure.getBoundingClientRect().width;
+                      measure.remove();
+                      return {
+                        fontSize: parseFloat(style.fontSize),
+                        lineHeight: parseFloat(style.lineHeight),
+                        maxReadableWidth,
+                        width: element.getBoundingClientRect().width,
+                        inner: innerWidth,
+                        scroll: document.documentElement.scrollWidth,
+                      };
+                    }"""
+                )
+                self.assertGreaterEqual(metrics["fontSize"], 16)
+                self.assertGreaterEqual(metrics["lineHeight"] / metrics["fontSize"], 1.75)
+                self.assertLessEqual(metrics["scroll"], metrics["inner"] + 1)
+                if width == 1440:
+                    self.assertLessEqual(metrics["width"], metrics["maxReadableWidth"] + 1)
+
+        reduced = self.open_page(width=390, height=844, reduced_motion=True)
+        reduced.goto(article_url, wait_until="networkidle")
+        durations = reduced.evaluate(
+            """() => ['[data-reader-toolbar]', '.reader-dialog__sheet'].map(selector => {
+              const value = getComputedStyle(document.querySelector(selector)).transitionDuration;
+              return Math.max(...value.split(',').map(item => parseFloat(item) * (item.includes('ms') ? .001 : 1)));
+            })"""
+        )
+        self.assertTrue(all(duration <= 0.001 for duration in durations))
 
     def test_writing_index_has_no_horizontal_overflow(self):
         for width, height in [(1440, 1000), (390, 844)]:

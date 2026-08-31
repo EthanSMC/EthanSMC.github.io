@@ -61,6 +61,10 @@ function renderAlbumSlide(album, index, selectedIndex) {
   const cover = album.cover
     ? `<img src="${escapeHtml(album.cover)}" alt="${escapeHtml(album.coverAlt || title)}" loading="${isSelected ? "eager" : "lazy"}" decoding="async" />`
     : `<span class="album-cover__monogram" aria-hidden="true">${escapeHtml(Array.from(title)[0] || "✦")}</span>`;
+  const coverPanel = `<div class="album-cover" data-album-cast="${escapeHtml(album.coverCast || "auto")}">${cover}</div>`;
+  const linkedCover = album.url
+    ? `<a class="album-cover-link" href="${escapeHtml(album.url)}">${coverPanel}</a>`
+    : coverPanel;
   const trackList = tracks.length
     ? `<ol class="album-track-list">${tracks.map(renderAlbumTrack).join("")}
                 </ol>`
@@ -71,7 +75,7 @@ function renderAlbumSlide(album, index, selectedIndex) {
 
   return `
             <article class="album-slide" data-album-slide="${escapeHtml(album.slug)}" aria-current="${isSelected}" tabindex="${isSelected ? "0" : "-1"}" style="--album-offset: ${index - selectedIndex}; --album-depth: ${Math.abs(index - selectedIndex)};" data-album-title="${escapeHtml(title)}"${isSelected ? "" : " inert"}>
-              <div class="album-cover" data-album-cast="${escapeHtml(album.coverCast || "auto")}">${cover}</div>
+              ${linkedCover}
               <div class="album-slide__copy">
                 <h3>${albumTitle}</h3>
                 ${album.description ? `<p class="album-slide__description">${authored(album.description)}</p>` : ""}
@@ -112,10 +116,12 @@ function renderArticle(post) {
   const tags = Array.isArray(post.tags) ? post.tags : [];
   return `
           <article class="independent-card">
-            <p class="writing-card__meta"><time datetime="${escapeHtml(post.iso)}">${escapeHtml(post.display)}</time>${post.readingMinutes ? ` · <span data-reading-minutes="${escapeHtml(post.readingMinutes)}">${escapeHtml(post.readingMinutes)} 分钟阅读</span>` : ""}</p>
-            <h3><a href="${escapeHtml(post.url)}">${authored(post.title)}</a></h3>
-            ${post.summary ? `<p class="independent-card__summary">${authored(post.summary)}</p>` : ""}
-            ${tags.length ? `<div class="writing-card__tags">${tags.map((tag) => `<span>#${authored(tag.label)}</span>`).join("")}</div>` : ""}
+            <a class="independent-card__link" href="${escapeHtml(post.url)}">
+              <p class="writing-card__meta"><time datetime="${escapeHtml(post.iso)}">${escapeHtml(post.display)}</time>${post.readingMinutes ? ` · <span data-reading-minutes="${escapeHtml(post.readingMinutes)}">${escapeHtml(post.readingMinutes)} 分钟阅读</span>` : ""}</p>
+              <h3>${authored(post.title)}</h3>
+              ${post.summary ? `<p class="independent-card__summary">${authored(post.summary)}</p>` : ""}
+              ${tags.length ? `<div class="writing-card__tags">${tags.map((tag) => `<span>#${authored(tag.label)}</span>`).join("")}</div>` : ""}
+            </a>
           </article>`;
 }
 
@@ -138,8 +144,10 @@ function renderIndependentArticles(articles, context) {
 function renderSmallTalk(note) {
   return `
           <article class="small-talk-card">
-            <p>${authored(note.summary || note.title)}</p>
-            <footer><time datetime="${escapeHtml(note.iso)}">${escapeHtml(note.display)}</time><a href="${escapeHtml(note.url)}" aria-label="${escapeHtml(note.title)}"><span aria-hidden="true">↗</span></a></footer>
+            <a class="small-talk-card__link" href="${escapeHtml(note.url)}" aria-label="${escapeHtml(note.title)}">
+              <p>${authored(note.summary || note.title)}</p>
+              <footer><time datetime="${escapeHtml(note.iso)}">${escapeHtml(note.display)}</time><span class="small-talk-card__arrow" aria-hidden="true">↗</span></footer>
+            </a>
           </article>`;
 }
 

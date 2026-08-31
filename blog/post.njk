@@ -7,7 +7,7 @@ pagination:
   addAllPagesToCollections: true
 permalink: "{{ post.outputPath }}"
 ---
-<article class="post-page post-page--{{ post.type | lower }}">
+<article class="post-page post-page--{{ post.type | lower }}" data-reader data-reader-minutes="{{ post.readingMinutes }}" data-post-title="{{ post.title | escape }}">
   <header class="post-heading">
     <p class="post-ledger"><span data-i18n="writing.title">写作</span> / {% if post.type == "Essay" %}<span data-i18n="blog.essay">长文</span>{% else %}<span data-i18n="blog.note">随记</span>{% endif %}</p>
     {% if post.showTitle %}<h1 data-i18n-authored="{{ post.title | escape }}">{{ post.title }}</h1>{% endif %}
@@ -24,7 +24,41 @@ permalink: "{{ post.outputPath }}"
     </div>
     <p class="post-language-note" data-original-language-note data-i18n="blog.post.originalNotice" hidden>本文原文为中文。</p>
   </header>
-  <div class="post-body prose" lang="zh-CN">{{ post.bodyHtml | safe }}</div>
+  <nav class="reader-toolbar" aria-label="阅读辅助导航" data-i18n-aria-label="blog.reader.aria" data-reader-toolbar>
+    <div class="reader-toolbar__inner">
+      <a class="reader-toolbar__back" href="/blog/">
+        <span aria-hidden="true">←</span>
+        <span data-i18n="blog.post.back">返回写作</span>
+      </a>
+      <p class="reader-toolbar__section">
+        <span class="reader-toolbar__eyebrow" data-i18n="blog.reader.currentSection">当前章节</span>
+        <span class="reader-toolbar__current" data-reader-current data-i18n-authored="{{ post.title | escape }}">{{ post.title }}</span>
+      </p>
+      <span class="reader-toolbar__percent" data-reader-percent aria-label="阅读进度" data-i18n-aria-label="blog.reader.progress">0%</span>
+      <button class="reader-toolbar__contents" type="button" aria-controls="reader-contents-dialog" aria-expanded="false" data-reader-open hidden>
+        <span data-i18n="blog.reader.contents">目录</span>
+      </button>
+    </div>
+    <span class="reader-progress" aria-hidden="true"><span data-reader-progress></span></span>
+  </nav>
+  <div class="reader-layout">
+    <aside class="reader-toc" aria-labelledby="reader-toc-title" data-reader-toc hidden>
+      <p id="reader-toc-title" data-i18n="blog.reader.contentsTitle">本文目录</p>
+      <ol data-reader-toc-list></ol>
+    </aside>
+    <div class="post-body prose" lang="zh-CN">{{ post.bodyHtml | safe }}</div>
+  </div>
+  <dialog class="reader-dialog" id="reader-contents-dialog" aria-labelledby="reader-dialog-title" data-reader-dialog>
+    <div class="reader-dialog__sheet">
+      <header class="reader-dialog__header">
+        <h2 id="reader-dialog-title" data-i18n="blog.reader.contentsTitle">本文目录</h2>
+        <button type="button" aria-label="关闭目录" data-i18n-aria-label="blog.reader.closeContents" data-reader-close>
+          <span aria-hidden="true">×</span>
+        </button>
+      </header>
+      <ol data-reader-toc-list></ol>
+    </div>
+  </dialog>
   <nav class="post-navigation" aria-label="相邻文章" data-i18n-aria-label="blog.post.navigationAria">
     {% if post.older %}<a href="{{ post.older.url }}"><small data-i18n="blog.post.previous">上一篇</small><span data-i18n-authored="{{ post.older.title | escape }}">{{ post.older.title }}</span></a>{% else %}<span></span>{% endif %}
     <a class="post-back" href="/blog/" data-i18n="blog.post.back">返回写作</a>

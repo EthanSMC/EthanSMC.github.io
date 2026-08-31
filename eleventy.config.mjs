@@ -27,6 +27,7 @@ export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy("blog.js");
   eleventyConfig.addPassthroughCopy("i18n.js");
   eleventyConfig.addPassthroughCopy("writing-carousel.js");
+  eleventyConfig.addPassthroughCopy("reading-navigation.js");
   eleventyConfig.addWatchTarget("content/published");
   eleventyConfig.addWatchTarget("content/albums");
   eleventyConfig.addWatchTarget("content/assets");

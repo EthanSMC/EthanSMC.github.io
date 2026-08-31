@@ -141,6 +141,7 @@ test("keeps internal Markdown outside Eleventy's public build graph", () => {
   assert.ok(ignores.includes("assets/**/*.md"));
   assert.ok(passthrough.includes("assets/digital-ethan/*.png"));
   assert.ok(passthrough.includes("writing-carousel.js"));
+  assert.ok(passthrough.includes("reading-navigation.js"));
   assert.ok(!passthrough.includes("assets/digital-ethan"));
 });
 
@@ -555,6 +556,10 @@ test("renders the shared album, independent writing, and Small Talks showcase", 
   assert.match(html, /第一轨/);
   assert.match(html, /href="\/blog\/albums\/ai-native-content-system\/"/);
   assert.match(html, /一篇独立文章/);
+  assert.match(
+    html,
+    /<article class="independent-card">\s*<a class="independent-card__link" href="\/blog\/2026\/08\/11\/121000\/">/,
+  );
   assert.match(html, /一则碎碎念/);
 });
 
@@ -898,12 +903,23 @@ test("keeps the source homepage readable without exposing build templates", () =
   assert.doesNotMatch(source, /location\.replace|ethansmc\.github\.io/);
 });
 
-test("loads the shared manual album carousel from both page shells", () => {
+test("loads the shared manual album carousel and article reader scripts", () => {
   const homepage = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
   const blogLayout = fs.readFileSync(path.join(ROOT, "_includes/layouts/blog-shell.njk"), "utf8");
+  const postTemplate = fs.readFileSync(path.join(ROOT, "blog/post.njk"), "utf8");
 
   assert.match(homepage, /<script type="module" src="\/writing-carousel\.js"><\/script>/);
   assert.match(blogLayout, /<script type="module" src="\/writing-carousel\.js"><\/script>/);
+  assert.match(blogLayout, /<script type="module" src="\/reading-navigation\.js"><\/script>/);
+  assert.ok(blogLayout.indexOf('src="/blog.js"') < blogLayout.indexOf('src="/reading-navigation.js"'));
+  assert.match(postTemplate, /data-reader(?:\s|>)/);
+  assert.match(postTemplate, /data-reader-minutes="\{\{ post\.readingMinutes \}\}"/);
+  assert.doesNotMatch(postTemplate, /<article[^>]*data-reading-minutes/);
+  assert.match(postTemplate, /data-reader-toolbar/);
+  assert.match(postTemplate, /data-reader-current/);
+  assert.match(postTemplate, /data-reader-progress/);
+  assert.match(postTemplate, /data-reader-toc/);
+  assert.match(postTemplate, /data-reader-dialog/);
 });
 
 test("places writing before experience and projects on the homepage", () => {
