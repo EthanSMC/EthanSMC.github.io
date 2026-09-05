@@ -1,0 +1,322 @@
+- generic [active] [ref=e1]:
+  - link "跳到主要内容" [ref=e2] [cursor=pointer]:
+    - /url: "#top"
+  - banner:
+    - generic [ref=e3]:
+      - link "是 Ethan 不是埃森首页" [ref=e4] [cursor=pointer]:
+        - /url: "#top"
+        - generic [ref=e5]: E
+        - generic [ref=e6]: EthanSMC
+      - navigation "主导航" [ref=e7]:
+        - link "关于" [ref=e8] [cursor=pointer]:
+          - /url: "#about"
+        - link "写作" [ref=e9] [cursor=pointer]:
+          - /url: "#writing"
+        - link "项目" [ref=e10] [cursor=pointer]:
+          - /url: "#projects"
+        - link "联系" [ref=e11] [cursor=pointer]:
+          - /url: "#contact"
+      - generic [ref=e12]:
+        - group "切换语言" [ref=e13]:
+          - button "中文" [disabled] [pressed] [ref=e14]: 中
+          - button "日本語" [ref=e15] [cursor=pointer]: 日
+          - button "English" [ref=e16] [cursor=pointer]: EN
+        - button "开启界面音效" [ref=e17] [cursor=pointer]
+        - button "打开 Ethan 的微信二维码" [ref=e21] [cursor=pointer]:
+          - generic [ref=e22]: 打个招呼
+  - main [ref=e25]:
+    - region "是 Ethan 不是埃森" [ref=e26]:
+      - generic [ref=e27]:
+        - generic "手绘数字 Ethan 互动场景" [ref=e28]
+        - generic:
+          - heading "是 Ethan 不是埃森" [level=1]:
+            - generic: 是 Ethan
+            - generic: 不是埃森
+          - paragraph: 金融科技产品经理 × AI Agent 构建者
+        - generic "关于 Ethan":
+          - article:
+            - heading "申名翀 Ethan" [level=2]
+            - paragraph: 中国上海
+          - article:
+            - heading "金融科技产品经理" [level=2]
+            - paragraph: 财富与资产管理工作流
+          - group:
+            - generic "教育经历 圣路易斯华盛顿大学":
+              - generic:
+                - generic: 教育经历
+                - generic: 圣路易斯华盛顿大学
+              - generic: +
+          - article:
+            - heading "专业领域" [level=2]
+            - paragraph: 债券 · 交易 · 风控
+          - article:
+            - heading "AI 构建者" [level=2]
+            - paragraph: Agent 辅助系统
+        - img "手绘数字 Ethan 手持 MacBook 站立"
+        - link "滚动到写作" [ref=e30] [cursor=pointer]:
+          - /url: "#writing"
+          - text: 向下滚动 ↓
+    - region [ref=e31]:
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - heading "写作" [level=2] [ref=e34]
+          - paragraph [ref=e35]: 产品现场、AI 实验和一些暂时没有答案的问题——趁它们还热，先写下来。
+        - link "查看全部写作 →" [ref=e36] [cursor=pointer]:
+          - /url: /blog/
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - region [ref=e40]:
+            - heading "专辑" [level=2] [ref=e42]
+            - generic "专辑" [ref=e43]:
+              - article [ref=e45]:
+                - img "Ethan 与 Mochi、Molly 一起连接博客、内容中心和公众号草稿箱" [ref=e47]
+                - generic [ref=e48]:
+                  - heading [level=3] [ref=e49]:
+                    - link "AI原生个人内容系统" [ref=e50] [cursor=pointer]:
+                      - /url: /blog/albums/ai-native-content-system/
+                  - paragraph [ref=e52]: 从 Obsidian 出发，逐步搭建属于自己的 AI 原生个人内容系统。
+                  - list [ref=e53]:
+                    - listitem [ref=e54]:
+                      - link "1 我为什么要给自己造一个 AI 原生的个人内容中心" [ref=e55] [cursor=pointer]:
+                        - /url: /blog/2026/07/29/165546/
+                        - generic [ref=e56]: "1"
+                        - generic [ref=e57]: 我为什么要给自己造一个 AI 原生的个人内容中心
+                    - listitem [ref=e58]:
+                      - link "2 我把个人博客接到了公众号草稿箱" [ref=e59] [cursor=pointer]:
+                        - /url: /blog/2026/08/06/231924/
+                        - generic [ref=e60]: "2"
+                        - generic [ref=e61]: 我把个人博客接到了公众号草稿箱
+                    - listitem [ref=e62]:
+                      - link "3 我给公众号补上了最后一步自动化" [ref=e63] [cursor=pointer]:
+                        - /url: /blog/2026/08/10/003221/
+                        - generic [ref=e64]: "3"
+                        - generic [ref=e65]: 我给公众号补上了最后一步自动化
+                    - listitem [ref=e66]:
+                      - link "4 我给碎碎念补上了公众号贴图" [ref=e67] [cursor=pointer]:
+                        - /url: /blog/2026/08/17/200241/
+                        - generic [ref=e68]: "4"
+                        - generic [ref=e69]: 我给碎碎念补上了公众号贴图
+              - generic [ref=e70]:
+                - button "上一本专辑" [disabled] [ref=e71]: ←
+                - paragraph [ref=e72]: 第 1 本，共 1 本：AI原生个人内容系统
+                - button "下一本专辑" [disabled] [ref=e73]: →
+          - region [ref=e74]:
+            - heading "独立文章" [level=2] [ref=e76]
+            - paragraph [ref=e78]: 独立文章还在纸上。
+        - region [ref=e79]:
+          - heading "碎碎念" [level=2] [ref=e81]
+          - generic [ref=e82]:
+            - article [ref=e83]:
+              - paragraph [ref=e84]: 我和天才的距离有2年差一天
+              - generic [ref=e85]:
+                - time [ref=e86]: 2026.08.13
+                - link "我和天才的距离有2年差一天 昨天上班路上，脑子里突然冒出一个想法。" [ref=e87] [cursor=pointer]:
+                  - /url: /blog/2026/08/13/165414/
+                  - generic [ref=e88]: ↗
+            - article [ref=e89]:
+              - paragraph [ref=e90]: 今天上班路上，突然有一个新的idea。
+              - generic [ref=e91]:
+                - time [ref=e92]: 2026.08.12
+                - link "今天上班路上，突然有一个新的idea。" [ref=e93] [cursor=pointer]:
+                  - /url: /blog/2026/08/12/151710/
+                  - generic [ref=e94]: ↗
+            - article [ref=e95]:
+              - paragraph [ref=e96]: 需求在AI时代是被更多释放了，但是高增长高价值的需求逐步枯竭了。
+              - generic [ref=e97]:
+                - time [ref=e98]: 2026.08.11
+                - link "需求在AI时代是被更多释放了，但是高增长高价值的需求逐步枯竭了。" [ref=e99] [cursor=pointer]:
+                  - /url: /blog/2026/08/11/113748/
+                  - generic [ref=e100]: ↗
+    - region [ref=e101]:
+      - generic [ref=e103]:
+        - heading "工作经历" [level=2] [ref=e104]
+        - paragraph [ref=e105]: 从债券与资管业务出发，把复杂判断做成真正可用的产品与 AI 工作流。
+      - generic [ref=e106]:
+        - article [ref=e107]:
+          - generic [ref=e108]:
+            - time [ref=e109]: 2025.12 — 至今
+            - heading "上海国智技术有限公司 · AI 产品经理" [level=3] [ref=e110]
+          - paragraph [ref=e111]: 负责全资产资管平台客户端产品设计，覆盖投研、交易、风控链路；构建多场景工作台，让用户在一个页面完成从簿记到风控测算的交易生命周期操作。
+          - paragraph [ref=e112]: 推进“AI + 资管”中试基地 Agent 场景和产品经理 Agent 设计，将业务探查、信息收集、数据依赖和产品判断拆成可复用流程。
+        - article [ref=e113]:
+          - generic [ref=e114]:
+            - time [ref=e115]: 2025.09 — 2025.12
+            - heading "同花顺 iFinD · AI 债券产品经理" [level=3] [ref=e116]
+          - paragraph [ref=e117]: 负责债券经纪商行情筛选 Agent，让用户通过自然语言完成多维度债券筛选和过滤；参与 Chat 后端与问财 AI 对接测试、竞品效果对比和评分标注。
+        - article [ref=e118]:
+          - generic [ref=e119]:
+            - time [ref=e120]: 2022.08 — 2025.08
+            - heading "上海森浦信息服务有限公司 · 产品经理" [level=3] [ref=e121]
+          - paragraph [ref=e122]: 设计债券信用分析、成交偏离监控、信用债曲线定价和自动化场外交易产品。金融 Q 使用 NLP + LLM 标准化投资经理、交易员、做市商和 Broker 之间的指令流转，将报价触发从约 1 分钟压缩到 1 秒，将成交单梳理从约 30 分钟缩短到 2 分钟。
+    - region [ref=e123]:
+      - generic [ref=e125]:
+        - heading "精选项目" [level=2] [ref=e126]
+        - paragraph [ref=e127]: 从真实业务问题出发，把金融判断、Agent 能力和产品方法做成可以被使用的工具。
+      - generic [ref=e128]:
+        - button "上一个项目" [ref=e129] [cursor=pointer]
+        - article [ref=e132]:
+          - heading "AI 原生财富与资产管理系统" [level=3] [ref=e137]
+          - paragraph [ref=e138]: 覆盖投研、交易与风控流程的 AI 原生财富与资产管理工作台。
+          - generic [ref=e139]:
+            - generic [ref=e140]: 金融科技 PM
+            - generic [ref=e141]: 工作流
+            - generic [ref=e142]: 风控
+        - article [ref=e143]:
+          - generic [ref=e144]:
+            - generic [ref=e145]:
+              - generic [ref=e146]: AA+
+              - generic [ref=e147]: 1–3Y
+              - generic [ref=e148]: YTM ≥ 2%
+            - generic [ref=e149]:
+              - generic [ref=e150]:
+                - generic [ref=e151]: 24 CDB 05
+                - generic [ref=e152]: AAA
+                - strong [ref=e153]: 2.18%
+              - generic [ref=e154]:
+                - generic [ref=e155]: 24 CGB 12
+                - generic [ref=e156]: AAA
+                - strong [ref=e157]: 2.23%
+              - generic [ref=e158]:
+                - generic [ref=e159]: 23 MTN 08
+                - generic [ref=e160]: AA+
+                - strong [ref=e161]: 2.41%
+            - generic [ref=e162]: "> liquid bonds · live quotes"
+          - heading "债券 Agent 与金融 Q" [level=3] [ref=e163]
+          - paragraph [ref=e164]: 使用自然语言、NLP 与 LLM 辅助工作流完成债券筛选和场外交易自动化。
+          - generic [ref=e165]:
+            - generic [ref=e166]: 债券
+            - generic [ref=e167]: 大模型
+            - generic [ref=e168]: 报价流
+        - article [ref=e169] [cursor=pointer]:
+          - heading "Novelty Studio" [level=3] [ref=e175]
+          - paragraph [ref=e176]: 由 Writer、Editor、Archiver 和 Option Generator 等角色协作的多 Agent 互动小说产品。
+          - generic [ref=e177]:
+            - generic [ref=e178]: 多 Agent
+            - generic [ref=e179]: 记忆
+            - generic [ref=e180]: 构建工具
+          - link "在新标签页打开 Novelty Studio" [ref=e181]:
+            - /url: https://noveltystudio.cn
+            - generic [ref=e182]: 打开网站
+            - generic [ref=e183]: ↗
+        - button "下一个项目" [ref=e184] [cursor=pointer]
+    - region [ref=e187]:
+      - generic [ref=e188]:
+        - generic [ref=e189]:
+          - heading "精选代码仓库" [level=2] [ref=e190]
+          - paragraph [ref=e191]: 公开仓库是我的实验室：把产品方法、Agent 能力和个人 IP 系统沉淀成可复用资产。
+        - link "查看全部仓库 →" [ref=e192] [cursor=pointer]:
+          - /url: https://github.com/EthanSMC?tab=repositories
+      - generic [ref=e193]:
+        - link "digital-me 把照片或文字描述转化为个人 IP 系统的可复用工作流。 Python ★ 1" [ref=e194] [cursor=pointer]:
+          - /url: https://github.com/EthanSMC/digital-me
+          - heading "digital-me" [level=3] [ref=e200]
+          - paragraph [ref=e201]: 把照片或文字描述转化为个人 IP 系统的可复用工作流。
+          - generic [ref=e202]:
+            - generic [ref=e203]: Python
+            - strong [ref=e204]: ★ 1
+        - link "pm-skills 产品经理技能库与实战方法论，把需求分析、竞品研究和复盘沉淀为结构化能力。 Python ★ 4" [ref=e205] [cursor=pointer]:
+          - /url: https://github.com/EthanSMC/pm-skills
+          - heading "pm-skills" [level=3] [ref=e210]
+          - paragraph [ref=e211]: 产品经理技能库与实战方法论，把需求分析、竞品研究和复盘沉淀为结构化能力。
+          - generic [ref=e212]:
+            - generic [ref=e213]: Python
+            - strong [ref=e214]: ★ 4
+        - link "mcd-skill 麦当劳点餐助手，支持 OpenClaw、Claude Code 等 Agent 框架的实用技能。 Python ★ 0" [ref=e215] [cursor=pointer]:
+          - /url: https://github.com/EthanSMC/mcd-skill
+          - heading "mcd-skill" [level=3] [ref=e221]
+          - paragraph [ref=e222]: 麦当劳点餐助手，支持 OpenClaw、Claude Code 等 Agent 框架的实用技能。
+          - generic [ref=e223]:
+            - generic [ref=e224]: Python
+            - strong [ref=e225]: ★ 0
+        - link "learn-back 从基础到项目实践的后端学习路线与项目库，记录系统学习的回路。 Shell ★ 0" [ref=e226] [cursor=pointer]:
+          - /url: https://github.com/EthanSMC/learn-back
+          - heading "learn-back" [level=3] [ref=e231]
+          - paragraph [ref=e232]: 从基础到项目实践的后端学习路线与项目库，记录系统学习的回路。
+          - generic [ref=e233]:
+            - generic [ref=e234]: Shell
+            - strong [ref=e235]: ★ 0
+      - region [ref=e236] [cursor=pointer]:
+        - generic [ref=e238]:
+          - generic [ref=e239]:
+            - paragraph [ref=e240]: GitHub · EthanSMC
+            - heading "365 天持续创造" [level=3] [ref=e241]
+          - paragraph [ref=e242]: GitHub 活动
+        - grid "GitHub 贡献日历" [ref=e244]:
+          - row [ref=e245]
+          - row [ref=e299]
+          - row [ref=e353]
+          - row [ref=e407]
+          - row [ref=e461]
+          - row [ref=e515]
+          - row [ref=e569]
+        - generic [ref=e623]:
+          - paragraph [ref=e624]: 贡献数据暂时不可用
+          - link "查看 GitHub 主页" [ref=e625]:
+            - /url: https://github.com/EthanSMC
+            - generic [ref=e627]: ↗
+    - region [ref=e628]:
+      - generic [ref=e629]:
+        - heading "近况" [level=2] [ref=e630]
+        - paragraph [ref=e631]: 最近的重心是把“会做一次”的东西收敛成“可以复用很多次”的工作流。
+        - list [ref=e632]:
+          - listitem [ref=e633]:
+            - generic [ref=e634]: "1"
+            - generic [ref=e635]:
+              - heading "构建 AI 资产管理工作流" [level=3] [ref=e636]
+              - paragraph [ref=e637]: 把投研、交易和风控中的业务规则、决策判断与协同流程，沉淀为 Agent 可执行、可复用的工作流。
+            - time [ref=e638]: 7 月 1 日
+          - listitem [ref=e639]:
+            - generic [ref=e640]: "2"
+            - generic [ref=e641]:
+              - heading "发布个人 IP 系统" [level=3] [ref=e642]
+              - paragraph [ref=e643]: 构建 Digital Ethan 与内容知识库，让个人 IP 和产品叙事能够持续扩展。
+            - time [ref=e644]: 7 月 1 日
+          - listitem [ref=e645]:
+            - generic [ref=e646]: "3"
+            - generic [ref=e647]:
+              - heading "维护产品经理技能库" [level=3] [ref=e648]
+              - paragraph [ref=e649]: 把需求分析、竞品研究、PRD 写作和评审沉淀为可复用的产品经理技能栈。
+            - time [ref=e650]: 6 月 14 日
+          - listitem [ref=e651]:
+            - generic [ref=e652]: "4"
+            - generic [ref=e653]:
+              - heading "与 Agent 一起构建" [level=3] [ref=e654]
+              - paragraph [ref=e655]: 用 AI 编程工具完成 Novelty Studio 等产品原型，把产品设计和实现连接起来。
+            - time [ref=e656]: 6 月 14 日
+      - generic [ref=e661]:
+        - heading [level=3] [ref=e662]: 每日
+        - paragraph [ref=e663]:
+          - generic [ref=e665]: 小步发布
+        - paragraph [ref=e666]:
+          - generic [ref=e668]: 认真记录
+        - paragraph [ref=e669]:
+          - generic [ref=e671]: 帮助他人
+    - region [ref=e672]:
+      - generic [ref=e673]:
+        - heading "一起把有用的东西做出来。" [level=2] [ref=e675]
+        - paragraph [ref=e676]: 欢迎与我合作金融科技产品、AI Agent 工作流、个人 IP 系统，以及把复杂判断转化为可复用系统的产品工具。
+        - link "qq986399523@gmail.com" [ref=e677] [cursor=pointer]:
+          - /url: mailto:qq986399523@gmail.com
+      - generic [ref=e680]:
+        - link "邮箱 qq986399523@gmail.com" [ref=e681] [cursor=pointer]:
+          - /url: mailto:qq986399523@gmail.com
+          - generic [ref=e685]:
+            - generic [ref=e686]: 邮箱
+            - generic [ref=e687]: qq986399523@gmail.com
+        - link "GitHub github.com/EthanSMC" [ref=e688] [cursor=pointer]:
+          - /url: https://github.com/EthanSMC
+          - generic [ref=e691]:
+            - generic [ref=e692]: GitHub
+            - generic [ref=e693]: github.com/EthanSMC
+        - paragraph [ref=e694]:
+          - generic [ref=e698]:
+            - generic [ref=e699]: 所在地
+            - generic [ref=e700]: 中国上海
+  - contentinfo [ref=e701]:
+    - generic [ref=e702]: © 2026 EthanSMC
+    - generic [ref=e703]:
+      - text: 交互参考：
+      - link "David Heckhoff" [ref=e704] [cursor=pointer]:
+        - /url: https://david-hckh.com/
+    - link "返回顶部 ↑" [ref=e705] [cursor=pointer]:
+      - /url: "#top"

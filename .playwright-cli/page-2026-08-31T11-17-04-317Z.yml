@@ -1,0 +1,69 @@
+- generic [active] [ref=f1e1]:
+  - link "跳到主要内容" [ref=f1e2] [cursor=pointer]:
+    - /url: "#content"
+  - banner:
+    - generic [ref=f1e3]:
+      - link "是 Ethan 不是埃森首页" [ref=f1e4] [cursor=pointer]:
+        - /url: /#top
+        - generic [ref=f1e5]: E
+        - generic: EthanSMC
+      - navigation "主导航" [ref=f1e6]:
+        - link "关于" [ref=f1e7] [cursor=pointer]:
+          - /url: /#about
+        - link "写作" [ref=f1e8] [cursor=pointer]:
+          - /url: /blog/
+        - link "项目" [ref=f1e9] [cursor=pointer]:
+          - /url: /#projects
+        - link "联系" [ref=f1e10] [cursor=pointer]:
+          - /url: /#contact
+      - generic [ref=f1e11]:
+        - group "切换语言" [ref=f1e12]:
+          - button "中文" [disabled] [pressed] [ref=f1e13]: 中
+          - button "日本語" [ref=f1e14] [cursor=pointer]: 日
+          - button "English" [ref=f1e15] [cursor=pointer]: EN
+        - button "开启界面音效" [ref=f1e16] [cursor=pointer]
+        - button "打开 Ethan 的微信二维码" [ref=f1e20] [cursor=pointer]:
+          - generic [ref=f1e21]: 招呼
+  - main [ref=f1e22]:
+    - article [ref=f1e23]:
+      - generic [ref=f1e24]:
+        - paragraph [ref=f1e25]:
+          - link "写作" [ref=f1e26] [cursor=pointer]:
+            - /url: /blog/
+          - text: / 专辑
+        - heading "AI原生个人内容系统" [level=1] [ref=f1e27]
+        - paragraph [ref=f1e28]: 从 Obsidian 出发，逐步搭建属于自己的 AI 原生个人内容系统。
+        - paragraph [ref=f1e29]: 状态 · 连载中
+      - figure [ref=f1e30]:
+        - img "Ethan 与 Mochi、Molly 一起连接博客、内容中心和公众号草稿箱" [ref=f1e31]
+      - region [ref=f1e32]:
+        - heading "目录" [level=2] [ref=f1e33]
+        - list [ref=f1e34]:
+          - listitem [ref=f1e35]:
+            - link "01 我为什么要给自己造一个 AI 原生的个人内容中心" [ref=f1e36] [cursor=pointer]:
+              - /url: /blog/2026/07/29/165546/
+              - generic [ref=f1e37]: "01"
+              - generic [ref=f1e38]: 我为什么要给自己造一个 AI 原生的个人内容中心
+          - listitem [ref=f1e39]:
+            - link "02 我把个人博客接到了公众号草稿箱" [ref=f1e40] [cursor=pointer]:
+              - /url: /blog/2026/08/06/231924/
+              - generic [ref=f1e41]: "02"
+              - generic [ref=f1e42]: 我把个人博客接到了公众号草稿箱
+          - listitem [ref=f1e43]:
+            - link "03 我给公众号补上了最后一步自动化" [ref=f1e44] [cursor=pointer]:
+              - /url: /blog/2026/08/10/003221/
+              - generic [ref=f1e45]: "03"
+              - generic [ref=f1e46]: 我给公众号补上了最后一步自动化
+          - listitem [ref=f1e47]:
+            - link "04 我给碎碎念补上了公众号贴图" [ref=f1e48] [cursor=pointer]:
+              - /url: /blog/2026/08/17/200241/
+              - generic [ref=f1e49]: "04"
+              - generic [ref=f1e50]: 我给碎碎念补上了公众号贴图
+      - navigation "专辑导航" [ref=f1e51]:
+        - link "返回写作" [ref=f1e52] [cursor=pointer]:
+          - /url: /blog/
+  - contentinfo [ref=f1e53]:
+    - generic [ref=f1e54]: © 2026 EthanSMC
+    - paragraph [ref=f1e55]: 写下正在形成的判断，也保留暂时没有答案的问题。
+    - link "RSS" [ref=f1e56] [cursor=pointer]:
+      - /url: /blog/feed.xml

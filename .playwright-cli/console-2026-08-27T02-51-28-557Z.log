@@ -1,0 +1,8 @@
+[     302ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:4174/_vercel/insights/script.js:0
+[    2828ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:4174/api/github-contributions:0
+[  130579ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:4174/_vercel/insights/script.js:0
+[  130819ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:4174/api/github-contributions:0
+[  131642ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:4174/_vercel/insights/script.js:0
+[  132255ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:4174/api/github-contributions:0
+[  133392ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:4174/_vercel/insights/script.js:0
+[  133490ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:4174/api/github-contributions:0

@@ -1,0 +1,687 @@
+- generic [active] [ref=f3e1]:
+  - link "跳到主要内容" [ref=f3e2] [cursor=pointer]:
+    - /url: "#top"
+  - banner:
+    - generic [ref=f3e3]:
+      - link "是 Ethan 不是埃森首页" [ref=f3e4] [cursor=pointer]:
+        - /url: "#top"
+        - generic [ref=f3e5]: E
+        - generic [ref=f3e6]: EthanSMC
+      - navigation "主导航" [ref=f3e7]:
+        - link "关于" [ref=f3e8] [cursor=pointer]:
+          - /url: "#about"
+        - link "写作" [ref=f3e9] [cursor=pointer]:
+          - /url: "#writing"
+        - link "项目" [ref=f3e10] [cursor=pointer]:
+          - /url: "#projects"
+        - link "联系" [ref=f3e11] [cursor=pointer]:
+          - /url: "#contact"
+      - generic [ref=f3e12]:
+        - group "切换语言" [ref=f3e13]:
+          - button "中文" [disabled] [pressed] [ref=f3e14]: 中
+          - button "日本語" [ref=f3e15] [cursor=pointer]: 日
+          - button "English" [ref=f3e16] [cursor=pointer]: EN
+        - button "开启界面音效" [ref=f3e17] [cursor=pointer]
+        - button "打开 Ethan 的微信二维码" [ref=f3e21] [cursor=pointer]:
+          - generic [ref=f3e22]: 打个招呼
+  - main [ref=f3e25]:
+    - region "是 Ethan 不是埃森" [ref=f3e26]:
+      - generic [ref=f3e27]:
+        - generic "手绘数字 Ethan 互动场景" [ref=f3e28]
+        - generic:
+          - heading "是 Ethan 不是埃森" [level=1]:
+            - generic: 是 Ethan
+            - generic: 不是埃森
+          - paragraph: 金融科技产品经理 × AI Agent 构建者
+        - generic "关于 Ethan":
+          - article:
+            - heading "申名翀 Ethan" [level=2]
+            - paragraph: 中国上海
+          - article:
+            - heading "金融科技产品经理" [level=2]
+            - paragraph: 财富与资产管理工作流
+          - group:
+            - generic "教育经历 圣路易斯华盛顿大学":
+              - generic:
+                - generic: 教育经历
+                - generic: 圣路易斯华盛顿大学
+              - generic: +
+          - article:
+            - heading "专业领域" [level=2]
+            - paragraph: 债券 · 交易 · 风控
+          - article:
+            - heading "AI 构建者" [level=2]
+            - paragraph: Agent 辅助系统
+        - img "手绘数字 Ethan 手持 MacBook 站立"
+        - link "滚动到写作" [ref=f3e30] [cursor=pointer]:
+          - /url: "#writing"
+          - text: 向下滚动 ↓
+    - region [ref=f3e31]:
+      - generic [ref=f3e32]:
+        - generic [ref=f3e33]:
+          - heading "写作" [level=2] [ref=f3e34]
+          - paragraph [ref=f3e35]: 产品现场、AI 实验和一些暂时没有答案的问题——趁它们还热，先写下来。
+        - link "查看全部写作 →" [ref=f3e36] [cursor=pointer]:
+          - /url: /blog/
+      - generic [ref=f3e38]:
+        - generic [ref=f3e39]:
+          - region [ref=f3e40]:
+            - heading "专辑" [level=2] [ref=f3e42]
+            - generic "专辑" [ref=f3e43]:
+              - article [ref=f3e45]:
+                - img "Ethan 与 Mochi、Molly 一起连接博客、内容中心和公众号草稿箱" [ref=f3e47]
+                - generic [ref=f3e48]:
+                  - heading [level=3] [ref=f3e49]:
+                    - link "AI原生个人内容系统" [ref=f3e50] [cursor=pointer]:
+                      - /url: /blog/albums/ai-native-content-system/
+                  - paragraph [ref=f3e52]: 从 Obsidian 出发，逐步搭建属于自己的 AI 原生个人内容系统。
+                  - list [ref=f3e53]:
+                    - listitem [ref=f3e54]:
+                      - link "1 我为什么要给自己造一个 AI 原生的个人内容中心" [ref=f3e55] [cursor=pointer]:
+                        - /url: /blog/2026/07/29/165546/
+                        - generic [ref=f3e56]: "1"
+                        - generic [ref=f3e57]: 我为什么要给自己造一个 AI 原生的个人内容中心
+                    - listitem [ref=f3e58]:
+                      - link "2 我把个人博客接到了公众号草稿箱" [ref=f3e59] [cursor=pointer]:
+                        - /url: /blog/2026/08/06/231924/
+                        - generic [ref=f3e60]: "2"
+                        - generic [ref=f3e61]: 我把个人博客接到了公众号草稿箱
+                    - listitem [ref=f3e62]:
+                      - link "3 我给公众号补上了最后一步自动化" [ref=f3e63] [cursor=pointer]:
+                        - /url: /blog/2026/08/10/003221/
+                        - generic [ref=f3e64]: "3"
+                        - generic [ref=f3e65]: 我给公众号补上了最后一步自动化
+                    - listitem [ref=f3e66]:
+                      - link "4 我给碎碎念补上了公众号贴图" [ref=f3e67] [cursor=pointer]:
+                        - /url: /blog/2026/08/17/200241/
+                        - generic [ref=f3e68]: "4"
+                        - generic [ref=f3e69]: 我给碎碎念补上了公众号贴图
+              - generic [ref=f3e70]:
+                - button "上一本专辑" [disabled] [ref=f3e71]: ←
+                - paragraph [ref=f3e72]: 第 1 本，共 1 本：AI原生个人内容系统
+                - button "下一本专辑" [disabled] [ref=f3e73]: →
+          - region [ref=f3e74]:
+            - heading "独立文章" [level=2] [ref=f3e76]
+            - paragraph [ref=f3e78]: 独立文章还在纸上。
+        - region [ref=f3e79]:
+          - heading "碎碎念" [level=2] [ref=f3e81]
+          - generic [ref=f3e82]:
+            - article [ref=f3e83]:
+              - paragraph [ref=f3e84]: 我和天才的距离有2年差一天
+              - generic [ref=f3e85]:
+                - time [ref=f3e86]: 2026.08.13
+                - link "我和天才的距离有2年差一天 昨天上班路上，脑子里突然冒出一个想法。" [ref=f3e87] [cursor=pointer]:
+                  - /url: /blog/2026/08/13/165414/
+                  - generic [ref=f3e88]: ↗
+            - article [ref=f3e89]:
+              - paragraph [ref=f3e90]: 今天上班路上，突然有一个新的idea。
+              - generic [ref=f3e91]:
+                - time [ref=f3e92]: 2026.08.12
+                - link "今天上班路上，突然有一个新的idea。" [ref=f3e93] [cursor=pointer]:
+                  - /url: /blog/2026/08/12/151710/
+                  - generic [ref=f3e94]: ↗
+            - article [ref=f3e95]:
+              - paragraph [ref=f3e96]: 需求在AI时代是被更多释放了，但是高增长高价值的需求逐步枯竭了。
+              - generic [ref=f3e97]:
+                - time [ref=f3e98]: 2026.08.11
+                - link "需求在AI时代是被更多释放了，但是高增长高价值的需求逐步枯竭了。" [ref=f3e99] [cursor=pointer]:
+                  - /url: /blog/2026/08/11/113748/
+                  - generic [ref=f3e100]: ↗
+    - region [ref=f3e101]:
+      - generic [ref=f3e103]:
+        - heading "工作经历" [level=2] [ref=f3e104]
+        - paragraph [ref=f3e105]: 从债券与资管业务出发，把复杂判断做成真正可用的产品与 AI 工作流。
+      - generic [ref=f3e106]:
+        - article [ref=f3e107]:
+          - generic [ref=f3e108]:
+            - time [ref=f3e109]: 2025.12 — 至今
+            - heading "上海国智技术有限公司 · AI 产品经理" [level=3] [ref=f3e110]
+          - paragraph [ref=f3e111]: 负责全资产资管平台客户端产品设计，覆盖投研、交易、风控链路；构建多场景工作台，让用户在一个页面完成从簿记到风控测算的交易生命周期操作。
+          - paragraph [ref=f3e112]: 推进“AI + 资管”中试基地 Agent 场景和产品经理 Agent 设计，将业务探查、信息收集、数据依赖和产品判断拆成可复用流程。
+        - article [ref=f3e113]:
+          - generic [ref=f3e114]:
+            - time [ref=f3e115]: 2025.09 — 2025.12
+            - heading "同花顺 iFinD · AI 债券产品经理" [level=3] [ref=f3e116]
+          - paragraph [ref=f3e117]: 负责债券经纪商行情筛选 Agent，让用户通过自然语言完成多维度债券筛选和过滤；参与 Chat 后端与问财 AI 对接测试、竞品效果对比和评分标注。
+        - article [ref=f3e118]:
+          - generic [ref=f3e119]:
+            - time [ref=f3e120]: 2022.08 — 2025.08
+            - heading "上海森浦信息服务有限公司 · 产品经理" [level=3] [ref=f3e121]
+          - paragraph [ref=f3e122]: 设计债券信用分析、成交偏离监控、信用债曲线定价和自动化场外交易产品。金融 Q 使用 NLP + LLM 标准化投资经理、交易员、做市商和 Broker 之间的指令流转，将报价触发从约 1 分钟压缩到 1 秒，将成交单梳理从约 30 分钟缩短到 2 分钟。
+    - region [ref=f3e123]:
+      - generic [ref=f3e125]:
+        - heading "精选项目" [level=2] [ref=f3e126]
+        - paragraph [ref=f3e127]: 从真实业务问题出发，把金融判断、Agent 能力和产品方法做成可以被使用的工具。
+      - generic [ref=f3e128]:
+        - button "上一个项目" [ref=f3e129] [cursor=pointer]
+        - article [ref=f3e132]:
+          - heading "AI 原生财富与资产管理系统" [level=3] [ref=f3e137]
+          - paragraph [ref=f3e138]: 覆盖投研、交易与风控流程的 AI 原生财富与资产管理工作台。
+          - generic [ref=f3e139]:
+            - generic [ref=f3e140]: 金融科技 PM
+            - generic [ref=f3e141]: 工作流
+            - generic [ref=f3e142]: 风控
+        - article [ref=f3e143]:
+          - generic [ref=f3e144]:
+            - generic [ref=f3e145]:
+              - generic [ref=f3e146]: AA+
+              - generic [ref=f3e147]: 1–3Y
+              - generic [ref=f3e148]: YTM ≥ 2%
+            - generic [ref=f3e149]:
+              - generic [ref=f3e150]:
+                - generic [ref=f3e151]: 24 CDB 05
+                - generic [ref=f3e152]: AAA
+                - strong [ref=f3e153]: 2.18%
+              - generic [ref=f3e154]:
+                - generic [ref=f3e155]: 24 CGB 12
+                - generic [ref=f3e156]: AAA
+                - strong [ref=f3e157]: 2.23%
+              - generic [ref=f3e158]:
+                - generic [ref=f3e159]: 23 MTN 08
+                - generic [ref=f3e160]: AA+
+                - strong [ref=f3e161]: 2.41%
+            - generic [ref=f3e162]: "> liquid bonds · live quotes"
+          - heading "债券 Agent 与金融 Q" [level=3] [ref=f3e163]
+          - paragraph [ref=f3e164]: 使用自然语言、NLP 与 LLM 辅助工作流完成债券筛选和场外交易自动化。
+          - generic [ref=f3e165]:
+            - generic [ref=f3e166]: 债券
+            - generic [ref=f3e167]: 大模型
+            - generic [ref=f3e168]: 报价流
+        - article [ref=f3e169] [cursor=pointer]:
+          - heading "Novelty Studio" [level=3] [ref=f3e175]
+          - paragraph [ref=f3e176]: 由 Writer、Editor、Archiver 和 Option Generator 等角色协作的多 Agent 互动小说产品。
+          - generic [ref=f3e177]:
+            - generic [ref=f3e178]: 多 Agent
+            - generic [ref=f3e179]: 记忆
+            - generic [ref=f3e180]: 构建工具
+          - link "在新标签页打开 Novelty Studio" [ref=f3e181]:
+            - /url: https://noveltystudio.cn
+            - generic [ref=f3e182]: 打开网站
+            - generic [ref=f3e183]: ↗
+        - button "下一个项目" [ref=f3e184] [cursor=pointer]
+    - region [ref=f3e187]:
+      - generic [ref=f3e188]:
+        - generic [ref=f3e189]:
+          - heading "精选代码仓库" [level=2] [ref=f3e190]
+          - paragraph [ref=f3e191]: 公开仓库是我的实验室：把产品方法、Agent 能力和个人 IP 系统沉淀成可复用资产。
+        - link "查看全部仓库 →" [ref=f3e192] [cursor=pointer]:
+          - /url: https://github.com/EthanSMC?tab=repositories
+      - generic [ref=f3e193]:
+        - link "digital-me 把照片或文字描述转化为个人 IP 系统的可复用工作流。 Python ★ 1" [ref=f3e194] [cursor=pointer]:
+          - /url: https://github.com/EthanSMC/digital-me
+          - heading "digital-me" [level=3] [ref=f3e200]
+          - paragraph [ref=f3e201]: 把照片或文字描述转化为个人 IP 系统的可复用工作流。
+          - generic [ref=f3e202]:
+            - generic [ref=f3e203]: Python
+            - strong [ref=f3e204]: ★ 1
+        - link "pm-skills 产品经理技能库与实战方法论，把需求分析、竞品研究和复盘沉淀为结构化能力。 Python ★ 4" [ref=f3e205] [cursor=pointer]:
+          - /url: https://github.com/EthanSMC/pm-skills
+          - heading "pm-skills" [level=3] [ref=f3e210]
+          - paragraph [ref=f3e211]: 产品经理技能库与实战方法论，把需求分析、竞品研究和复盘沉淀为结构化能力。
+          - generic [ref=f3e212]:
+            - generic [ref=f3e213]: Python
+            - strong [ref=f3e214]: ★ 4
+        - link "mcd-skill 麦当劳点餐助手，支持 OpenClaw、Claude Code 等 Agent 框架的实用技能。 Python ★ 0" [ref=f3e215] [cursor=pointer]:
+          - /url: https://github.com/EthanSMC/mcd-skill
+          - heading "mcd-skill" [level=3] [ref=f3e221]
+          - paragraph [ref=f3e222]: 麦当劳点餐助手，支持 OpenClaw、Claude Code 等 Agent 框架的实用技能。
+          - generic [ref=f3e223]:
+            - generic [ref=f3e224]: Python
+            - strong [ref=f3e225]: ★ 0
+        - link "learn-back 从基础到项目实践的后端学习路线与项目库，记录系统学习的回路。 Shell ★ 0" [ref=f3e226] [cursor=pointer]:
+          - /url: https://github.com/EthanSMC/learn-back
+          - heading "learn-back" [level=3] [ref=f3e231]
+          - paragraph [ref=f3e232]: 从基础到项目实践的后端学习路线与项目库，记录系统学习的回路。
+          - generic [ref=f3e233]:
+            - generic [ref=f3e234]: Shell
+            - strong [ref=f3e235]: ★ 0
+      - region [ref=f3e236] [cursor=pointer]:
+        - generic [ref=f3e238]:
+          - generic [ref=f3e239]:
+            - paragraph [ref=f3e240]: GitHub · EthanSMC
+            - heading "365 天持续创造" [level=3] [ref=f3e241]
+          - paragraph [ref=f3e242]: 1,070 次贡献
+        - grid "EthanSMC 从 2025-09-01 至 2026-08-31 的 GitHub 贡献：共 1,070 次" [ref=f3e244]:
+          - row [ref=f3e245]:
+            - gridcell "2025-09-07：0 次贡献" [ref=f3e247]
+            - gridcell "2025-09-14：0 次贡献" [ref=f3e248]
+            - gridcell "2025-09-21：0 次贡献" [ref=f3e249]
+            - gridcell "2025-09-28：0 次贡献" [ref=f3e250]
+            - gridcell "2025-10-05：0 次贡献" [ref=f3e251]
+            - gridcell "2025-10-12：0 次贡献" [ref=f3e252]
+            - gridcell "2025-10-19：0 次贡献" [ref=f3e253]
+            - gridcell "2025-10-26：0 次贡献" [ref=f3e254]
+            - gridcell "2025-11-02：0 次贡献" [ref=f3e255]
+            - gridcell "2025-11-09：0 次贡献" [ref=f3e256]
+            - gridcell "2025-11-16：0 次贡献" [ref=f3e257]
+            - gridcell "2025-11-23：0 次贡献" [ref=f3e258]
+            - gridcell "2025-11-30：0 次贡献" [ref=f3e259]
+            - gridcell "2025-12-07：0 次贡献" [ref=f3e260]
+            - gridcell "2025-12-14：0 次贡献" [ref=f3e261]
+            - gridcell "2025-12-21：0 次贡献" [ref=f3e262]
+            - gridcell "2025-12-28：0 次贡献" [ref=f3e263]
+            - gridcell "2026-01-04：0 次贡献" [ref=f3e264]
+            - gridcell "2026-01-11：0 次贡献" [ref=f3e265]
+            - gridcell "2026-01-18：0 次贡献" [ref=f3e266]
+            - gridcell "2026-01-25：0 次贡献" [ref=f3e267]
+            - gridcell "2026-02-01：0 次贡献" [ref=f3e268]
+            - gridcell "2026-02-08：0 次贡献" [ref=f3e269]
+            - gridcell "2026-02-15：0 次贡献" [ref=f3e270]
+            - gridcell "2026-02-22：0 次贡献" [ref=f3e271]
+            - gridcell "2026-03-01：0 次贡献" [ref=f3e272]
+            - gridcell "2026-03-08：0 次贡献" [ref=f3e273]
+            - gridcell "2026-03-15：0 次贡献" [ref=f3e274]
+            - gridcell "2026-03-22：0 次贡献" [ref=f3e275]
+            - gridcell "2026-03-29：0 次贡献" [ref=f3e276]
+            - gridcell "2026-04-05：0 次贡献" [ref=f3e277]
+            - gridcell "2026-04-12：0 次贡献" [ref=f3e278]
+            - gridcell "2026-04-19：0 次贡献" [ref=f3e279]
+            - gridcell "2026-04-26：0 次贡献" [ref=f3e280]
+            - gridcell "2026-05-03：14 次贡献" [ref=f3e281]
+            - gridcell "2026-05-10：4 次贡献" [ref=f3e282]
+            - gridcell "2026-05-17：3 次贡献" [ref=f3e283]
+            - gridcell "2026-05-24：0 次贡献" [ref=f3e284]
+            - gridcell "2026-05-31：0 次贡献" [ref=f3e285]
+            - gridcell "2026-06-07：3 次贡献" [ref=f3e286]
+            - gridcell "2026-06-14：10 次贡献" [ref=f3e287]
+            - gridcell "2026-06-21：2 次贡献" [ref=f3e288]
+            - gridcell "2026-06-28：0 次贡献" [ref=f3e289]
+            - gridcell "2026-07-05：3 次贡献" [ref=f3e290]
+            - gridcell "2026-07-12：17 次贡献" [ref=f3e291]
+            - gridcell "2026-07-19：1 次贡献" [ref=f3e292]
+            - gridcell "2026-07-26：0 次贡献" [ref=f3e293]
+            - gridcell "2026-08-02：1 次贡献" [ref=f3e294]
+            - gridcell "2026-08-09：1 次贡献" [ref=f3e295]
+            - gridcell "2026-08-16：1 次贡献" [ref=f3e296]
+            - gridcell "2026-08-23：0 次贡献" [ref=f3e297]
+            - gridcell "2026-08-30：0 次贡献" [ref=f3e298]
+          - row [ref=f3e299]:
+            - gridcell "2025-09-01：0 次贡献" [ref=f3e300]
+            - gridcell "2025-09-08：0 次贡献" [ref=f3e301]
+            - gridcell "2025-09-15：0 次贡献" [ref=f3e302]
+            - gridcell "2025-09-22：0 次贡献" [ref=f3e303]
+            - gridcell "2025-09-29：0 次贡献" [ref=f3e304]
+            - gridcell "2025-10-06：0 次贡献" [ref=f3e305]
+            - gridcell "2025-10-13：0 次贡献" [ref=f3e306]
+            - gridcell "2025-10-20：0 次贡献" [ref=f3e307]
+            - gridcell "2025-10-27：0 次贡献" [ref=f3e308]
+            - gridcell "2025-11-03：0 次贡献" [ref=f3e309]
+            - gridcell "2025-11-10：0 次贡献" [ref=f3e310]
+            - gridcell "2025-11-17：0 次贡献" [ref=f3e311]
+            - gridcell "2025-11-24：0 次贡献" [ref=f3e312]
+            - gridcell "2025-12-01：0 次贡献" [ref=f3e313]
+            - gridcell "2025-12-08：0 次贡献" [ref=f3e314]
+            - gridcell "2025-12-15：0 次贡献" [ref=f3e315]
+            - gridcell "2025-12-22：0 次贡献" [ref=f3e316]
+            - gridcell "2025-12-29：0 次贡献" [ref=f3e317]
+            - gridcell "2026-01-05：0 次贡献" [ref=f3e318]
+            - gridcell "2026-01-12：0 次贡献" [ref=f3e319]
+            - gridcell "2026-01-19：0 次贡献" [ref=f3e320]
+            - gridcell "2026-01-26：0 次贡献" [ref=f3e321]
+            - gridcell "2026-02-02：0 次贡献" [ref=f3e322]
+            - gridcell "2026-02-09：1 次贡献" [ref=f3e323]
+            - gridcell "2026-02-16：0 次贡献" [ref=f3e324]
+            - gridcell "2026-02-23：0 次贡献" [ref=f3e325]
+            - gridcell "2026-03-02：0 次贡献" [ref=f3e326]
+            - gridcell "2026-03-09：0 次贡献" [ref=f3e327]
+            - gridcell "2026-03-16：0 次贡献" [ref=f3e328]
+            - gridcell "2026-03-23：1 次贡献" [ref=f3e329]
+            - gridcell "2026-03-30：1 次贡献" [ref=f3e330]
+            - gridcell "2026-04-06：0 次贡献" [ref=f3e331]
+            - gridcell "2026-04-13：0 次贡献" [ref=f3e332]
+            - gridcell "2026-04-20：0 次贡献" [ref=f3e333]
+            - gridcell "2026-04-27：4 次贡献" [ref=f3e334]
+            - gridcell "2026-05-04：20 次贡献" [ref=f3e335]
+            - gridcell "2026-05-11：20 次贡献" [ref=f3e336]
+            - gridcell "2026-05-18：10 次贡献" [ref=f3e337]
+            - gridcell "2026-05-25：1 次贡献" [ref=f3e338]
+            - gridcell "2026-06-01：4 次贡献" [ref=f3e339]
+            - gridcell "2026-06-08：6 次贡献" [ref=f3e340]
+            - gridcell "2026-06-15：11 次贡献" [ref=f3e341]
+            - gridcell "2026-06-22：15 次贡献" [ref=f3e342]
+            - gridcell "2026-06-29：0 次贡献" [ref=f3e343]
+            - gridcell "2026-07-06：1 次贡献" [ref=f3e344]
+            - gridcell "2026-07-13：6 次贡献" [ref=f3e345]
+            - gridcell "2026-07-20：0 次贡献" [ref=f3e346]
+            - gridcell "2026-07-27：3 次贡献" [ref=f3e347]
+            - gridcell "2026-08-03：10 次贡献" [ref=f3e348]
+            - gridcell "2026-08-10：25 次贡献" [ref=f3e349]
+            - gridcell "2026-08-17：17 次贡献" [ref=f3e350]
+            - gridcell "2026-08-24：1 次贡献" [ref=f3e351]
+            - gridcell "2026-08-31：0 次贡献" [ref=f3e352]
+          - row [ref=f3e353]:
+            - gridcell "2025-09-02：0 次贡献" [ref=f3e354]
+            - gridcell "2025-09-09：0 次贡献" [ref=f3e355]
+            - gridcell "2025-09-16：0 次贡献" [ref=f3e356]
+            - gridcell "2025-09-23：0 次贡献" [ref=f3e357]
+            - gridcell "2025-09-30：0 次贡献" [ref=f3e358]
+            - gridcell "2025-10-07：0 次贡献" [ref=f3e359]
+            - gridcell "2025-10-14：0 次贡献" [ref=f3e360]
+            - gridcell "2025-10-21：0 次贡献" [ref=f3e361]
+            - gridcell "2025-10-28：0 次贡献" [ref=f3e362]
+            - gridcell "2025-11-04：0 次贡献" [ref=f3e363]
+            - gridcell "2025-11-11：0 次贡献" [ref=f3e364]
+            - gridcell "2025-11-18：0 次贡献" [ref=f3e365]
+            - gridcell "2025-11-25：0 次贡献" [ref=f3e366]
+            - gridcell "2025-12-02：0 次贡献" [ref=f3e367]
+            - gridcell "2025-12-09：0 次贡献" [ref=f3e368]
+            - gridcell "2025-12-16：1 次贡献" [ref=f3e369]
+            - gridcell "2025-12-23：0 次贡献" [ref=f3e370]
+            - gridcell "2025-12-30：0 次贡献" [ref=f3e371]
+            - gridcell "2026-01-06：0 次贡献" [ref=f3e372]
+            - gridcell "2026-01-13：0 次贡献" [ref=f3e373]
+            - gridcell "2026-01-20：0 次贡献" [ref=f3e374]
+            - gridcell "2026-01-27：0 次贡献" [ref=f3e375]
+            - gridcell "2026-02-03：1 次贡献" [ref=f3e376]
+            - gridcell "2026-02-10：0 次贡献" [ref=f3e377]
+            - gridcell "2026-02-17：0 次贡献" [ref=f3e378]
+            - gridcell "2026-02-24：0 次贡献" [ref=f3e379]
+            - gridcell "2026-03-03：1 次贡献" [ref=f3e380]
+            - gridcell "2026-03-10：2 次贡献" [ref=f3e381]
+            - gridcell "2026-03-17：0 次贡献" [ref=f3e382]
+            - gridcell "2026-03-24：0 次贡献" [ref=f3e383]
+            - gridcell "2026-03-31：2 次贡献" [ref=f3e384]
+            - gridcell "2026-04-07：0 次贡献" [ref=f3e385]
+            - gridcell "2026-04-14：0 次贡献" [ref=f3e386]
+            - gridcell "2026-04-21：0 次贡献" [ref=f3e387]
+            - gridcell "2026-04-28：0 次贡献" [ref=f3e388]
+            - gridcell "2026-05-05：8 次贡献" [ref=f3e389]
+            - gridcell "2026-05-12：6 次贡献" [ref=f3e390]
+            - gridcell "2026-05-19：7 次贡献" [ref=f3e391]
+            - gridcell "2026-05-26：0 次贡献" [ref=f3e392]
+            - gridcell "2026-06-02：9 次贡献" [ref=f3e393]
+            - gridcell "2026-06-09：8 次贡献" [ref=f3e394]
+            - gridcell "2026-06-16：39 次贡献" [ref=f3e395]
+            - gridcell "2026-06-23：0 次贡献" [ref=f3e396]
+            - gridcell "2026-06-30：0 次贡献" [ref=f3e397]
+            - gridcell "2026-07-07：10 次贡献" [ref=f3e398]
+            - gridcell "2026-07-14：29 次贡献" [ref=f3e399]
+            - gridcell "2026-07-21：1 次贡献" [ref=f3e400]
+            - gridcell "2026-07-28：2 次贡献" [ref=f3e401]
+            - gridcell "2026-08-04：10 次贡献" [ref=f3e402]
+            - gridcell "2026-08-11：31 次贡献" [ref=f3e403]
+            - gridcell "2026-08-18：10 次贡献" [ref=f3e404]
+            - gridcell "2026-08-25：7 次贡献" [ref=f3e405]
+          - row [ref=f3e407]:
+            - gridcell "2025-09-03：0 次贡献" [ref=f3e408]
+            - gridcell "2025-09-10：0 次贡献" [ref=f3e409]
+            - gridcell "2025-09-17：0 次贡献" [ref=f3e410]
+            - gridcell "2025-09-24：0 次贡献" [ref=f3e411]
+            - gridcell "2025-10-01：0 次贡献" [ref=f3e412]
+            - gridcell "2025-10-08：0 次贡献" [ref=f3e413]
+            - gridcell "2025-10-15：0 次贡献" [ref=f3e414]
+            - gridcell "2025-10-22：0 次贡献" [ref=f3e415]
+            - gridcell "2025-10-29：0 次贡献" [ref=f3e416]
+            - gridcell "2025-11-05：0 次贡献" [ref=f3e417]
+            - gridcell "2025-11-12：0 次贡献" [ref=f3e418]
+            - gridcell "2025-11-19：0 次贡献" [ref=f3e419]
+            - gridcell "2025-11-26：0 次贡献" [ref=f3e420]
+            - gridcell "2025-12-03：0 次贡献" [ref=f3e421]
+            - gridcell "2025-12-10：0 次贡献" [ref=f3e422]
+            - gridcell "2025-12-17：0 次贡献" [ref=f3e423]
+            - gridcell "2025-12-24：2 次贡献" [ref=f3e424]
+            - gridcell "2025-12-31：0 次贡献" [ref=f3e425]
+            - gridcell "2026-01-07：0 次贡献" [ref=f3e426]
+            - gridcell "2026-01-14：0 次贡献" [ref=f3e427]
+            - gridcell "2026-01-21：3 次贡献" [ref=f3e428]
+            - gridcell "2026-01-28：0 次贡献" [ref=f3e429]
+            - gridcell "2026-02-04：1 次贡献" [ref=f3e430]
+            - gridcell "2026-02-11：10 次贡献" [ref=f3e431]
+            - gridcell "2026-02-18：0 次贡献" [ref=f3e432]
+            - gridcell "2026-02-25：0 次贡献" [ref=f3e433]
+            - gridcell "2026-03-04：0 次贡献" [ref=f3e434]
+            - gridcell "2026-03-11：0 次贡献" [ref=f3e435]
+            - gridcell "2026-03-18：0 次贡献" [ref=f3e436]
+            - gridcell "2026-03-25：4 次贡献" [ref=f3e437]
+            - gridcell "2026-04-01：0 次贡献" [ref=f3e438]
+            - gridcell "2026-04-08：0 次贡献" [ref=f3e439]
+            - gridcell "2026-04-15：0 次贡献" [ref=f3e440]
+            - gridcell "2026-04-22：0 次贡献" [ref=f3e441]
+            - gridcell "2026-04-29：0 次贡献" [ref=f3e442]
+            - gridcell "2026-05-06：4 次贡献" [ref=f3e443]
+            - gridcell "2026-05-13：8 次贡献" [ref=f3e444]
+            - gridcell "2026-05-20：3 次贡献" [ref=f3e445]
+            - gridcell "2026-05-27：18 次贡献" [ref=f3e446]
+            - gridcell "2026-06-03：19 次贡献" [ref=f3e447]
+            - gridcell "2026-06-10：27 次贡献" [ref=f3e448]
+            - gridcell "2026-06-17：37 次贡献" [ref=f3e449]
+            - gridcell "2026-06-24：0 次贡献" [ref=f3e450]
+            - gridcell "2026-07-01：8 次贡献" [ref=f3e451]
+            - gridcell "2026-07-08：5 次贡献" [ref=f3e452]
+            - gridcell "2026-07-15：4 次贡献" [ref=f3e453]
+            - gridcell "2026-07-22：5 次贡献" [ref=f3e454]
+            - gridcell "2026-07-29：6 次贡献" [ref=f3e455]
+            - gridcell "2026-08-05：7 次贡献" [ref=f3e456]
+            - gridcell "2026-08-12：10 次贡献" [ref=f3e457]
+            - gridcell "2026-08-19：1 次贡献" [ref=f3e458]
+            - gridcell "2026-08-26：0 次贡献" [ref=f3e459]
+          - row [ref=f3e461]:
+            - gridcell "2025-09-04：0 次贡献" [ref=f3e462]
+            - gridcell "2025-09-11：0 次贡献" [ref=f3e463]
+            - gridcell "2025-09-18：0 次贡献" [ref=f3e464]
+            - gridcell "2025-09-25：0 次贡献" [ref=f3e465]
+            - gridcell "2025-10-02：0 次贡献" [ref=f3e466]
+            - gridcell "2025-10-09：0 次贡献" [ref=f3e467]
+            - gridcell "2025-10-16：0 次贡献" [ref=f3e468]
+            - gridcell "2025-10-23：0 次贡献" [ref=f3e469]
+            - gridcell "2025-10-30：0 次贡献" [ref=f3e470]
+            - gridcell "2025-11-06：0 次贡献" [ref=f3e471]
+            - gridcell "2025-11-13：0 次贡献" [ref=f3e472]
+            - gridcell "2025-11-20：0 次贡献" [ref=f3e473]
+            - gridcell "2025-11-27：4 次贡献" [ref=f3e474]
+            - gridcell "2025-12-04：7 次贡献" [ref=f3e475]
+            - gridcell "2025-12-11：0 次贡献" [ref=f3e476]
+            - gridcell "2025-12-18：0 次贡献" [ref=f3e477]
+            - gridcell "2025-12-25：1 次贡献" [ref=f3e478]
+            - gridcell "2026-01-01：0 次贡献" [ref=f3e479]
+            - gridcell "2026-01-08：0 次贡献" [ref=f3e480]
+            - gridcell "2026-01-15：0 次贡献" [ref=f3e481]
+            - gridcell "2026-01-22：1 次贡献" [ref=f3e482]
+            - gridcell "2026-01-29：1 次贡献" [ref=f3e483]
+            - gridcell "2026-02-05：3 次贡献" [ref=f3e484]
+            - gridcell "2026-02-12：3 次贡献" [ref=f3e485]
+            - gridcell "2026-02-19：0 次贡献" [ref=f3e486]
+            - gridcell "2026-02-26：0 次贡献" [ref=f3e487]
+            - gridcell "2026-03-05：0 次贡献" [ref=f3e488]
+            - gridcell "2026-03-12：0 次贡献" [ref=f3e489]
+            - gridcell "2026-03-19：0 次贡献" [ref=f3e490]
+            - gridcell "2026-03-26：0 次贡献" [ref=f3e491]
+            - gridcell "2026-04-02：0 次贡献" [ref=f3e492]
+            - gridcell "2026-04-09：0 次贡献" [ref=f3e493]
+            - gridcell "2026-04-16：0 次贡献" [ref=f3e494]
+            - gridcell "2026-04-23：0 次贡献" [ref=f3e495]
+            - gridcell "2026-04-30：5 次贡献" [ref=f3e496]
+            - gridcell "2026-05-07：10 次贡献" [ref=f3e497]
+            - gridcell "2026-05-14：2 次贡献" [ref=f3e498]
+            - gridcell "2026-05-21：2 次贡献" [ref=f3e499]
+            - gridcell "2026-05-28：9 次贡献" [ref=f3e500]
+            - gridcell "2026-06-04：13 次贡献" [ref=f3e501]
+            - gridcell "2026-06-11：52 次贡献" [ref=f3e502]
+            - gridcell "2026-06-18：28 次贡献" [ref=f3e503]
+            - gridcell "2026-06-25：3 次贡献" [ref=f3e504]
+            - gridcell "2026-07-02：0 次贡献" [ref=f3e505]
+            - gridcell "2026-07-09：2 次贡献" [ref=f3e506]
+            - gridcell "2026-07-16：5 次贡献" [ref=f3e507]
+            - gridcell "2026-07-23：0 次贡献" [ref=f3e508]
+            - gridcell "2026-07-30：1 次贡献" [ref=f3e509]
+            - gridcell "2026-08-06：14 次贡献" [ref=f3e510]
+            - gridcell "2026-08-13：6 次贡献" [ref=f3e511]
+            - gridcell "2026-08-20：12 次贡献" [ref=f3e512]
+            - gridcell "2026-08-27：4 次贡献" [ref=f3e513]
+          - row [ref=f3e515]:
+            - gridcell "2025-09-05：0 次贡献" [ref=f3e516]
+            - gridcell "2025-09-12：0 次贡献" [ref=f3e517]
+            - gridcell "2025-09-19：0 次贡献" [ref=f3e518]
+            - gridcell "2025-09-26：0 次贡献" [ref=f3e519]
+            - gridcell "2025-10-03：0 次贡献" [ref=f3e520]
+            - gridcell "2025-10-10：0 次贡献" [ref=f3e521]
+            - gridcell "2025-10-17：0 次贡献" [ref=f3e522]
+            - gridcell "2025-10-24：0 次贡献" [ref=f3e523]
+            - gridcell "2025-10-31：0 次贡献" [ref=f3e524]
+            - gridcell "2025-11-07：0 次贡献" [ref=f3e525]
+            - gridcell "2025-11-14：0 次贡献" [ref=f3e526]
+            - gridcell "2025-11-21：0 次贡献" [ref=f3e527]
+            - gridcell "2025-11-28：14 次贡献" [ref=f3e528]
+            - gridcell "2025-12-05：22 次贡献" [ref=f3e529]
+            - gridcell "2025-12-12：0 次贡献" [ref=f3e530]
+            - gridcell "2025-12-19：0 次贡献" [ref=f3e531]
+            - gridcell "2025-12-26：0 次贡献" [ref=f3e532]
+            - gridcell "2026-01-02：0 次贡献" [ref=f3e533]
+            - gridcell "2026-01-09：0 次贡献" [ref=f3e534]
+            - gridcell "2026-01-16：2 次贡献" [ref=f3e535]
+            - gridcell "2026-01-23：6 次贡献" [ref=f3e536]
+            - gridcell "2026-01-30：1 次贡献" [ref=f3e537]
+            - gridcell "2026-02-06：0 次贡献" [ref=f3e538]
+            - gridcell "2026-02-13：0 次贡献" [ref=f3e539]
+            - gridcell "2026-02-20：0 次贡献" [ref=f3e540]
+            - gridcell "2026-02-27：0 次贡献" [ref=f3e541]
+            - gridcell "2026-03-06：0 次贡献" [ref=f3e542]
+            - gridcell "2026-03-13：0 次贡献" [ref=f3e543]
+            - gridcell "2026-03-20：0 次贡献" [ref=f3e544]
+            - gridcell "2026-03-27：0 次贡献" [ref=f3e545]
+            - gridcell "2026-04-03：0 次贡献" [ref=f3e546]
+            - gridcell "2026-04-10：0 次贡献" [ref=f3e547]
+            - gridcell "2026-04-17：0 次贡献" [ref=f3e548]
+            - gridcell "2026-04-24：0 次贡献" [ref=f3e549]
+            - gridcell "2026-05-01：0 次贡献" [ref=f3e550]
+            - gridcell "2026-05-08：1 次贡献" [ref=f3e551]
+            - gridcell "2026-05-15：4 次贡献" [ref=f3e552]
+            - gridcell "2026-05-22：0 次贡献" [ref=f3e553]
+            - gridcell "2026-05-29：4 次贡献" [ref=f3e554]
+            - gridcell "2026-06-05：6 次贡献" [ref=f3e555]
+            - gridcell "2026-06-12：55 次贡献" [ref=f3e556]
+            - gridcell "2026-06-19：10 次贡献" [ref=f3e557]
+            - gridcell "2026-06-26：6 次贡献" [ref=f3e558]
+            - gridcell "2026-07-03：2 次贡献" [ref=f3e559]
+            - gridcell "2026-07-10：21 次贡献" [ref=f3e560]
+            - gridcell "2026-07-17：1 次贡献" [ref=f3e561]
+            - gridcell "2026-07-24：2 次贡献" [ref=f3e562]
+            - gridcell "2026-07-31：14 次贡献" [ref=f3e563]
+            - gridcell "2026-08-07：19 次贡献" [ref=f3e564]
+            - gridcell "2026-08-14：3 次贡献" [ref=f3e565]
+            - gridcell "2026-08-21：4 次贡献" [ref=f3e566]
+            - gridcell "2026-08-28：1 次贡献" [ref=f3e567]
+          - row [ref=f3e569]:
+            - gridcell "2025-09-06：0 次贡献" [ref=f3e570]
+            - gridcell "2025-09-13：0 次贡献" [ref=f3e571]
+            - gridcell "2025-09-20：0 次贡献" [ref=f3e572]
+            - gridcell "2025-09-27：0 次贡献" [ref=f3e573]
+            - gridcell "2025-10-04：0 次贡献" [ref=f3e574]
+            - gridcell "2025-10-11：0 次贡献" [ref=f3e575]
+            - gridcell "2025-10-18：0 次贡献" [ref=f3e576]
+            - gridcell "2025-10-25：0 次贡献" [ref=f3e577]
+            - gridcell "2025-11-01：0 次贡献" [ref=f3e578]
+            - gridcell "2025-11-08：0 次贡献" [ref=f3e579]
+            - gridcell "2025-11-15：0 次贡献" [ref=f3e580]
+            - gridcell "2025-11-22：0 次贡献" [ref=f3e581]
+            - gridcell "2025-11-29：0 次贡献" [ref=f3e582]
+            - gridcell "2025-12-06：0 次贡献" [ref=f3e583]
+            - gridcell "2025-12-13：0 次贡献" [ref=f3e584]
+            - gridcell "2025-12-20：6 次贡献" [ref=f3e585]
+            - gridcell "2025-12-27：0 次贡献" [ref=f3e586]
+            - gridcell "2026-01-03：0 次贡献" [ref=f3e587]
+            - gridcell "2026-01-10：0 次贡献" [ref=f3e588]
+            - gridcell "2026-01-17：0 次贡献" [ref=f3e589]
+            - gridcell "2026-01-24：0 次贡献" [ref=f3e590]
+            - gridcell "2026-01-31：0 次贡献" [ref=f3e591]
+            - gridcell "2026-02-07：0 次贡献" [ref=f3e592]
+            - gridcell "2026-02-14：0 次贡献" [ref=f3e593]
+            - gridcell "2026-02-21：0 次贡献" [ref=f3e594]
+            - gridcell "2026-02-28：1 次贡献" [ref=f3e595]
+            - gridcell "2026-03-07：0 次贡献" [ref=f3e596]
+            - gridcell "2026-03-14：0 次贡献" [ref=f3e597]
+            - gridcell "2026-03-21：0 次贡献" [ref=f3e598]
+            - gridcell "2026-03-28：0 次贡献" [ref=f3e599]
+            - gridcell "2026-04-04：0 次贡献" [ref=f3e600]
+            - gridcell "2026-04-11：0 次贡献" [ref=f3e601]
+            - gridcell "2026-04-18：0 次贡献" [ref=f3e602]
+            - gridcell "2026-04-25：0 次贡献" [ref=f3e603]
+            - gridcell "2026-05-02：3 次贡献" [ref=f3e604]
+            - gridcell "2026-05-09：1 次贡献" [ref=f3e605]
+            - gridcell "2026-05-16：0 次贡献" [ref=f3e606]
+            - gridcell "2026-05-23：0 次贡献" [ref=f3e607]
+            - gridcell "2026-05-30：0 次贡献" [ref=f3e608]
+            - gridcell "2026-06-06：1 次贡献" [ref=f3e609]
+            - gridcell "2026-06-13：17 次贡献" [ref=f3e610]
+            - gridcell "2026-06-20：0 次贡献" [ref=f3e611]
+            - gridcell "2026-06-27：0 次贡献" [ref=f3e612]
+            - gridcell "2026-07-04：3 次贡献" [ref=f3e613]
+            - gridcell "2026-07-11：51 次贡献" [ref=f3e614]
+            - gridcell "2026-07-18：7 次贡献" [ref=f3e615]
+            - gridcell "2026-07-25：0 次贡献" [ref=f3e616]
+            - gridcell "2026-08-01：4 次贡献" [ref=f3e617]
+            - gridcell "2026-08-08：7 次贡献" [ref=f3e618]
+            - gridcell "2026-08-15：0 次贡献" [ref=f3e619]
+            - gridcell "2026-08-22：0 次贡献" [ref=f3e620]
+            - gridcell "2026-08-29：0 次贡献" [ref=f3e621]
+        - generic [ref=f3e623]:
+          - paragraph
+          - link "查看 GitHub 主页" [ref=f3e624]:
+            - /url: https://github.com/EthanSMC
+            - generic [ref=f3e626]: ↗
+    - region [ref=f3e627]:
+      - generic [ref=f3e628]:
+        - heading "近况" [level=2] [ref=f3e629]
+        - paragraph [ref=f3e630]: 最近的重心是把“会做一次”的东西收敛成“可以复用很多次”的工作流。
+        - list [ref=f3e631]:
+          - listitem [ref=f3e632]:
+            - generic [ref=f3e633]: "1"
+            - generic [ref=f3e634]:
+              - heading "构建 AI 资产管理工作流" [level=3] [ref=f3e635]
+              - paragraph [ref=f3e636]: 把投研、交易和风控中的业务规则、决策判断与协同流程，沉淀为 Agent 可执行、可复用的工作流。
+            - time [ref=f3e637]: 7 月 1 日
+          - listitem [ref=f3e638]:
+            - generic [ref=f3e639]: "2"
+            - generic [ref=f3e640]:
+              - heading "发布个人 IP 系统" [level=3] [ref=f3e641]
+              - paragraph [ref=f3e642]: 构建 Digital Ethan 与内容知识库，让个人 IP 和产品叙事能够持续扩展。
+            - time [ref=f3e643]: 7 月 1 日
+          - listitem [ref=f3e644]:
+            - generic [ref=f3e645]: "3"
+            - generic [ref=f3e646]:
+              - heading "维护产品经理技能库" [level=3] [ref=f3e647]
+              - paragraph [ref=f3e648]: 把需求分析、竞品研究、PRD 写作和评审沉淀为可复用的产品经理技能栈。
+            - time [ref=f3e649]: 6 月 14 日
+          - listitem [ref=f3e650]:
+            - generic [ref=f3e651]: "4"
+            - generic [ref=f3e652]:
+              - heading "与 Agent 一起构建" [level=3] [ref=f3e653]
+              - paragraph [ref=f3e654]: 用 AI 编程工具完成 Novelty Studio 等产品原型，把产品设计和实现连接起来。
+            - time [ref=f3e655]: 6 月 14 日
+      - generic [ref=f3e660]:
+        - heading [level=3] [ref=f3e661]: 每日
+        - paragraph [ref=f3e662]:
+          - generic [ref=f3e664]: 小步发布
+        - paragraph [ref=f3e665]:
+          - generic [ref=f3e667]: 认真记录
+        - paragraph [ref=f3e668]:
+          - generic [ref=f3e670]: 帮助他人
+    - region [ref=f3e671]:
+      - generic [ref=f3e672]:
+        - heading "一起把有用的东西做出来。" [level=2] [ref=f3e674]
+        - paragraph [ref=f3e675]: 欢迎与我合作金融科技产品、AI Agent 工作流、个人 IP 系统，以及把复杂判断转化为可复用系统的产品工具。
+        - link "qq986399523@gmail.com" [ref=f3e676] [cursor=pointer]:
+          - /url: mailto:qq986399523@gmail.com
+      - generic [ref=f3e679]:
+        - link "邮箱 qq986399523@gmail.com" [ref=f3e680] [cursor=pointer]:
+          - /url: mailto:qq986399523@gmail.com
+          - generic [ref=f3e684]:
+            - generic [ref=f3e685]: 邮箱
+            - generic [ref=f3e686]: qq986399523@gmail.com
+        - link "GitHub github.com/EthanSMC" [ref=f3e687] [cursor=pointer]:
+          - /url: https://github.com/EthanSMC
+          - generic [ref=f3e690]:
+            - generic [ref=f3e691]: GitHub
+            - generic [ref=f3e692]: github.com/EthanSMC
+        - paragraph [ref=f3e693]:
+          - generic [ref=f3e697]:
+            - generic [ref=f3e698]: 所在地
+            - generic [ref=f3e699]: 中国上海
+  - contentinfo [ref=f3e700]:
+    - generic [ref=f3e701]: © 2026 EthanSMC
+    - generic [ref=f3e702]:
+      - text: 交互参考：
+      - link "David Heckhoff" [ref=f3e703] [cursor=pointer]:
+        - /url: https://david-hckh.com/
+    - link "返回顶部 ↑" [ref=f3e704] [cursor=pointer]:
+      - /url: "#top"
