@@ -10,6 +10,8 @@ const ROOT = path.resolve(__dirname, "..");
 const LABEL = "com.ethansmc.wechat-draft-sync";
 const DEFAULT_INTERVAL_SECONDS = 300;
 const LOCK_INITIALIZATION_GRACE_MS = 5_000;
+const GIT_FETCH_TIMEOUT_MS = 2 * 60 * 1_000;
+const DRAFT_SYNC_TIMEOUT_MS = 15 * 60 * 1_000;
 const PRIVATE_ENVIRONMENT_DEFAULTS = Object.freeze([]);
 
 function parseArguments(argv) {
@@ -71,15 +73,25 @@ function agentPaths(env = process.env, home = os.homedir()) {
   };
 }
 
-function command(commandName, args, { cwd = ROOT, env = process.env, allowFailure = false, logger = null } = {}) {
+function command(commandName, args, {
+  cwd = ROOT,
+  env = process.env,
+  allowFailure = false,
+  logger = null,
+  timeoutMs = null,
+} = {}) {
   const result = spawnSync(commandName, args, {
     cwd,
     env,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    ...(Number.isInteger(timeoutMs) && timeoutMs > 0 ? { timeout: timeoutMs } : {}),
   });
   if (logger && result.stdout) logger(result.stdout.trimEnd());
   if (logger && result.stderr) logger(result.stderr.trimEnd());
+  if (result.error?.code === "ETIMEDOUT") {
+    throw new Error(`${commandName} ${args.join(" ")} 超过 ${Math.ceil(timeoutMs / 1_000)} 秒，已终止`);
+  }
   if (result.error) throw result.error;
   if (!allowFailure && result.status !== 0) {
     const detail = (result.stderr || result.stdout || "").trim();
@@ -213,7 +225,10 @@ function updateCheckout({ checkout, remote, branch, bunPath, logger = console.lo
   if (dirty) throw new Error("后台专用仓库存在已跟踪的本地改动，请检查后重新安装 Agent");
   const before = gitOutput(["rev-parse", "HEAD"], checkout);
   logger(`检查 ${remote}/${branch}…`);
-  command("/usr/bin/git", ["fetch", "--quiet", remote, branch], { cwd: checkout });
+  command("/usr/bin/git", ["fetch", "--quiet", remote, branch], {
+    cwd: checkout,
+    timeoutMs: GIT_FETCH_TIMEOUT_MS,
+  });
   const target = gitOutput(["rev-parse", "FETCH_HEAD"], checkout);
   if (before !== target) {
     command("/usr/bin/git", ["merge", "--ff-only", "--quiet", "FETCH_HEAD"], { cwd: checkout });
@@ -302,7 +317,12 @@ function runAgent({
     const syncArguments = [syncScript, "--automatic"];
     if (dryRun) syncArguments.push("--dry-run");
     if (force) syncArguments.push("--force");
-    commandRunner(bunPath, syncArguments, { cwd: paths.checkout, env: childEnv, logger });
+    commandRunner(bunPath, syncArguments, {
+      cwd: paths.checkout,
+      env: childEnv,
+      logger,
+      timeoutMs: DRAFT_SYNC_TIMEOUT_MS,
+    });
 
     const result = {
       status: "success",
@@ -467,6 +487,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  DRAFT_SYNC_TIMEOUT_MS,
   LABEL,
   agentPaths,
   createPlist,

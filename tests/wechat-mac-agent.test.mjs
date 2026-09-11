@@ -3,11 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test, { afterEach, beforeEach } from "node:test";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const {
+  DRAFT_SYNC_TIMEOUT_MS,
   LABEL,
   agentPaths,
   createPlist,
@@ -188,6 +189,7 @@ test("runs only draft sync even when legacy automatic publish and withdrawal fla
       assert.equal(call.options.env.WECHAT_AGENT_HOME, fixture.paths.agentHome);
       assert.equal(call.options.env.WECHAT_AUTO_PUBLISH, "1");
       assert.equal(call.options.env.WECHAT_AUTO_WITHDRAW, "1");
+      assert.equal(call.options.timeoutMs, DRAFT_SYNC_TIMEOUT_MS);
     }
     assert.equal(result.status, "success");
     assert.equal(result.mode, "automatic");
@@ -292,6 +294,29 @@ test("package scripts expose draft synchronization but no browser publisher comm
   const pkg = JSON.parse(fs.readFileSync(path.join(path.dirname(import.meta.dirname), "package.json"), "utf8"));
   assert.equal(pkg.scripts["wechat:sync"], "bun scripts/wechat-sync.cjs");
   assert.equal(Object.keys(pkg.scripts).some((name) => name.startsWith("wechat:publisher:")), false);
+});
+
+const localBun = [process.env.WECHAT_BUN_PATH, "/opt/homebrew/bin/bun", "/usr/local/bin/bun"]
+  .find((candidate) => candidate && fs.existsSync(candidate));
+
+test("the Bun draft-sync CLI exits after a no-op dry run", { skip: !localBun }, () => {
+  const root = path.dirname(import.meta.dirname);
+  const result = spawnSync(localBun, [
+    path.join(root, "scripts/wechat-sync.cjs"),
+    "--dry-run",
+    "--range",
+    "HEAD..HEAD",
+  ], {
+    cwd: root,
+    encoding: "utf8",
+    timeout: 10_000,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  assert.equal(result.error, undefined);
+  assert.equal(result.signal, null);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /没有需要同步/);
 });
 
 test("operator docs stop at the WeChat draft box", () => {
