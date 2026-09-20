@@ -125,7 +125,7 @@ function repositoryUrl(options) {
 }
 
 function environmentTemplate({ repoUrl, branch, stateFile }) {
-  return `# 微信公众号 API 凭据；只保存在这台 Mac，不提交到 Git。\nWECHAT_APP_ID=\nWECHAT_APP_SECRET=\n\n# 后台同步来源。\nWECHAT_REPO_URL=${repoUrl}\nWECHAT_SYNC_BRANCH=${branch}\nWECHAT_SYNC_REMOTE=origin\nWECHAT_SYNC_STATE_FILE=${stateFile}\n\nSITE_URL=https://ethansmc-personal-page.vercel.app\nWECHAT_AUTHOR=申名翀 Ethan\n\n# 默认取文章第一张本地图片作为封面；需要固定封面时取消下一行注释。\n# WECHAT_DEFAULT_COVER=assets/share-card-writing.png\n`;
+  return `# 微信公众号 API 凭据；只保存在这台 Mac，不提交到 Git。\nWECHAT_APP_ID=\nWECHAT_APP_SECRET=\n\n# 后台同步来源。\nWECHAT_REPO_URL=${repoUrl}\nWECHAT_SYNC_BRANCH=${branch}\nWECHAT_SYNC_REMOTE=origin\nWECHAT_SYNC_STATE_FILE=${stateFile}\n\nSITE_URL=https://ethansmc-personal-page.vercel.app\nWECHAT_AUTHOR=申名翀 Ethan\n\n# 默认取文章第一张本地图片；纯文本取 Codex 生成并保存的专属封面。\n# content/assets/wechat-covers/<文章 ID>/cover.png\n# 缺图时等待补图，不使用占位图。需要指定固定封面时设置：\n# WECHAT_DEFAULT_COVER=/absolute/path/to/your-selected-cover.png\n`;
 }
 
 function missingEnvironmentLines(source) {

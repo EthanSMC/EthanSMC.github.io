@@ -57,7 +57,11 @@ async function main() {
     }
     throw new Error("请在私密环境变量文件或 .env.local 中设置 WECHAT_APP_ID 和 WECHAT_APP_SECRET");
   }
-  await syncWechatDrafts({ root: ROOT, ...options, config });
+  const { results } = await syncWechatDrafts({ root: ROOT, ...options, config });
+  const pending = results.filter((result) => result.action === "cover-pending");
+  if (pending.length) {
+    throw new Error(`${pending.length} 篇公众号草稿等待 Codex 生成专属封面；详见 docs/wechat-draft-sync.md。`);
+  }
 }
 
 if (require.main === module) {

@@ -60,14 +60,37 @@ function changedPostSelection(root, posts, range) {
     posts: posts.filter((post) => (
       changedMarkdown.has(post.filename)
       || post.attachments.some((attachment) => changedAssets.has(attachment))
+      || (post.id && changedAssets.has(generatedCoverPath(post.id)))
     )),
     deleted,
   };
 }
 
-function resolveCover(root, assets, configuredCover) {
+function generatedCoverPath(postId) {
+  if (!/^\d{4}-\d{2}-\d{2}-\d{6}$/.test(postId || "")) {
+    throw new Error("Invalid article ID for generated cover");
+  }
+  return `wechat-covers/${postId}/cover.png`;
+}
+
+function resolveCover(root, assets, configuredCover, postId) {
   if (assets.length > 0 && !configuredCover) return assets[0];
-  const absolutePath = path.resolve(root, configuredCover || "assets/share-card-writing.png");
+  const absolutePath = configuredCover
+    ? path.resolve(root, configuredCover)
+    : path.join(root, "content", "assets", generatedCoverPath(postId));
+  if (!configuredCover) {
+    try {
+      const stat = fs.lstatSync(absolutePath);
+      const assetsRoot = fs.realpathSync(path.join(root, "content", "assets"));
+      const relative = path.relative(assetsRoot, fs.realpathSync(absolutePath));
+      if (!stat.isFile() || stat.isSymbolicLink() || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+        throw new Error(`Generated cover must be a regular file inside content/assets: ${postId}`);
+      }
+    } catch (error) {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    }
+  }
   const data = fs.readFileSync(absolutePath);
   return {
     relative: path.relative(root, absolutePath),
@@ -88,13 +111,13 @@ function preparePost(root, post, config) {
   const md5 = sourceMd5(sourceBytes);
   if (post.kind === "note") return { source, sourceMd5: md5 };
   const assets = collectPostAssets(root, post);
-  const cover = resolveCover(root, assets, config.defaultCover);
+  const cover = resolveCover(root, assets, config.defaultCover, post.id);
   const fingerprint = publicationFingerprint({
     source,
     assets,
     author: config.author,
     siteUrl: config.siteUrl,
-    coverHash: cover.hash,
+    coverHash: cover?.hash || "awaiting-generated-cover",
   });
   return { source, sourceMd5: md5, assets, cover, fingerprint };
 }
@@ -535,6 +558,21 @@ async function syncOnePost({ getClient, config, dryRun, force, logger, post, pre
     logger(`公众号已发布一次，本次修改仅更新网站：${post.title}`);
     return { action: "website-only", post, mediaId: previous.mediaId };
   }
+  if (!prepared.cover) {
+    const message = `请按生图规范生成并保存封面：content/assets/${generatedCoverPath(post.id)}`;
+    if (!dryRun) {
+      state.posts[post.id] = {
+        ...(previous || {}),
+        title: post.title,
+        draftKind: "news",
+        publication: draftOnlyPublication(state, post.id),
+        syncError: { code: "cover_pending", message, at: new Date().toISOString() },
+      };
+      saveState(stateFile, state);
+    }
+    logger(`公众号草稿待补封面：${post.title}。${message}`);
+    return { action: "cover-pending", post };
+  }
   if (
     !force
     && previous?.fingerprint === prepared.fingerprint
@@ -542,6 +580,10 @@ async function syncOnePost({ getClient, config, dryRun, force, logger, post, pre
   ) {
     let changed = false;
     if (!dryRun) changed = backfillArticleMetadata(previous, prepared);
+    if (previous.syncError?.code === "cover_pending" && !dryRun) {
+      delete previous.syncError;
+      changed = true;
+    }
     if (previous.sourceDeletedAt && !dryRun) {
       delete previous.sourceDeletedAt;
       changed = true;
@@ -597,6 +639,7 @@ async function syncOnePost({ getClient, config, dryRun, force, logger, post, pre
     publication,
   };
   delete record.sourceDeletedAt;
+  delete record.syncError;
   state.posts[post.id] = record;
   saveState(stateFile, state);
   logger(`${action === "add" ? "已新增" : "已更新"}公众号草稿：${article.title}`);

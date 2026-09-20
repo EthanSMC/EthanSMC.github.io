@@ -110,6 +110,116 @@ function config(root) {
   };
 }
 
+function textArticleFixture() {
+  const root = fixture();
+  fs.writeFileSync(path.join(root, "content", "published", `${POST_ID}.md`),
+    "---\nkind: article\n---\n# 纯文本文章\n\n对技术能力边界的思考。\n");
+  // A legacy placeholder must never be silently selected.
+  fs.mkdirSync(path.join(root, "assets"));
+  fs.writeFileSync(path.join(root, "assets", "share-card-writing.png"), "placeholder");
+  return root;
+}
+
+function writeGeneratedCover(root, contents = "generated cover") {
+  const filename = path.join(root, "content", "assets", "wechat-covers", POST_ID, "cover.png");
+  fs.mkdirSync(path.dirname(filename), { recursive: true });
+  fs.writeFileSync(filename, contents);
+  return filename;
+}
+
+test("text-only article uses saved cover without inserting it into the body, reuses uploads, and updates the same draft", async () => {
+  const root = textArticleFixture();
+  writeGeneratedCover(root);
+  const client = fakeClient();
+  const options = { root, config: config(root), client, logger() {} };
+  assert.equal((await syncWechatDrafts(options)).results[0].action, "add");
+  assert.equal(client.calls.filter(([name]) => name === "uploadPermanentImage").length, 1);
+  assert.equal(client.calls.filter(([name]) => name === "uploadArticleImage").length, 0);
+  assert.doesNotMatch(client.draftPayloads.add[0].content, /<img/);
+  assert.equal((await syncWechatDrafts(options)).results[0].action, "skipped");
+  assert.equal(client.calls.filter(([name]) => name === "uploadPermanentImage").length, 1);
+  writeGeneratedCover(root, "a new generated cover");
+  assert.equal((await syncWechatDrafts(options)).results[0].action, "update");
+  assert.equal(client.draftPayloads.update[0].mediaId, "draft-media");
+  assert.equal(client.calls.filter(([name]) => name === "addDraft").length, 1);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("missing cover preserves the old draft, continues other articles, and resumes when the cover is saved", async () => {
+  const root = textArticleFixture();
+  const state = emptyState();
+  state.posts[POST_ID] = {
+    mediaId: "existing-draft", fingerprint: "placeholder-fingerprint",
+    publication: emptyPublication("draft_only"),
+  };
+  saveState(config(root).stateFile, state);
+  fs.writeFileSync(path.join(root, "content", "published", "2026-08-03-120000.md"),
+    "---\nkind: article\n---\n# 有图文章\n\n正文。\n\n![图](../assets/cover.png)\n");
+  const client = fakeClient();
+  const options = { root, config: config(root), client, logger() {} };
+  const result = await syncWechatDrafts(options);
+  assert.deepEqual(result.results.map(({ action }) => action), ["cover-pending", "add"]);
+  let record = loadState(config(root).stateFile).posts[POST_ID];
+  assert.equal(record.mediaId, "existing-draft");
+  assert.equal(record.fingerprint, "placeholder-fingerprint");
+  assert.equal(record.syncError.code, "cover_pending");
+  writeGeneratedCover(root);
+  assert.equal((await syncWechatDrafts(options)).results[0].action, "update");
+  record = loadState(config(root).stateFile).posts[POST_ID];
+  assert.equal(record.mediaId, "existing-draft");
+  assert.equal(record.syncError, undefined);
+  assert.equal(client.draftPayloads.update[0].mediaId, "existing-draft");
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("missing-cover dry-run neither uploads nor persists state", async () => {
+  const root = textArticleFixture();
+  const client = fakeClient();
+  const result = await syncWechatDrafts({ root, config: config(root), client, dryRun: true, logger() {} });
+  assert.equal(result.results[0].action, "cover-pending");
+  assert.equal(client.calls.length, 0);
+  assert.equal(fs.existsSync(config(root).stateFile), false);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("previously published text-only articles never require a new cover", async () => {
+  const root = textArticleFixture();
+  const state = emptyState();
+  state.posts[POST_ID] = { mediaId: "old-media", publication: { ...emptyPublication("published"), everPublished: true } };
+  saveState(config(root).stateFile, state);
+  const client = fakeClient();
+  const result = await syncWechatDrafts({ root, config: config(root), client, logger() {} });
+  assert.equal(result.results[0].action, "website-only");
+  assert.equal(client.calls.length, 0);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("range selection includes an article when only its generated cover changes", () => {
+  const root = textArticleFixture();
+  writeGeneratedCover(root);
+  const git = (...args) => execFileSync("git", args, { cwd: root, stdio: "pipe" });
+  git("init");
+  git("add", ".");
+  git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "initial");
+  writeGeneratedCover(root, "new cover");
+  git("add", ".");
+  git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "cover only");
+  const { posts } = require("../scripts/prepare-content.cjs").loadBlog({ publishedDir: path.join(root, "content", "published") });
+  assert.equal(changedPostSelection(root, posts, "HEAD~1..HEAD").posts[0].id, POST_ID);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("generated cover rejects a symlink outside article assets", async () => {
+  const root = textArticleFixture();
+  const filename = writeGeneratedCover(root);
+  fs.unlinkSync(filename);
+  fs.symlinkSync(path.join(root, "assets", "share-card-writing.png"), filename);
+  const client = fakeClient();
+  await assert.rejects(syncWechatDrafts({ root, config: config(root), client, logger() {} }), /regular file inside content\/assets/);
+  assert.equal(client.calls.length, 0);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 function markerPath(root, postId = POST_ID) {
   return path.join(root, "content", ".lifecycle", "withdrawals", `${postId}.json`);
 }

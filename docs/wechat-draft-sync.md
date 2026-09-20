@@ -31,6 +31,21 @@ Mac Agent 每次只运行 `scripts/wechat-sync.cjs --automatic`。旧配置中�
 
 一旦历史状态确认 `everPublished: true`，自动流程不再修改那条微信内容。以后是否更新、删除或重新发表，都由人在公众号后台决定。
 
+### 纯文本文章封面
+
+普通文章的封面优先使用显式配置的 `WECHAT_DEFAULT_COVER`，其次使用正文第一张本地图片。没有正文图片时，使用 Codex 为这篇文章生成的专属封面：
+
+```text
+content/assets/wechat-covers/<文章 ID>/cover.png
+content/assets/wechat-covers/<文章 ID>/prompt.md
+```
+
+Codex 先读完整正文，再用内置生图生成一张 16:9 横图：纯白背景、黑色手绘线条、至少 35% 留白、少量红橙蓝批注、单一原创隐喻。角色采用 Molly、Mochi 与 Digital Ethan，按内容选择参与者，不默认强制三者同框；不再使用旧版“小黑”。保留简洁手绘的视觉语言，但角色身份以用户当前设定为准。使用 `assets/writing/molly-note.jpg`（黑白、大耳朵）、`assets/writing/mochi-note.jpg`（奶油白长毛、浅姜色耳部）及 `assets/digital-ethan/` 的身份卡和现有 cutout 作参考，生成前实际查看图片。角色须参与核心动作，避免混淆两只猫的毛色与外形。封面主体居中，为微信的横向裁切留出空间；不用大标题、PPT 构图、渐变或占位分享卡。生成后检查图片，将实际提示词与图片一起保存并提交到 Git。此目录受素材忽略规则影响，提交时需明确 `git add -f` 这两份文件。
+
+封面只供微信使用，不插入文章正文，也不改变网站阅读布局。后台只读取已保存的图片，通过图片哈希复用微信素材；封面变化会更新同一条未发表草稿，包括仅改图片的 `--range` 同步。正文小修可复用封面，主题变化时请 Codex 重新生成并替换对应图片。
+
+缺少封面时，这篇文章会标记 `cover_pending`，保留已有草稿并继续同步其他文章；CLI 最后返回失败，让 Agent 状态明确显示待补封面。补图后下次同步自动恢复。Mac Agent 本身不调用生图服务，目前采用“Codex 生成并保存 → 后台同步使用”的方式。
+
 ## 3. 安装 Mac Agent
 
 本机需要 macOS、Git、Bun，以及能访问 GitHub 和 `api.weixin.qq.com` 的网络。公众号 API IP 白名单需包含当前公网出口 IPv4。
