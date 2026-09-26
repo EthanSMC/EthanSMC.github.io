@@ -228,7 +228,7 @@
         <div class="section-heading">
           <div>
             <h2 id="projects-title" data-i18n="projects.title">精选项目</h2>
-            <p data-i18n="projects.description">从真实业务问题出发，把金融判断、Agent 能力和产品方法做成可以被使用的工具。</p>
+            <p data-i18n="projects.description">把模型能力做成可以参与的故事、随身的任务入口和日常使用的工具。</p>
           </div>
         </div>
 
@@ -240,6 +240,53 @@
           </button>
 
           <article class="project-card active" data-project-card>
+            <div class="project-shot learning" aria-hidden="true">
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <h3>Novelty Studio</h3>
+            <p data-i18n="projects.three.body">让读者参与故事的发展。写作、编辑、记忆管理与选项生成等 Agent 协作，探索持续演进的互动小说体验。</p>
+            <div class="tags"><span data-i18n="projects.three.tag1">多 Agent</span><span data-i18n="projects.three.tag2">记忆</span><span data-i18n="projects.three.tag3">互动叙事</span></div>
+            <a
+              class="project-link"
+              href="https://noveltystudio.cn"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="在新标签页打开 Novelty Studio"
+              data-i18n-aria-label="projects.openSiteAria"
+            >
+              <span data-i18n="projects.openSite">打开网站</span> <span aria-hidden="true">↗</span>
+            </a>
+          </article>
+
+          <article class="project-card" data-project-card>
+            <div class="project-shot project-sketch qwen" aria-hidden="true">
+              <svg viewBox="0 0 240 136" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="24" y="49" width="78" height="49" rx="17"/><rect x="138" y="49" width="78" height="49" rx="17"/><path d="M102 64q18-18 36 0M24 62 12 39M216 62l12-23"/><path class="sketch-accent" d="m48 75 10 10 21-23M157 67h36m-36 14h25"/></svg>
+            </div>
+            <h3>Qwen Glass</h3>
+            <p data-i18n="projects.qwen.body">探索通过千问眼镜用语音向电脑上的 Agent 布置任务，并查看进度、确认操作、获取结果。持续开发中。</p>
+            <div class="tags"><span data-i18n="projects.qwen.tag1">开发中</span><span data-i18n="projects.qwen.tag2">可穿戴交互</span><span data-i18n="projects.qwen.tag3">语音任务</span></div>
+          </article>
+
+          <article class="project-card" data-project-card>
+            <div class="project-shot project-sketch attention" aria-hidden="true">
+              <svg viewBox="0 0 240 136" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="24" y="28" width="52" height="70" rx="4" transform="rotate(-8 50 63)"/><rect x="52" y="38" width="52" height="70" rx="4"/><path d="M65 56h26M65 69h20M65 82h24M116 72h28m-9-9 9 9-9 9"/><rect class="sketch-accent" x="157" y="31" width="60" height="78" rx="4"/><path class="sketch-accent" d="m176 31 0 33 11-8 11 8V31M171 85h32M171 96h23"/></svg>
+            </div>
+            <h3>Attention</h3>
+            <p data-i18n="projects.attention.body">以人的收藏作为信息质量信号，把散落的优质链接整理成可检索的知识，通过 MCP 接入个人 Agent。</p>
+            <div class="tags"><span data-i18n="projects.attention.tag1">持续迭代</span><span data-i18n="projects.attention.tag2">信息收藏</span><span data-i18n="projects.attention.tag3">MCP</span></div>
+          </article>
+
+          <article class="project-card" data-project-card>
+            <div class="project-shot project-sketch jev" aria-hidden="true">
+              <svg viewBox="0 0 240 136" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="19" y="30" width="89" height="71" rx="5"/><path d="M19 48h89M31 39h1m8 0h1m8 0h1M35 65h40M35 77h29M120 60h24m-8-8 8 8-8 8M144 85h-24m8-8-8 8 8 8"/><path class="sketch-accent" d="M159 35h63v56h-28l-18 15V91h-17ZM173 52h35M173 65h25"/></svg>
+            </div>
+            <h3>Jev Codex</h3>
+            <p data-i18n="projects.jev.body">基于 Jev Ultrafast 改造浏览器自动化：Jev 判断页面操作，当前 Codex 对话在需要输入时提供文本，再继续执行。</p>
+            <div class="tags"><span data-i18n="projects.jev.tag1">开源</span><span data-i18n="projects.jev.tag2">浏览器自动化</span><span data-i18n="projects.jev.tag3">对话协作</span></div>
+            <a class="project-link" href="https://github.com/EthanSMC/jev-codex" target="_blank" rel="noopener noreferrer" aria-label="在新标签页查看 Jev Codex 源码" data-i18n-aria-label="projects.jev.openRepoAria"><span data-i18n="projects.openRepo">查看源码</span> <span aria-hidden="true">↗</span></a>
+          </article>
+
+          <article class="project-card" data-project-card>
             <div class="project-shot finpm" aria-hidden="true">
               <span></span><span></span><span></span>
             </div>
@@ -263,25 +310,6 @@
             <h3 data-i18n="projects.two.title">债券 Agent 与金融 Q</h3>
             <p data-i18n="projects.two.body">使用自然语言、NLP 与 LLM 辅助工作流完成债券筛选和场外交易自动化。</p>
             <div class="tags"><span data-i18n="projects.two.tag1">债券</span><span data-i18n="projects.two.tag2">大模型</span><span data-i18n="projects.two.tag3">报价流</span></div>
-          </article>
-
-          <article class="project-card" data-project-card>
-            <div class="project-shot learning" aria-hidden="true">
-              <span></span><span></span><span></span><span></span>
-            </div>
-            <h3>Novelty Studio</h3>
-            <p data-i18n="projects.three.body">由 Writer、Editor、Archiver 和 Option Generator 等角色协作的多 Agent 互动小说产品。</p>
-            <div class="tags"><span data-i18n="projects.three.tag1">多 Agent</span><span data-i18n="projects.three.tag2">记忆</span><span data-i18n="projects.three.tag3">构建工具</span></div>
-            <a
-              class="project-link"
-              href="https://noveltystudio.cn"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="在新标签页打开 Novelty Studio"
-              data-i18n-aria-label="projects.openSiteAria"
-            >
-              <span data-i18n="projects.openSite">打开网站</span> <span aria-hidden="true">↗</span>
-            </a>
           </article>
 
           <button class="board-arrow" type="button" data-project-next aria-label="下一个项目" data-i18n-aria-label="projects.next">
@@ -386,39 +414,39 @@
       <section class="now section-anchor" id="now" aria-labelledby="now-title">
         <div class="now-copy">
           <h2 id="now-title" data-i18n="now.title">近况</h2>
-          <p data-i18n="now.description">最近的重心是把“会做一次”的东西收敛成“可以复用很多次”的工作流。</p>
+          <p data-i18n="now.description">最近在探索 Agent 的不同入口：眼镜、收藏与浏览器。</p>
           <ol class="timeline">
             <li>
               <span>1</span>
               <div>
-                <h3 data-i18n="now.one.title">构建 AI 资产管理工作流</h3>
-                <p data-i18n="now.one.body">把投研、交易和风控中的业务规则、决策判断与协同流程，沉淀为 Agent 可执行、可复用的工作流。</p>
+                <h3 data-i18n="now.one.title">Qwen Glass：眼镜上的任务入口</h3>
+                <p data-i18n="now.one.body">探索语音布置任务、进度反馈与操作确认，打磨可穿戴设备和电脑 Agent 之间的交互。</p>
               </div>
-              <time datetime="2026-07-01" data-i18n="now.jul1">7 月 1 日</time>
+              <time datetime="2026-09" data-i18n="now.sep">2026 年 9 月</time>
             </li>
             <li>
               <span>2</span>
               <div>
-                <h3 data-i18n="now.two.title">发布个人 IP 系统</h3>
-                <p data-i18n="now.two.body">构建 Digital Ethan 与内容知识库，让个人 IP 和产品叙事能够持续扩展。</p>
+                <h3 data-i18n="now.two.title">Attention：让收藏进入工作流</h3>
+                <p data-i18n="now.two.body">将人的筛选与 Agent 的整理连接起来，持续完善收藏、检索和 MCP 接入体验。</p>
               </div>
-              <time datetime="2026-07-01" data-i18n="now.jul1">7 月 1 日</time>
+              <time datetime="2026-09" data-i18n="now.sep">2026 年 9 月</time>
             </li>
             <li>
               <span>3</span>
               <div>
-                <h3 data-i18n="now.three.title">维护产品经理技能库</h3>
-                <p data-i18n="now.three.body">把需求分析、竞品研究、PRD 写作和评审沉淀为可复用的产品经理技能栈。</p>
+                <h3 data-i18n="now.three.title">Jev Codex：把浏览器接入对话</h3>
+                <p data-i18n="now.three.body">开源 Codex 文本交接机制，记录真实浏览器任务中的验证结果与能力边界。</p>
               </div>
-              <time datetime="2026-06-14" data-i18n="now.jun14">6 月 14 日</time>
+              <time datetime="2026-09" data-i18n="now.sep">2026 年 9 月</time>
             </li>
             <li>
               <span>4</span>
               <div>
-                <h3 data-i18n="now.four.title">与 Agent 一起构建</h3>
-                <p data-i18n="now.four.body">用 AI 编程工具完成 Novelty Studio 等产品原型，把产品设计和实现连接起来。</p>
+                <h3 data-i18n="now.four.title">把实践写成可复用的方法</h3>
+                <p data-i18n="now.four.body">持续记录产品判断、Agent 实验与踩坑经历，沉淀为文章、Skill 和工作流。</p>
               </div>
-              <time datetime="2026-06-14" data-i18n="now.jun14">6 月 14 日</time>
+              <time datetime="2026-09" data-i18n="now.sep">2026 年 9 月</time>
             </li>
           </ol>
         </div>

@@ -44,9 +44,12 @@ def contribution_fixture_52_weeks():
 
 
 EXPECTED_PROJECT_TITLES = [
+    "Novelty Studio",
+    "Qwen Glass",
+    "Attention",
+    "Jev Codex",
     "AI-native Wealth & Asset Management System",
     "Bond Agent & Financial Q",
-    "Novelty Studio",
 ]
 EXPECTED_REPOSITORIES = [
     ("digital-me", "https://github.com/EthanSMC/digital-me"),
@@ -59,7 +62,12 @@ EXPECTED_FEATURED_PROJECT_EXTERNAL_LINKS = [
         "projectTitle": "Novelty Studio",
         "href": "https://noveltystudio.cn",
         "target": "_blank",
-    }
+    },
+    {
+        "projectTitle": "Jev Codex",
+        "href": "https://github.com/EthanSMC/jev-codex",
+        "target": "_blank",
+    },
 ]
 FIRST_VIEW_WALL_SELECTOR = (
     ".focus-note, .tools-note, .terminal-note, .repo-stack, [data-project-board]"
@@ -284,17 +292,15 @@ class PortfolioE2E(unittest.TestCase):
         snapshot = self.content_and_link_snapshot(page)
         featured_project_links = self.featured_project_external_links(page)
         expected_projects = [
-            {"title": EXPECTED_PROJECT_TITLES[0], "links": []},
-            {"title": EXPECTED_PROJECT_TITLES[1], "links": []},
             {
-                "title": EXPECTED_PROJECT_TITLES[2],
+                "title": title,
                 "links": [
-                    {
-                        "href": "https://noveltystudio.cn",
-                        "target": "_blank",
-                    }
+                    {"href": link["href"], "target": link["target"]}
+                    for link in EXPECTED_FEATURED_PROJECT_EXTERNAL_LINKS
+                    if link["projectTitle"] == title
                 ],
-            },
+            }
+            for title in EXPECTED_PROJECT_TITLES
         ]
         expected_repositories = [
             {
@@ -370,13 +376,13 @@ class PortfolioE2E(unittest.TestCase):
                 self.assertEqual(link["target"], "_blank")
                 self.assertEqual(link["rel"], "noopener noreferrer")
 
-    def test_featured_projects_has_only_novelty_external_link(self):
+    def test_featured_projects_has_verified_external_links(self):
         page = self.open_page()
         links = self.featured_project_external_links(page)
         self.assertEqual(
             links,
             EXPECTED_FEATURED_PROJECT_EXTERNAL_LINKS,
-            "Featured Projects must expose only the new-tab Novelty Studio link",
+            "Featured Projects must expose the Novelty Studio and Jev Codex destinations",
         )
 
     def test_project_titles_are_exact(self):
@@ -384,7 +390,7 @@ class PortfolioE2E(unittest.TestCase):
         cards = page.locator("[data-project-card]")
 
         with self.subTest(contract="project count"):
-            self.assertEqual(cards.count(), 3)
+            self.assertEqual(cards.count(), len(EXPECTED_PROJECT_TITLES))
         for index, expected in enumerate(EXPECTED_PROJECT_TITLES):
             headings = cards.nth(index).locator("h3")
             heading_count = headings.count()
@@ -398,31 +404,31 @@ class PortfolioE2E(unittest.TestCase):
         page = self.open_page()
         cards = page.locator("[data-project-card]")
 
-        for index in (0, 1):
+        for index in (1, 2, 4, 5):
             with self.subTest(project=index + 1, contract="link-free"):
                 self.assertEqual(cards.nth(index).locator("a").count(), 0)
 
-        novelty_links = cards.nth(2).locator("a")
+        novelty_links = cards.nth(0).locator("a")
         novelty_link_count = novelty_links.count()
-        with self.subTest(project=3, contract="one anchor"):
+        with self.subTest(project=1, contract="one anchor"):
             self.assertEqual(novelty_link_count, 1)
         if novelty_link_count == 1:
             novelty_link = novelty_links.first
-            with self.subTest(project=3, contract="href"):
+            with self.subTest(project=1, contract="href"):
                 self.assertEqual(
                     novelty_link.get_attribute("href"),
                     "https://noveltystudio.cn",
                 )
-            with self.subTest(project=3, contract="new tab"):
+            with self.subTest(project=1, contract="new tab"):
                 self.assertEqual(novelty_link.get_attribute("target"), "_blank")
-            with self.subTest(project=3, contract="secure opener"):
+            with self.subTest(project=1, contract="secure opener"):
                 self.assertEqual(
                     novelty_link.get_attribute("rel"),
                     "noopener noreferrer",
                 )
-            with self.subTest(project=3, contract="full-card click target"):
-                cards.nth(2).scroll_into_view_if_needed()
-                hit_target = cards.nth(2).locator(".project-shot").evaluate(
+            with self.subTest(project=1, contract="full-card click target"):
+                cards.nth(0).scroll_into_view_if_needed()
+                hit_target = cards.nth(0).locator(".project-shot").evaluate(
                     """shot => {
                       const bounds = shot.getBoundingClientRect();
                       const hit = document.elementFromPoint(
@@ -446,7 +452,7 @@ class PortfolioE2E(unittest.TestCase):
 
     def test_bond_project_uses_domain_visual(self):
         page = self.open_page()
-        bond_card = page.locator("[data-project-card]").nth(1)
+        bond_card = page.locator("[data-project-card]").nth(5)
 
         self.assertEqual(bond_card.locator(".project-shot.bond-flow").count(), 1)
         self.assertEqual(bond_card.locator(".project-shot img").count(), 0)
@@ -1824,8 +1830,11 @@ class PortfolioE2E(unittest.TestCase):
         )
         self.assertLessEqual(abs(alignment["projectsLeft"] - alignment["writingLeft"]), 2)
         self.assertLessEqual(abs(alignment["projectsLeft"] - alignment["cardLeft"]), 2)
-        self.assertLessEqual(max(alignment["cardTops"]) - min(alignment["cardTops"]), 2)
-        self.assertLessEqual(max(alignment["cardBottoms"]) - min(alignment["cardBottoms"]), 2)
+        for row_start in range(0, len(alignment["cardTops"]), 3):
+            tops = alignment["cardTops"][row_start:row_start + 3]
+            bottoms = alignment["cardBottoms"][row_start:row_start + 3]
+            self.assertLessEqual(max(tops) - min(tops), 2)
+            self.assertLessEqual(max(bottoms) - min(bottoms), 2)
 
     def test_two_hundred_percent_text_size_stays_usable(self):
         page = self.open_page(width=320, height=720)
