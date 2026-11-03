@@ -44,7 +44,15 @@ function addInlineStyle(html, tagName, style) {
 }
 
 function rewriteLinks(html, siteUrl) {
-  return html.replace(/<a\b([^>]*?)\shref=(['"])(.*?)\2([^>]*)>/gi, (full, before, quote, href, after) => {
+  // WeChat draft HTML cannot resolve document-local footnote/navigation URLs.
+  // Keep citation labels and content, but omit the unusable back-reference.
+  const withoutFragmentLinks = html.replace(
+    /<a\b([^>]*?)\shref=(['"])#[^'"]*\2([^>]*)>([\s\S]*?)<\/a>/gi,
+    (full, before, quote, after, label) => (
+      /\bfootnote-backref\b/.test(`${before} ${after}`) ? "" : label
+    ),
+  );
+  return withoutFragmentLinks.replace(/<a\b([^>]*?)\shref=(['"])(.*?)\2([^>]*)>/gi, (full, before, quote, href, after) => {
     if (!href.startsWith("/")) return full;
     const absolute = new URL(href, `${normalizeSiteUrl(siteUrl)}/`).toString();
     return `<a${before} href=${quote}${absolute}${quote}${after}>`;

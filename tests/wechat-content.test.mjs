@@ -62,6 +62,22 @@ test("rejects remote Markdown images because WeChat strips external image URLs",
   );
 });
 
+test("keeps footnote content and source links without document-local navigation in WeChat", () => {
+  const post = parsePost({
+    filename: "2026-11-02-160210.md",
+    source: "# 体感时间\n\n中点 m = √(aL)。[^study]\n\n[^study]: 研究样本为 499 人。[研究](https://pubmed.ncbi.nlm.nih.gov/16512313/)。",
+  });
+  const html = renderWechatHtml(post, { imageUrls: new Map(), siteUrl: "https://example.com" });
+
+  assert.match(post.bodyHtml, /href="#fn1"/);
+  assert.doesNotMatch(html, /href=["']#/);
+  assert.match(html, /m = √\(aL\)/);
+  assert.match(html, /\[1\]/);
+  assert.match(html, /研究样本为 499 人/);
+  assert.match(html, /href="https:\/\/pubmed\.ncbi\.nlm\.nih\.gov\/16512313\/"/);
+  assert.doesNotMatch(html, /footnote-backref|↩/);
+});
+
 test("builds a WeChat article within title, author, digest and source URL limits", () => {
   const post = parsePost({
     filename: "2026-08-04-120002.md",
