@@ -1,0 +1,9 @@
+# 18 岁体感人生 · 公众号封面
+
+用途：仅作为公众号草稿封面，不插入文章正文。
+
+使用内置 image_gen 生成。生成前查看 assets/writing/molly-note.jpg，以 Molly 为动作主体；时间尺刻度渐密，4、18、81 对应正文中的对数模型示例。
+
+## 实际提示词
+
+Create one original 16:9 horizontal editorial illustration for a Chinese blog about a logarithmic model of subjective time, where starting at age 4 and ending at age 81 gives a subjective midpoint at age 18. Pure white background, delicate slightly irregular black hand-drawn ink lines, restrained red/orange/blue annotations, at least 40 percent blank white space. Quiet witty adult sketchbook style, no paper texture, shadows, gradients, decorative border, headline, logo, UI, flowchart or presentation slide. One physical metaphor only: Molly, a real black-and-white cat with very large upright ears, black ears and patches around the eyes, a white blaze and white muzzle, a tiny pink nose, round greenish eyes, white chest/legs and irregular black back patches, is actively pulling out a long flexible paper measuring ribbon with her forepaws. The ribbon runs horizontally through the center; its age marks are widely spaced on the left and become increasingly crowded to the right. Only three small hand-written numeric labels appear: '4' at the left end, '18' at the physical midpoint highlighted by one small red clothespin, '81' at the right end. No other text. Marks should approximately follow a logarithmic progression so 4 to 18 and 18 to 81 occupy equal horizontal spans. The cat takes the action seriously and has believable cat proportions, not a baby-faced mascot. Keep the action and all important content in the central horizontal crop-safe region, generously padded on all sides; compose for 16:9. Do not use a black silhouette stick figure. The scene expresses a mathematical model, not a scientific assertion about memory. Identity inspiration is the inspected Molly photo; retain distinctive black/white coat markings and large ears.
